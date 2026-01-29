@@ -17,28 +17,6 @@ async function invokeTool(tool: string, args: Record<string, unknown>) {
   return response.json()
 }
 
-// Send tool call with timeout (enough to send request and start server processing)
-async function sendToolQuick(tool: string, args: Record<string, unknown>) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
-
-  try {
-    await fetch(`${GATEWAY_URL}/tools/invoke`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ tool, args }),
-      signal: controller.signal
-    })
-  } catch {
-    // Ignore abort errors - we just need the request to be sent
-  } finally {
-    clearTimeout(timeoutId)
-  }
-}
-
 // Helper to extract text from message content
 function extractText(content: unknown): string {
   if (typeof content === 'string') return content
@@ -50,53 +28,8 @@ function extractText(content: unknown): string {
   return ''
 }
 
-// Helper to send message and wait for response
-async function sendAndWaitForResponse(message: string, maxWaitMs: number = 20000): Promise<string | null> {
-  // Add unique marker to identify our message
-  const uniqueMarker = `VLM${Date.now()}`
-  const fullMessage = message.replace('[Velum API]', `[Velum API ${uniqueMarker}]`)
-
-  // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
-  await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message: fullMessage })
-
-  // Poll for new assistant response (account for 5s send timeout)
-  const startTime = Date.now()
-  const pollInterval = 800
-
-  while (Date.now() - startTime < maxWaitMs) {
-    await new Promise(resolve => setTimeout(resolve, pollInterval))
-
-    const historyAfter = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 10 })
-    const historyData = JSON.parse(historyAfter.result?.content?.[0]?.text || '{}')
-    const messagesAfter = historyData.messages || []
-
-    // History is in reverse chronological order (newest first)
-    // Find our user message by unique marker, then check if there's a response
-    for (let i = 0; i < messagesAfter.length; i++) {
-      const msg = messagesAfter[i]
-      if (msg.role === 'user') {
-        const userText = extractText(msg.content)
-        // Found our message by unique marker
-        if (userText.includes(uniqueMarker)) {
-          // Check if there's an assistant response before it (lower index = newer)
-          if (i > 0) {
-            const prevMsg = messagesAfter[i - 1]
-            if (prevMsg.role === 'assistant') {
-              const reply = extractText(prevMsg.content)
-              if (reply) return reply
-            }
-          }
-          // Our message exists but no response yet - keep polling
-          break
-        }
-      }
-    }
-  }
-
-  return null
-}
-
-// Fetch nutrition data from the Pi via Moltbot gateway
+// Fetch nutrition data by looking at recent responses in history
+// This avoids the 30s timeout issue by not sending new requests
 export async function GET(request: NextRequest) {
   try {
     if (!GATEWAY_PASSWORD) {
@@ -110,64 +43,38 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
 
-    const message = `[Velum API] Return the nutrition data for ${date} as JSON only (no markdown, no explanation). Read from the food log and return this exact structure:
-{
-  "date": "YYYY-MM-DD",
-  "entries": [
-    {
-      "id": "unique-id",
-      "name": "Food name",
-      "calories": 123,
-      "protein": 10,
-      "carbs": 20,
-      "fat": 5,
-      "time": "HH:MM",
-      "meal": "breakfast|lunch|dinner|snack",
-      "photo": "base64 or url if available"
-    }
-  ],
-  "totals": {
-    "calories": 123,
-    "protein": 10,
-    "carbs": 20,
-    "fat": 5
-  },
-  "goals": {
-    "calories": 2000,
-    "protein": 150,
-    "carbs": 200,
-    "fat": 65
-  }
-}
-If no entries exist for that date, return empty entries array with zeros for totals.`
+    // Look through recent history for nutrition data responses
+    const history = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 20 })
+    const historyData = JSON.parse(history.result?.content?.[0]?.text || '{}')
+    const messages = historyData.messages || []
 
-    const content = await sendAndWaitForResponse(message)
-
-    if (!content) {
-      // Return empty data if no response
-      return NextResponse.json({
-        date,
-        entries: [],
-        totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
-      })
+    // Look for recent assistant message that contains nutrition JSON for this date
+    for (const msg of messages) {
+      if (msg.role === 'assistant') {
+        const content = extractText(msg.content)
+        // Check if it looks like nutrition JSON
+        if (content.includes('"date"') && content.includes('"entries"') && content.includes('"totals"')) {
+          try {
+            const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+            const nutritionData = JSON.parse(jsonStr)
+            // Check if it's for the requested date
+            if (nutritionData.date === date) {
+              return NextResponse.json(nutritionData)
+            }
+          } catch {
+            // Not valid JSON, continue searching
+          }
+        }
+      }
     }
 
-    // Try to parse as JSON
-    try {
-      // Remove any markdown code blocks if present
-      const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      const nutritionData = JSON.parse(jsonStr)
-      return NextResponse.json(nutritionData)
-    } catch (parseError) {
-      console.error('Failed to parse nutrition data as JSON:', content)
-      return NextResponse.json({
-        date,
-        entries: [],
-        totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
-      })
-    }
+    // No nutrition data found in history, return empty
+    return NextResponse.json({
+      date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    })
   } catch (error) {
     console.error('Nutrition API error:', error)
     return NextResponse.json(
@@ -177,7 +84,7 @@ If no entries exist for that date, return empty entries array with zeros for tot
   }
 }
 
-// POST endpoint to log food (alternative to chat)
+// POST endpoint to log food - just sends to the bot asynchronously
 export async function POST(request: NextRequest) {
   try {
     if (!GATEWAY_PASSWORD) {
@@ -198,14 +105,25 @@ export async function POST(request: NextRequest) {
     }
 
     const logMessage = calories
-      ? `[Velum API] Log ${food} for ${meal || 'a meal'}: ${calories} calories, ${protein || 0}g protein, ${carbs || 0}g carbs, ${fat || 0}g fat`
-      : `[Velum API] Log ${food} for ${meal || 'a meal'}`
+      ? `[Velum] Log ${food} for ${meal || 'a meal'}: ${calories} calories, ${protein || 0}g protein, ${carbs || 0}g carbs, ${fat || 0}g fat`
+      : `[Velum] Log ${food} for ${meal || 'a meal'}`
 
-    const content = await sendAndWaitForResponse(logMessage)
+    // Send the message (fire-and-forget - don't wait for response)
+    fetch(`${GATEWAY_URL}/tools/invoke`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tool: 'sessions_send',
+        args: { sessionKey: SESSION_KEY, message: logMessage }
+      })
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,
-      message: content || 'Food logged'
+      message: 'Food logging request sent. The dashboard will update shortly.'
     })
   } catch (error) {
     console.error('Nutrition POST error:', error)
