@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  Plus, 
-  Search, 
-  Settings, 
-  Apple, 
-  Target, 
+import {
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Search,
+  Settings,
+  Apple,
+  Target,
   MessageSquare,
   Send,
   Utensils,
@@ -17,7 +17,9 @@ import {
   Wheat,
   MoreHorizontal,
   Trash2,
-  X
+  X,
+  Image,
+  Clock
 } from 'lucide-react'
 
 // Types
@@ -30,6 +32,7 @@ interface FoodEntry {
   fat: number
   time: string
   date: string
+  photo?: string
 }
 
 interface Message {
@@ -161,6 +164,123 @@ function Sidebar({
   )
 }
 
+// Compact Progress Widget
+function CompactProgress({
+  totals,
+  goals,
+  onEditGoals
+}: {
+  totals: { calories: number; protein: number; carbs: number; fat: number }
+  goals: Goals
+  onEditGoals: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const caloriePercent = Math.min((totals.calories / goals.calories) * 100, 100)
+
+  return (
+    <div className="bg-notion-sidebar rounded-lg p-4">
+      {/* Main calorie display */}
+      <div className="flex items-center gap-4">
+        {/* Circular progress */}
+        <div className="relative w-20 h-20 flex-shrink-0">
+          <svg className="w-20 h-20 transform -rotate-90">
+            <circle
+              cx="40"
+              cy="40"
+              r="35"
+              stroke="currentColor"
+              strokeWidth="6"
+              fill="none"
+              className="text-notion-border"
+            />
+            <circle
+              cx="40"
+              cy="40"
+              r="35"
+              stroke="currentColor"
+              strokeWidth="6"
+              fill="none"
+              strokeDasharray={`${caloriePercent * 2.2} 220`}
+              strokeLinecap="round"
+              className="text-orange-400"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-lg font-bold">{totals.calories}</span>
+            <span className="text-xs text-notion-text-light">kcal</span>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-medium">Daily Progress</span>
+            <button
+              onClick={onEditGoals}
+              className="text-xs text-notion-accent hover:underline"
+            >
+              Edit
+            </button>
+          </div>
+          <p className="text-sm text-notion-text-light mb-2">
+            {goals.calories - totals.calories > 0
+              ? `${goals.calories - totals.calories} kcal remaining`
+              : `${totals.calories - goals.calories} kcal over goal`}
+          </p>
+          {/* Macro pills */}
+          <div className="flex gap-2">
+            <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">
+              {totals.protein}g P
+            </span>
+            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-600 rounded-full text-xs font-medium">
+              {totals.carbs}g C
+            </span>
+            <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">
+              {totals.fat}g F
+            </span>
+          </div>
+        </div>
+
+        {/* Expand button */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="p-1 hover:bg-notion-hover rounded text-notion-text-light"
+        >
+          {expanded ? (
+            <ChevronDown className="w-5 h-5" />
+          ) : (
+            <ChevronRight className="w-5 h-5" />
+          )}
+        </button>
+      </div>
+
+      {/* Expanded macro details */}
+      {expanded && (
+        <div className="mt-4 pt-4 border-t border-notion-border space-y-3">
+          <MacroBar
+            label="Protein"
+            current={totals.protein}
+            goal={goals.protein}
+            color="bg-red-400"
+          />
+          <MacroBar
+            label="Carbs"
+            current={totals.carbs}
+            goal={goals.carbs}
+            color="bg-yellow-400"
+          />
+          <MacroBar
+            label="Fat"
+            current={totals.fat}
+            goal={goals.fat}
+            color="bg-blue-400"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Macro Progress Bar
 function MacroBar({ 
   label, 
@@ -196,33 +316,48 @@ function MacroBar({
   )
 }
 
-// Food Entry Row
-function FoodEntryRow({ 
-  entry, 
-  onDelete 
-}: { 
+// Food Card Component
+function FoodCard({
+  entry,
+  onDelete
+}: {
   entry: FoodEntry
   onDelete: (id: string) => void
 }) {
-  const [showMenu, setShowMenu] = useState(false)
-  
   return (
-    <div className="flex items-center py-2 px-3 hover:bg-notion-hover rounded group">
-      <div className="flex-1">
-        <div className="font-medium text-sm">{entry.name}</div>
-        <div className="text-xs text-notion-text-light">{entry.time}</div>
-      </div>
-      <div className="flex items-center gap-4 text-sm text-notion-text-light">
-        <span>{entry.calories} cal</span>
-        <span>{entry.protein}g P</span>
-        <span>{entry.carbs}g C</span>
-        <span>{entry.fat}g F</span>
-        <button 
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-notion-border rounded"
+    <div className="bg-white border border-notion-border rounded-lg overflow-hidden hover:shadow-md transition-shadow group">
+      {/* Photo area */}
+      <div className="h-32 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
+        {entry.photo ? (
+          <img src={entry.photo} alt={entry.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="text-gray-400">
+            <Image className="w-10 h-10" />
+          </div>
+        )}
+        <button
           onClick={() => onDelete(entry.id)}
+          className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-3.5 h-3.5 text-gray-500" />
         </button>
+      </div>
+      {/* Content */}
+      <div className="p-3">
+        <div className="font-medium text-sm mb-1">{entry.name}</div>
+        <div className="flex items-center gap-1 text-xs text-notion-text-light mb-2">
+          <Clock className="w-3 h-3" />
+          <span>{entry.time}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-lg font-bold text-orange-500">{entry.calories}</span>
+          <span className="text-xs text-notion-text-light">kcal</span>
+        </div>
+        <div className="flex gap-2 mt-2 text-xs text-notion-text-light">
+          <span className="px-1.5 py-0.5 bg-red-50 text-red-600 rounded">{entry.protein}g P</span>
+          <span className="px-1.5 py-0.5 bg-yellow-50 text-yellow-600 rounded">{entry.carbs}g C</span>
+          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">{entry.fat}g F</span>
+        </div>
       </div>
     </div>
   )
@@ -541,58 +676,61 @@ function Chat({ context }: { context: string }) {
   }
   
   return (
-    <div className="flex flex-col h-80 border-t border-notion-border">
-      <div className="px-4 py-2 border-b border-notion-border bg-notion-sidebar">
-        <div className="flex items-center gap-2 text-sm text-notion-text-light">
-          <MessageSquare className="w-4 h-4" />
-          <span>Nutrition Assistant</span>
+    <div className="border-t border-notion-border bg-notion-sidebar/50">
+      <div className="max-w-2xl mx-auto">
+        {/* Compact header */}
+        <div className="px-4 py-2 flex items-center justify-center gap-2 text-xs text-notion-text-light border-b border-notion-border/50">
+          <MessageSquare className="w-3 h-3" />
+          <span>Chat with Archie</span>
         </div>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map(message => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+
+        {/* Messages - compact scrollable area */}
+        <div className="h-48 overflow-y-auto px-4 py-2 space-y-2">
+          {messages.map(message => (
             <div
-              className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
-                message.role === 'user'
-                  ? 'bg-notion-text text-white'
-                  : 'bg-notion-sidebar text-notion-text'
-              }`}
+              key={message.id}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {message.content}
+              <div
+                className={`max-w-[85%] px-3 py-1.5 rounded-2xl text-sm ${
+                  message.role === 'user'
+                    ? 'bg-notion-text text-white'
+                    : 'bg-white text-notion-text border border-notion-border'
+                }`}
+              >
+                {message.content}
+              </div>
             </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-notion-sidebar text-notion-text-light px-3 py-2 rounded-lg text-sm">
-              Thinking...
+          ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white text-notion-text-light px-3 py-1.5 rounded-2xl text-sm border border-notion-border">
+                <span className="animate-pulse">...</span>
+              </div>
             </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input - compact */}
+        <div className="px-4 py-2 border-t border-notion-border/50">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Ask Archie anything..."
+              className="flex-1 px-3 py-1.5 border border-notion-border rounded-full text-sm focus:border-notion-accent focus:outline-none bg-white"
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isLoading || !input.trim()}
+              className="p-1.5 bg-notion-text text-white rounded-full hover:bg-opacity-90 disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+            </button>
           </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-      
-      <div className="p-3 border-t border-notion-border">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Log food or ask a question..."
-            className="flex-1 px-3 py-2 border border-notion-border rounded-lg text-sm focus:border-notion-accent"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={isLoading || !input.trim()}
-            className="p-2 bg-notion-text text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50"
-          >
-            <Send className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </div>
@@ -683,70 +821,12 @@ function NutritionDashboard() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-8 py-6 space-y-6">
-          {/* Macros Overview */}
-          <div className="bg-notion-sidebar rounded-lg p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold">Daily Progress</h2>
-              <button 
-                onClick={() => setShowGoalsModal(true)}
-                className="text-sm text-notion-accent hover:underline"
-              >
-                Edit goals
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <MacroBar 
-                label="Calories" 
-                current={totals.calories} 
-                goal={goals.calories} 
-                color="bg-orange-400"
-                unit=" kcal"
-              />
-              <MacroBar 
-                label="Protein" 
-                current={totals.protein} 
-                goal={goals.protein} 
-                color="bg-red-400"
-              />
-              <MacroBar 
-                label="Carbs" 
-                current={totals.carbs} 
-                goal={goals.carbs} 
-                color="bg-yellow-400"
-              />
-              <MacroBar 
-                label="Fat" 
-                current={totals.fat} 
-                goal={goals.fat} 
-                color="bg-blue-400"
-              />
-            </div>
-            
-            {/* Summary cards */}
-            <div className="grid grid-cols-4 gap-3 mt-5">
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.calories}</div>
-                <div className="text-xs text-notion-text-light">kcal</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Beef className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.protein}g</div>
-                <div className="text-xs text-notion-text-light">protein</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Wheat className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.carbs}g</div>
-                <div className="text-xs text-notion-text-light">carbs</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Target className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.fat}g</div>
-                <div className="text-xs text-notion-text-light">fat</div>
-              </div>
-            </div>
-          </div>
+          {/* Compact Daily Progress */}
+          <CompactProgress
+            totals={totals}
+            goals={goals}
+            onEditGoals={() => setShowGoalsModal(true)}
+          />
           
           {/* Food Log */}
           <div>
@@ -754,26 +834,26 @@ function NutritionDashboard() {
               <h2 className="font-semibold">Food Log</h2>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-notion-text text-white rounded hover:bg-opacity-90"
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-notion-text text-white rounded-full hover:bg-opacity-90"
               >
                 <Plus className="w-4 h-4" />
                 Add food
               </button>
             </div>
-            
-            <div className="bg-white border border-notion-border rounded-lg divide-y divide-notion-border">
-              {todayEntries.length > 0 ? (
-                todayEntries.map(entry => (
-                  <FoodEntryRow key={entry.id} entry={entry} onDelete={deleteFood} />
-                ))
-              ) : (
-                <div className="p-8 text-center text-notion-text-light">
-                  <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No food logged today</p>
-                  <p className="text-sm">Click "Add food" or use the chat below</p>
-                </div>
-              )}
-            </div>
+
+            {todayEntries.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {todayEntries.map(entry => (
+                  <FoodCard key={entry.id} entry={entry} onDelete={deleteFood} />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white border border-notion-border rounded-lg p-8 text-center text-notion-text-light">
+                <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No food logged today</p>
+                <p className="text-sm">Click "Add food" or use the chat below</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
