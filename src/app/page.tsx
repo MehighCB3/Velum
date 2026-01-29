@@ -268,36 +268,15 @@ export default function VelumApp() {
         })
       });
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessage = '';
+      const data = await response.json();
 
-      setChatMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-      while (reader) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-            try {
-              const json = JSON.parse(line.slice(6));
-              const content = json.choices?.[0]?.delta?.content;
-              if (content) {
-                assistantMessage += content;
-                setChatMessages(prev => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { role: 'assistant', content: assistantMessage };
-                  return updated;
-                });
-              }
-            } catch {}
-          }
-        }
+      if (data.error) {
+        setChatMessages(prev => [...prev, { role: 'assistant', content: data.error }]);
+      } else {
+        const reply = data.reply || 'No response';
+        setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
+
       // Refresh nutrition data after chat (in case user logged food)
       setTimeout(() => fetchNutritionData(), 1000);
     } catch (error) {
