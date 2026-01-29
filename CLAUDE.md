@@ -1,7 +1,72 @@
+# Velum - Nutrition Tracker with AI Chat
+
+## What to Build
+
+A nutrition tracking web app with:
+- Dark hero card showing calories + macros
+- Meal list with emoji icons
+- Weekly bar chart view
+- AI chat panel (collapsible)
+
+Tech: Next.js 14 (App Router), Tailwind CSS, Lucide React icons
+
+---
+
+## Setup
+
+```bash
+npm install lucide-react
+```
+
+Create `.env.local`:
+```
+GATEWAY_URL=https://rasppi5.tail5b3227.ts.net
+GATEWAY_PASSWORD=<your_password>
+```
+
+---
+
+## Files to Create
+
+### 1. `src/app/api/chat/route.ts`
+
+```typescript
+import { NextRequest } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  const { messages, userId } = await req.json();
+  
+  const response = await fetch(`${process.env.GATEWAY_URL}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.GATEWAY_PASSWORD}`,
+      'Content-Type': 'application/json',
+      'x-moltbot-agent-id': 'main'
+    },
+    body: JSON.stringify({
+      model: 'moltbot',
+      user: userId ? `velum:${userId}` : 'velum:anonymous',
+      stream: true,
+      messages
+    })
+  });
+
+  return new Response(response.body, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    }
+  });
+}
+```
+
+### 2. `src/app/page.tsx`
+
+```tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import {
+import { 
   Apple, Clock, Target, MessageCircle, Settings, Plus, Send, Camera,
   ChevronRight, Sparkles, X
 } from 'lucide-react';
@@ -15,7 +80,7 @@ export default function VelumApp() {
     { role: 'assistant', content: "Hey! You've got 1,230 kcal left today. Want some dinner ideas? 🍽️" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-
+  
   const todayData = {
     consumed: 770,
     goal: 2000,
@@ -40,7 +105,7 @@ export default function VelumApp() {
 
   const progress = Math.round((todayData.consumed / todayData.goal) * 100);
   const remaining = todayData.goal - todayData.consumed;
-
+  
   const [animatedProgress, setAnimatedProgress] = useState(0);
   useEffect(() => {
     const timer = setTimeout(() => setAnimatedProgress(progress), 100);
@@ -49,7 +114,7 @@ export default function VelumApp() {
 
   const sendMessage = async () => {
     if (!message.trim() || isLoading) return;
-
+    
     const userMessage = message;
     setMessage('');
     setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
@@ -80,10 +145,10 @@ export default function VelumApp() {
       while (reader) {
         const { done, value } = await reader.read();
         if (done) break;
-
+        
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n');
-
+        
         for (const line of lines) {
           if (line.startsWith('data: ') && line !== 'data: [DONE]') {
             try {
@@ -111,7 +176,7 @@ export default function VelumApp() {
 
   return (
     <div className="flex h-screen font-sans antialiased bg-stone-50 text-stone-900">
-
+      
       {/* Sidebar */}
       <nav className="w-20 bg-white border-r border-stone-100 flex flex-col items-center py-6">
         <div className="w-11 h-11 bg-gradient-to-br from-orange-500 to-pink-600 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-orange-500/25">
@@ -366,3 +431,14 @@ function BotMessage({ children }: { children: React.ReactNode }) {
 function UserMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex justify-end"><p className="text-sm bg-stone-900 text-white px-4 py-2.5 rounded-2xl rounded-tr-md">{children}</p></div>;
 }
+```
+
+---
+
+## Run
+
+```bash
+npm run dev
+```
+
+Then test the chat — it should connect to the Moltbot gateway on your Pi.
