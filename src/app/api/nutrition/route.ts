@@ -17,10 +17,10 @@ async function invokeTool(tool: string, args: Record<string, unknown>) {
   return response.json()
 }
 
-// Send tool call with short timeout (just enough to send the request)
+// Send tool call with timeout (enough to send request and start server processing)
 async function sendToolQuick(tool: string, args: Record<string, unknown>) {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
 
   try {
     await fetch(`${GATEWAY_URL}/tools/invoke`, {
@@ -58,9 +58,9 @@ async function sendAndWaitForResponse(message: string, messageMarker: string, ma
   // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
   await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message })
 
-  // Poll for new assistant response
+  // Poll for new assistant response (account for 5s send timeout)
   const startTime = Date.now()
-  const pollInterval = 1000
+  const pollInterval = 800
 
   while (Date.now() - startTime < maxWaitMs) {
     await new Promise(resolve => setTimeout(resolve, pollInterval))
