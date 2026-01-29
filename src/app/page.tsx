@@ -3,8 +3,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   Apple, Clock, Target, MessageCircle, Settings, Plus, Send, Camera,
-  ChevronRight, Sparkles, X
+  ChevronRight, ChevronDown, Sparkles, X, FileText, Folder, Search,
+  Utensils, BarChart3, BookOpen, Dumbbell, Brain, ListTodo
 } from 'lucide-react';
+
+// Navigation item type for nested folder structure (up to 5 levels)
+interface NavItem {
+  id: string;
+  name: string;
+  icon?: any;
+  type: 'page' | 'folder';
+  children?: NavItem[];
+}
 
 export default function VelumApp() {
   const [message, setMessage] = useState('');
@@ -15,6 +25,94 @@ export default function VelumApp() {
     { role: 'assistant', content: "Hey! You've got 1,230 kcal left today. Want some dinner ideas? 🍽️" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeNavItem, setActiveNavItem] = useState('nutrition-today');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition', 'nutrition-meals']));
+
+  // Notion-style navigation structure (supports up to 5 levels)
+  const navigation: NavItem[] = [
+    {
+      id: 'nutrition',
+      name: 'Nutrition',
+      icon: Apple,
+      type: 'folder',
+      children: [
+        { id: 'nutrition-today', name: 'Today', icon: Utensils, type: 'page' },
+        { id: 'nutrition-history', name: 'History', icon: Clock, type: 'page' },
+        { id: 'nutrition-analytics', name: 'Analytics', icon: BarChart3, type: 'page' },
+        {
+          id: 'nutrition-meals',
+          name: 'Meals',
+          icon: Folder,
+          type: 'folder',
+          children: [
+            { id: 'meals-breakfast', name: 'Breakfast', icon: FileText, type: 'page' },
+            { id: 'meals-lunch', name: 'Lunch', icon: FileText, type: 'page' },
+            { id: 'meals-dinner', name: 'Dinner', icon: FileText, type: 'page' },
+            {
+              id: 'meals-recipes',
+              name: 'Recipes',
+              icon: Folder,
+              type: 'folder',
+              children: [
+                { id: 'recipes-quick', name: 'Quick Meals', icon: FileText, type: 'page' },
+                { id: 'recipes-healthy', name: 'Healthy', icon: FileText, type: 'page' },
+                {
+                  id: 'recipes-by-cuisine',
+                  name: 'By Cuisine',
+                  icon: Folder,
+                  type: 'folder',
+                  children: [
+                    { id: 'cuisine-italian', name: 'Italian', icon: FileText, type: 'page' },
+                    { id: 'cuisine-asian', name: 'Asian', icon: FileText, type: 'page' },
+                    { id: 'cuisine-mexican', name: 'Mexican', icon: FileText, type: 'page' },
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { id: 'nutrition-goals', name: 'Goals', icon: Target, type: 'page' },
+      ]
+    },
+    {
+      id: 'fitness',
+      name: 'Fitness',
+      icon: Dumbbell,
+      type: 'folder',
+      children: [
+        { id: 'fitness-workouts', name: 'Workouts', icon: FileText, type: 'page' },
+        { id: 'fitness-progress', name: 'Progress', icon: BarChart3, type: 'page' },
+      ]
+    },
+    {
+      id: 'knowledge',
+      name: 'Knowledge',
+      icon: Brain,
+      type: 'folder',
+      children: [
+        { id: 'knowledge-articles', name: 'Articles', icon: BookOpen, type: 'page' },
+        { id: 'knowledge-notes', name: 'Notes', icon: FileText, type: 'page' },
+      ]
+    },
+    {
+      id: 'tasks',
+      name: 'Tasks',
+      icon: ListTodo,
+      type: 'page',
+    }
+  ];
+
+  const toggleFolder = (id: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const todayData = {
     consumed: 770,
@@ -112,17 +210,49 @@ export default function VelumApp() {
   return (
     <div className="flex h-screen font-sans antialiased bg-stone-50 text-stone-900">
 
-      {/* Sidebar */}
-      <nav className="w-20 bg-white border-r border-stone-100 flex flex-col items-center py-6">
-        <div className="w-11 h-11 bg-gradient-to-br from-orange-500 to-pink-600 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-orange-500/25">
-          <span className="text-white font-bold text-lg">V</span>
+      {/* Sidebar - Notion style */}
+      <nav className="w-60 bg-stone-100/50 border-r border-stone-200 flex flex-col">
+        {/* Workspace header */}
+        <div className="h-14 flex items-center gap-3 px-4 border-b border-stone-200/50">
+          <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-pink-600 rounded-lg flex items-center justify-center shadow-sm shadow-orange-500/20">
+            <span className="text-white font-bold text-sm">V</span>
+          </div>
+          <span className="font-semibold text-stone-800">Velum</span>
         </div>
-        <div className="flex-1 flex flex-col items-center gap-3">
-          <NavItem icon={Apple} label="Today" active />
-          <NavItem icon={Clock} label="History" />
-          <NavItem icon={Target} label="Goals" />
+
+        {/* Search */}
+        <div className="px-3 py-2">
+          <button className="w-full flex items-center gap-2 px-2 py-1.5 text-stone-500 hover:bg-stone-200/50 rounded-md transition-colors">
+            <Search size={14} />
+            <span className="text-sm">Search</span>
+          </button>
         </div>
-        <NavItem icon={Settings} label="Settings" />
+
+        {/* Navigation */}
+        <div className="flex-1 overflow-y-auto px-2 py-1">
+          <div className="px-2 py-1.5 mb-1">
+            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">Workspace</span>
+          </div>
+          {navigation.map(item => (
+            <SidebarItem
+              key={item.id}
+              item={item}
+              depth={0}
+              activeId={activeNavItem}
+              expandedFolders={expandedFolders}
+              onSelect={setActiveNavItem}
+              onToggle={toggleFolder}
+            />
+          ))}
+        </div>
+
+        {/* Settings */}
+        <div className="p-2 border-t border-stone-200/50">
+          <button className="w-full flex items-center gap-2 px-2 py-1.5 text-stone-500 hover:bg-stone-200/50 rounded-md transition-colors">
+            <Settings size={16} />
+            <span className="text-sm">Settings</span>
+          </button>
+        </div>
       </nav>
 
       {/* Main */}
@@ -249,11 +379,87 @@ export default function VelumApp() {
   );
 }
 
-function NavItem({ icon: Icon, active, label }: { icon: any; active?: boolean; label: string }) {
+// Recursive sidebar item component for Notion-style navigation (supports 5 levels)
+function SidebarItem({
+  item,
+  depth,
+  activeId,
+  expandedFolders,
+  onSelect,
+  onToggle
+}: {
+  item: NavItem;
+  depth: number;
+  activeId: string;
+  expandedFolders: Set<string>;
+  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
+}) {
+  const isExpanded = expandedFolders.has(item.id);
+  const isActive = activeId === item.id;
+  const hasChildren = item.type === 'folder' && item.children && item.children.length > 0;
+  const Icon = item.icon || FileText;
+  const paddingLeft = 8 + depth * 12;
+
   return (
-    <button className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${active ? 'bg-gradient-to-br from-orange-500 to-pink-600 text-white shadow-lg shadow-orange-500/30' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`} title={label}>
-      <Icon size={20} />
-    </button>
+    <div>
+      <button
+        onClick={() => {
+          if (hasChildren) {
+            onToggle(item.id);
+          }
+          onSelect(item.id);
+        }}
+        className={`w-full flex items-center gap-1.5 py-1 px-1 rounded-md text-sm transition-colors group ${
+          isActive
+            ? 'bg-orange-100 text-orange-700'
+            : 'text-stone-600 hover:bg-stone-200/50'
+        }`}
+        style={{ paddingLeft: `${paddingLeft}px` }}
+      >
+        {/* Expand/collapse chevron for folders */}
+        {hasChildren ? (
+          <span
+            className="p-0.5 hover:bg-stone-300/50 rounded transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(item.id);
+            }}
+          >
+            {isExpanded ? (
+              <ChevronDown size={12} className="text-stone-400" />
+            ) : (
+              <ChevronRight size={12} className="text-stone-400" />
+            )}
+          </span>
+        ) : (
+          <span className="w-4" />
+        )}
+
+        {/* Icon */}
+        <Icon size={14} className={isActive ? 'text-orange-600' : 'text-stone-400 group-hover:text-stone-500'} />
+
+        {/* Label */}
+        <span className="truncate flex-1 text-left">{item.name}</span>
+      </button>
+
+      {/* Render children recursively (up to depth 4 = 5 levels total) */}
+      {hasChildren && isExpanded && depth < 4 && (
+        <div>
+          {item.children!.map(child => (
+            <SidebarItem
+              key={child.id}
+              item={child}
+              depth={depth + 1}
+              activeId={activeId}
+              expandedFolders={expandedFolders}
+              onSelect={onSelect}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
