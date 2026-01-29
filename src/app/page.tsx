@@ -127,10 +127,26 @@ function Sidebar({
       {/* Workspace header */}
       <div className="p-3 border-b border-notion-border">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-gradient-to-br from-orange-400 to-pink-500 rounded flex items-center justify-center text-white text-xs font-bold">
-            V
+          <div className="w-6 h-6 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="spiralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:1" />
+                  <stop offset="50%" style="stop-color:#f7931e;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:1" />
+                </linearGradient>
+              </defs>
+              <circle cx="32" cy="32" r="30" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+              <path d="M32,12 C40,12 48,20 48,32 C48,44 40,52 32,52 C24,52 16,44 16,32 C16,24 20,18 26,15" 
+                    fill="none" 
+                    stroke="url(#spiralGradient)" 
+                    stroke-width="3" 
+                    stroke-linecap="round"/>
+              <circle cx="26" cy="15" r="2" fill="#ff6b35"/>
+              <circle cx="32" cy="32" r="28" fill="none" stroke="#ff6b35" stroke-width="1" opacity="0.3"/>
+            </svg>
           </div>
-          <span className="font-medium text-sm">Velum</span>
+          <span className="font-medium text-sm">Archie</span>
         </div>
       </div>
       
