@@ -27,13 +27,18 @@ export async function POST(request: NextRequest) {
       ? `Context: ${context}\n\nUser: ${message}`
       : message
 
-    const response = await fetch(`${GATEWAY_URL}/api/v1/agent/send`, {
+    const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': GATEWAY_PASSWORD,
+        'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
       },
-      body: JSON.stringify({ message: fullMessage }),
+      body: JSON.stringify({
+        tool: 'agent_send',
+        args: {
+          message: fullMessage
+        }
+      }),
     })
 
     if (!response.ok) {
