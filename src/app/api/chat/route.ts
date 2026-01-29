@@ -46,7 +46,14 @@ export async function POST(request: NextRequest) {
       const errorText = await response.text()
       console.error(`Gateway error: ${response.status} - ${errorText}`)
       return NextResponse.json(
-        { error: 'Failed to get response from assistant' },
+        {
+          error: 'Failed to get response from assistant',
+          debug: {
+            status: response.status,
+            gatewayResponse: errorText,
+            gatewayUrl: GATEWAY_URL
+          }
+        },
         { status: response.status }
       )
     }
