@@ -17,16 +17,26 @@ async function invokeTool(tool: string, args: Record<string, unknown>) {
   return response.json()
 }
 
-// Fire-and-forget tool call (doesn't wait for response)
-function fireToolNoWait(tool: string, args: Record<string, unknown>) {
-  fetch(`${GATEWAY_URL}/tools/invoke`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ tool, args })
-  }).catch(() => {}) // Ignore errors
+// Send tool call with short timeout (just enough to send the request)
+async function sendToolQuick(tool: string, args: Record<string, unknown>) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout
+
+  try {
+    await fetch(`${GATEWAY_URL}/tools/invoke`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ tool, args }),
+      signal: controller.signal
+    })
+  } catch {
+    // Ignore abort errors - we just need the request to be sent
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 // Helper to extract text from message content
@@ -47,8 +57,8 @@ async function sendAndWaitForResponse(message: string, maxWaitMs: number = 25000
   const messagesBefore = JSON.parse(historyBefore.result?.content?.[0]?.text || '{}').messages || []
   const lastTimestamp = messagesBefore[0]?.timestamp || 0
 
-  // Fire the message without waiting (sessions_send blocks for 30s)
-  fireToolNoWait('sessions_send', { sessionKey: SESSION_KEY, message })
+  // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
+  await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message })
 
   // Poll for new assistant response
   const startTime = Date.now()
