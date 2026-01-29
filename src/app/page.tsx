@@ -67,10 +67,9 @@ export default function VelumApp() {
   const [chatOpen, setChatOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('today');
   const [selectedDay, setSelectedDay] = useState(6);
-  const [chatMessages, setChatMessages] = useState([
-    { role: 'assistant', content: "Hey! You've got 1,230 kcal left today. Want some dinner ideas? 🍽️" }
-  ]);
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(true);
   const [activeNavItem, setActiveNavItem] = useState('nutrition-today');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition', 'nutrition-meals']));
 
@@ -96,12 +95,40 @@ export default function VelumApp() {
     }
   };
 
+  // Fetch chat history from the Pi
+  const fetchChatHistory = async () => {
+    try {
+      const response = await fetch('/api/chat');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0) {
+          setChatMessages(data.messages);
+        } else {
+          // No history - show welcome message
+          setChatMessages([
+            { role: 'assistant', content: "Hey! I'm Archie, your nutrition coach. Send me photos of your meals or ask me anything about nutrition! 🍽️" }
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch chat history:', error);
+      // Show welcome message on error
+      setChatMessages([
+        { role: 'assistant', content: "Hey! I'm Archie, your nutrition coach. Ask me anything about nutrition! 🍽️" }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   // Fetch on mount and set up refresh
   useEffect(() => {
     fetchNutritionData();
+    fetchChatHistory();
     // Refresh every 30 seconds to catch Telegram updates
     const interval = setInterval(() => {
       fetchNutritionData();
+      fetchChatHistory();
       setLastRefresh(new Date());
     }, 30000);
     return () => clearInterval(interval);
@@ -277,8 +304,11 @@ export default function VelumApp() {
         setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
 
-      // Refresh nutrition data after chat (in case user logged food)
-      setTimeout(() => fetchNutritionData(), 1000);
+      // Refresh nutrition data and chat history after chat (in case user logged food)
+      setTimeout(() => {
+        fetchNutritionData();
+        fetchChatHistory();
+      }, 1000);
     } catch (error) {
       console.error('Chat error:', error);
       setChatMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, connection error. Try again.' }]);
@@ -459,8 +489,16 @@ export default function VelumApp() {
             </div>
             <div className="flex-1 p-4 overflow-auto">
               <div className="space-y-4">
-                {chatMessages.map((msg, i) => msg.role === 'assistant' ? <BotMessage key={i}>{msg.content}</BotMessage> : <UserMessage key={i}>{msg.content}</UserMessage>)}
-                {isLoading && <BotMessage>Thinking...</BotMessage>}
+                {chatLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-sm text-stone-400">Loading chat history...</div>
+                  </div>
+                ) : (
+                  <>
+                    {chatMessages.map((msg, i) => msg.role === 'assistant' ? <BotMessage key={i}>{msg.content}</BotMessage> : <UserMessage key={i}>{msg.content}</UserMessage>)}
+                    {isLoading && <BotMessage>Thinking...</BotMessage>}
+                  </>
+                )}
               </div>
             </div>
             <div className="p-3 border-t border-stone-100 flex-shrink-0">

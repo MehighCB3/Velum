@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 const GATEWAY_URL = process.env.GATEWAY_URL || 'https://rasppi5.tail5b3227.ts.net'
 const GATEWAY_PASSWORD = process.env.GATEWAY_PASSWORD
@@ -28,7 +28,80 @@ function extractText(content: unknown): string {
   return ''
 }
 
-export async function POST(request: NextRequest) {
+// GET - Fetch chat history from the Pi
+// Returns messages from Velum Web UI conversations
+export async function GET() {
+  try {
+    if (!GATEWAY_PASSWORD) {
+      return NextResponse.json(
+        { error: 'Gateway not configured' },
+        { status: 500 }
+      )
+    }
+
+    // Fetch recent history from the shared session
+    const history = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 50 })
+    const historyData = JSON.parse(history.result?.content?.[0]?.text || '{}')
+    const messages = historyData.messages || []
+
+    // Filter and transform messages from Velum Web UI conversations
+    // Messages are in reverse chronological order (newest first)
+    const chatMessages: { role: string; content: string; timestamp?: string }[] = []
+
+    // Process messages - we want to find Velum Web UI user messages and their responses
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]
+      const content = extractText(msg.content)
+
+      if (msg.role === 'user' && content.includes('[Velum Web UI')) {
+        // This is a Velum user message - extract the actual content
+        // Format: [Velum Web UI VLM{timestamp}] actual message
+        const match = content.match(/\[Velum Web UI VLM\d+\]\s*(.+)/)
+        const userContent = match ? match[1] : content.replace(/\[Velum Web UI[^\]]*\]\s*/, '')
+
+        // Add the user message
+        chatMessages.push({
+          role: 'user',
+          content: userContent,
+          timestamp: msg.timestamp
+        })
+
+        // Check if there's an assistant response (at lower index = newer)
+        if (i > 0) {
+          const prevMsg = messages[i - 1]
+          if (prevMsg.role === 'assistant') {
+            const assistantContent = extractText(prevMsg.content)
+            // Skip nutrition JSON responses (they're data, not chat)
+            if (!assistantContent.includes('"entries"') || !assistantContent.includes('"totals"')) {
+              chatMessages.push({
+                role: 'assistant',
+                content: assistantContent,
+                timestamp: prevMsg.timestamp
+              })
+            }
+          }
+        }
+      }
+    }
+
+    // Reverse to get chronological order (oldest first)
+    chatMessages.reverse()
+
+    // Limit to last 20 messages for the UI
+    const recentMessages = chatMessages.slice(-20)
+
+    return NextResponse.json({ messages: recentMessages })
+  } catch (error) {
+    console.error('Chat history error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch chat history' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Send a new chat message
+export async function POST(request: Request) {
   try {
     const { messages } = await request.json()
 
