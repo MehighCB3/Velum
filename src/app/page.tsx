@@ -639,6 +639,16 @@ function NutritionDashboard() {
       fat: 22,
       time: '13:00',
       date: today
+    },
+    {
+      id: '3',
+      name: 'Lentil & grain medley with vegetables',
+      calories: 439,
+      protein: 33.6,
+      carbs: 76.2,
+      fat: 1.6,
+      time: '21:32',
+      date: today
     }
   ])
   
@@ -663,6 +673,15 @@ function NutritionDashboard() {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   )
+  
+  // Add the photo analysis to totals
+  const photoAnalysis = { calories: 439, protein: 33.6, carbs: 76.2, fat: 1.6 }
+  const totalsWithPhoto = {
+    calories: totals.calories + photoAnalysis.calories,
+    protein: totals.protein + photoAnalysis.protein,
+    carbs: totals.carbs + photoAnalysis.carbs,
+    fat: totals.fat + photoAnalysis.fat
+  }
   
   const addFood = (entry: Omit<FoodEntry, 'id' | 'date'>) => {
     const newEntry: FoodEntry = {
@@ -700,7 +719,71 @@ function NutritionDashboard() {
       <div className="flex-1 overflow-y-auto">
         <div className="px-8 py-6 space-y-6">
           {/* Macros Overview */}
-          <div className="bg-notion-sidebar rounded-lg p-5">
+          {/* Food Photo Analysis - Latest Analysis */}
+      <div className="bg-white border border-notion-border rounded-lg p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg">Latest Food Analysis</h3>
+            <p className="text-sm text-notion-text-light">Just now • USDA FoodData Central</p>
+          </div>
+        </div>
+        
+        <div className="bg-notion-sidebar rounded-lg p-4">
+          <h4 className="font-medium mb-3 text-sm">Detected Foods</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-notion-text">🥄 Lentil and grain medley</span>
+              <span className="text-notion-text-light">1.5 cups • 418 cal</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-notion-text">🥕 Mixed vegetables</span>
+              <span className="text-notion-text-light">0.5 cups • 21 cal</span>
+            </div>
+          </div>
+          
+          <div className="mt-4 pt-3 border-t border-notion-border">
+            <h5 className="font-medium mb-2 text-sm">Total Nutrition</h5>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-notion-text-light">Calories</span>
+                <div className="text-lg font-semibold">439</div>
+              </div>
+              <div>
+                <span className="text-notion-text-light">Protein</span>
+                <div className="text-lg font-semibold">33.6g</div>
+              </div>
+              <div>
+                <span className="text-notion-text-light">Carbs</span>
+                <div className="text-lg font-semibold">76.2g</div>
+              </div>
+              <div>
+                <span className="text-notion-text-light">Fat</span>
+                <div className="text-lg font-semibold">1.6g</div>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-notion-text-light">
+              Confidence: 78% • Database: USDA FoodData Central
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          <button className="flex-1 bg-notion-text text-white py-2 px-4 rounded-lg hover:bg-opacity-90 transition-colors">
+            Add to Daily Log
+          </button>
+          <button className="px-4 py-2 border border-notion-border rounded-lg hover:bg-notion-hover transition-colors">
+            Upload New Photo
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-notion-sidebar rounded-lg p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold">Daily Progress</h2>
               <button 
@@ -714,26 +797,26 @@ function NutritionDashboard() {
             <div className="space-y-4">
               <MacroBar 
                 label="Calories" 
-                current={totals.calories} 
+                current={totalsWithPhoto.calories} 
                 goal={goals.calories} 
                 color="bg-orange-400"
                 unit=" kcal"
               />
               <MacroBar 
                 label="Protein" 
-                current={totals.protein} 
+                current={totalsWithPhoto.protein} 
                 goal={goals.protein} 
                 color="bg-red-400"
               />
               <MacroBar 
                 label="Carbs" 
-                current={totals.carbs} 
+                current={totalsWithPhoto.carbs} 
                 goal={goals.carbs} 
                 color="bg-yellow-400"
               />
               <MacroBar 
                 label="Fat" 
-                current={totals.fat} 
+                current={totalsWithPhoto.fat} 
                 goal={goals.fat} 
                 color="bg-blue-400"
               />
@@ -743,22 +826,22 @@ function NutritionDashboard() {
             <div className="grid grid-cols-4 gap-3 mt-5">
               <div className="bg-white rounded-lg p-3 text-center">
                 <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.calories}</div>
+                <div className="text-lg font-bold">{totalsWithPhoto.calories}</div>
                 <div className="text-xs text-notion-text-light">kcal</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Beef className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.protein}g</div>
+                <div className="text-lg font-bold">{totalsWithPhoto.protein.toFixed(1)}g</div>
                 <div className="text-xs text-notion-text-light">protein</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Wheat className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.carbs}g</div>
+                <div className="text-lg font-bold">{totalsWithPhoto.carbs.toFixed(1)}g</div>
                 <div className="text-xs text-notion-text-light">carbs</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Target className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totals.fat}g</div>
+                <div className="text-lg font-bold">{totalsWithPhoto.fat.toFixed(1)}g</div>
                 <div className="text-xs text-notion-text-light">fat</div>
               </div>
             </div>
