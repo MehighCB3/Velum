@@ -16,6 +16,52 @@ interface NavItem {
   children?: NavItem[];
 }
 
+// Nutrition data types
+interface FoodEntry {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  time: string;
+  meal: string;
+  photo?: string;
+}
+
+interface NutritionData {
+  date: string;
+  entries: FoodEntry[];
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+  goals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+}
+
+// Helper to get meal emoji
+function getMealEmoji(meal: string): string {
+  const emojis: Record<string, string> = {
+    breakfast: '🥣',
+    lunch: '🥗',
+    dinner: '🍽️',
+    snack: '🍎',
+  };
+  return emojis[meal.toLowerCase()] || '🍴';
+}
+
+// Helper to capitalize meal type
+function capitalizeMeal(meal: string): string {
+  return meal.charAt(0).toUpperCase() + meal.slice(1).toLowerCase();
+}
+
 export default function VelumApp() {
   const [message, setMessage] = useState('');
   const [chatOpen, setChatOpen] = useState(true);
@@ -27,6 +73,39 @@ export default function VelumApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState('nutrition-today');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition', 'nutrition-meals']));
+
+  // Nutrition data state - fetched from Pi
+  const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
+  const [nutritionLoading, setNutritionLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+
+  // Fetch nutrition data from the Pi
+  const fetchNutritionData = async () => {
+    setNutritionLoading(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/nutrition?date=${today}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNutritionData(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch nutrition data:', error);
+    } finally {
+      setNutritionLoading(false);
+    }
+  };
+
+  // Fetch on mount and set up refresh
+  useEffect(() => {
+    fetchNutritionData();
+    // Refresh every 30 seconds to catch Telegram updates
+    const interval = setInterval(() => {
+      fetchNutritionData();
+      setLastRefresh(new Date());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Notion-style navigation structure (supports up to 5 levels)
   const navigation: NavItem[] = [
@@ -114,27 +193,47 @@ export default function VelumApp() {
     });
   };
 
-  const todayData = {
-    consumed: 770,
+  // Computed data from nutritionData or fallback to defaults
+  const todayData = nutritionData ? {
+    consumed: nutritionData.totals.calories,
+    goal: nutritionData.goals.calories,
+    protein: { current: nutritionData.totals.protein, goal: nutritionData.goals.protein },
+    carbs: { current: nutritionData.totals.carbs, goal: nutritionData.goals.carbs },
+  } : {
+    consumed: 0,
     goal: 2000,
-    protein: { current: 47, goal: 150 },
-    carbs: { current: 73, goal: 200 },
+    protein: { current: 0, goal: 150 },
+    carbs: { current: 0, goal: 200 },
   };
 
-  const weekData = [
-    { day: 'Mon', date: 23, kcal: 1850, protein: 120, carbs: 180, goal: 2000 },
-    { day: 'Tue', date: 24, kcal: 2100, protein: 145, carbs: 210, goal: 2000 },
-    { day: 'Wed', date: 25, kcal: 1720, protein: 95, carbs: 165, goal: 2000 },
-    { day: 'Thu', date: 26, kcal: 1950, protein: 130, carbs: 190, goal: 2000 },
-    { day: 'Fri', date: 27, kcal: 2200, protein: 155, carbs: 220, goal: 2000 },
-    { day: 'Sat', date: 28, kcal: 1680, protein: 88, carbs: 175, goal: 2000 },
-    { day: 'Sun', date: 29, kcal: 770, protein: 47, carbs: 73, goal: 2000, isToday: true },
-  ];
+  // Week data - for now show today with real data, rest placeholder
+  // TODO: Fetch historical data from Pi
+  const today = new Date();
+  const weekData = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - i));
+    const isToday = i === 6;
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return {
+      day: dayNames[date.getDay()],
+      date: date.getDate(),
+      kcal: isToday && nutritionData ? nutritionData.totals.calories : 0,
+      protein: isToday && nutritionData ? nutritionData.totals.protein : 0,
+      carbs: isToday && nutritionData ? nutritionData.totals.carbs : 0,
+      goal: nutritionData?.goals.calories || 2000,
+      isToday,
+    };
+  });
 
-  const meals = [
-    { type: 'Breakfast', name: 'Oatmeal with banana', time: '08:30', kcal: 350, emoji: '🥣' },
-    { type: 'Lunch', name: 'Grilled chicken salad', time: '13:00', kcal: 420, emoji: '🥗' },
-  ];
+  // Meals from nutrition data
+  const meals = nutritionData?.entries.map(entry => ({
+    type: capitalizeMeal(entry.meal || 'Meal'),
+    name: entry.name,
+    time: entry.time || '--:--',
+    kcal: entry.calories,
+    emoji: getMealEmoji(entry.meal || ''),
+    photo: entry.photo,
+  })) || [];
 
   const progress = Math.round((todayData.consumed / todayData.goal) * 100);
   const remaining = todayData.goal - todayData.consumed;
@@ -199,6 +298,8 @@ export default function VelumApp() {
           }
         }
       }
+      // Refresh nutrition data after chat (in case user logged food)
+      setTimeout(() => fetchNutritionData(), 1000);
     } catch (error) {
       console.error('Chat error:', error);
       setChatMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, connection error. Try again.' }]);
@@ -260,7 +361,10 @@ export default function VelumApp() {
         <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-8 sticky top-0 z-10">
           <div>
             <h1 className="text-lg font-semibold text-stone-900">Nutrition</h1>
-            <p className="text-xs text-stone-400">Thursday, January 29</p>
+            <p className="text-xs text-stone-400">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {nutritionLoading && <span className="ml-2 text-orange-500">syncing...</span>}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setChatOpen(!chatOpen)} className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${chatOpen ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
@@ -323,13 +427,30 @@ export default function VelumApp() {
 
                   {/* Meals */}
                   <div>
-                    <h2 className="text-sm font-semibold text-stone-900 mb-4">Meals</h2>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-semibold text-stone-900">Meals</h2>
+                      <button
+                        onClick={fetchNutritionData}
+                        className="text-xs text-stone-400 hover:text-stone-600 flex items-center gap-1"
+                        disabled={nutritionLoading}
+                      >
+                        <Clock size={12} className={nutritionLoading ? 'animate-spin' : ''} />
+                        {nutritionLoading ? 'Syncing...' : 'Refresh'}
+                      </button>
+                    </div>
                     <div className="space-y-3">
-                      {meals.map((meal, i) => <MealCard key={i} {...meal} />)}
+                      {meals.length === 0 && !nutritionLoading ? (
+                        <div className="p-6 bg-stone-50 rounded-2xl text-center">
+                          <p className="text-sm text-stone-500">No meals logged today</p>
+                          <p className="text-xs text-stone-400 mt-1">Send a photo to Telegram or use the chat</p>
+                        </div>
+                      ) : (
+                        meals.map((meal, i) => <MealCard key={i} {...meal} />)
+                      )}
                       <button className="w-full p-4 border-2 border-dashed border-stone-200 rounded-2xl hover:border-stone-300 hover:bg-stone-50 transition-all group">
                         <div className="flex items-center justify-center gap-2 text-stone-400 group-hover:text-stone-600">
                           <Plus size={18} />
-                          <span className="text-sm font-medium">Add dinner</span>
+                          <span className="text-sm font-medium">Log food</span>
                         </div>
                       </button>
                     </div>
@@ -486,11 +607,17 @@ function MacroStat({ label, current, goal, color }: { label: string; current: nu
   );
 }
 
-function MealCard({ type, name, time, kcal, emoji }: { type: string; name: string; time: string; kcal: number; emoji: string }) {
+function MealCard({ type, name, time, kcal, emoji, photo }: { type: string; name: string; time: string; kcal: number; emoji: string; photo?: string }) {
   return (
     <div className="group p-4 bg-white border border-stone-100 rounded-2xl hover:border-stone-200 hover:shadow-sm transition-all cursor-pointer">
       <div className="flex items-center gap-4">
-        <div className="w-11 h-11 bg-stone-50 rounded-xl flex items-center justify-center text-xl group-hover:scale-105 transition-transform">{emoji}</div>
+        {photo ? (
+          <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 group-hover:scale-105 transition-transform">
+            <img src={photo} alt={name} className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className="w-11 h-11 bg-stone-50 rounded-xl flex items-center justify-center text-xl group-hover:scale-105 transition-transform">{emoji}</div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-xs text-orange-500 font-semibold uppercase tracking-wide mb-0.5">{type}</p>
           <p className="text-sm font-medium text-stone-900 truncate">{name}</p>
