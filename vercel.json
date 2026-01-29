@@ -1,5 +1,0 @@
-{
-  "buildCommand": "cd velum-app && npm install && npm run build",
-  "outputDirectory": "velum-app/.next",
-  "framework": "nextjs"
-}

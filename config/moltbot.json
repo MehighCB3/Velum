@@ -1,0 +1,22 @@
+{
+  "agent": {
+    "model": "anthropic/claude-sonnet-4-5",
+    "thinkingLevel": "medium"
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "~/clawd"
+    }
+  },
+  "gateway": {
+    "port": 18789
+  },
+  "channels": {
+    "whatsapp": {
+      "enabled": false
+    },
+    "telegram": {
+      "enabled": false
+    }
+  }
+}

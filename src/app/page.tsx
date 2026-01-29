@@ -501,47 +501,37 @@ function Chat({ context }: { context: string }) {
     setIsLoading(true)
     
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `You are a friendly nutrition assistant embedded in a food tracking app. Keep responses concise and helpful. Context: ${context}. 
-          
-Your personality:
-- Warm but not preachy about food choices
-- Practical advice over theoretical lectures  
-- If user logs food, acknowledge briefly
-- Help estimate calories/macros when asked
-- Suggest meals based on what they've eaten today`,
-          messages: [
-            ...messages.map(m => ({
-              role: m.role,
-              content: m.content
-            })),
-            { role: 'user', content: input }
-          ]
+          message: input,
+          context: context
         })
       })
-      
+
       const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get response')
+      }
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.content?.[0]?.text || "Sorry, I couldn't process that. Try again?",
+        content: data.content || "Sorry, I couldn't process that. Try again?",
         timestamp: new Date()
       }
-      
+
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
-      // Fallback response if API fails
+      console.error('Chat error:', error)
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm having trouble connecting right now. You can still log food manually using the + button above!",
+        content: "I'm having trouble connecting to the assistant right now. You can still log food manually using the + button above!",
         timestamp: new Date()
       }
       setMessages(prev => [...prev, fallbackMessage])
