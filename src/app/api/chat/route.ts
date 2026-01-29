@@ -34,8 +34,9 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
       },
       body: JSON.stringify({
-        tool: 'agent_send',
+        tool: 'sessions_send',
         args: {
+          sessionKey: 'agent:main:main',
           message: fullMessage
         }
       }),
@@ -52,8 +53,16 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
+    // Extract reply from Moltbot response structure
+    const reply = data.result?.details?.reply ||
+                  data.result?.reply ||
+                  data.response ||
+                  data.message ||
+                  data.content ||
+                  'No response received'
+
     return NextResponse.json({
-      content: data.response || data.message || data.content || 'No response received',
+      content: reply,
     })
   } catch (error) {
     console.error('Chat API error:', error)
