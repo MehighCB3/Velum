@@ -4,7 +4,7 @@ const GATEWAY_URL = process.env.GATEWAY_URL || 'https://rasppi5.tail5b3227.ts.ne
 const GATEWAY_PASSWORD = process.env.GATEWAY_PASSWORD
 const SESSION_KEY = 'agent:main:main'
 
-// Helper to call gateway tools
+// Helper to call gateway tools (awaits response)
 async function invokeTool(tool: string, args: Record<string, unknown>) {
   const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
     method: 'POST',
@@ -15,6 +15,18 @@ async function invokeTool(tool: string, args: Record<string, unknown>) {
     body: JSON.stringify({ tool, args })
   })
   return response.json()
+}
+
+// Fire-and-forget tool call (doesn't wait for response)
+function fireToolNoWait(tool: string, args: Record<string, unknown>) {
+  fetch(`${GATEWAY_URL}/tools/invoke`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ tool, args })
+  }).catch(() => {}) // Ignore errors
 }
 
 // Helper to extract text from message content
@@ -35,8 +47,8 @@ async function sendAndWaitForResponse(message: string, maxWaitMs: number = 25000
   const messagesBefore = JSON.parse(historyBefore.result?.content?.[0]?.text || '{}').messages || []
   const lastTimestamp = messagesBefore[0]?.timestamp || 0
 
-  // Send the message (this may timeout, which is OK)
-  await invokeTool('sessions_send', { sessionKey: SESSION_KEY, message })
+  // Fire the message without waiting (sessions_send blocks for 30s)
+  fireToolNoWait('sessions_send', { sessionKey: SESSION_KEY, message })
 
   // Poll for new assistant response
   const startTime = Date.now()
