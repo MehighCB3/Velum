@@ -18,24 +18,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
 
-    // Use the chat completions endpoint to ask for nutrition data
+    // Use the /tools/invoke endpoint to ask for nutrition data
     // The nutrition skill will read from food-log.json and return structured data
-    const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
+    const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
-        'Content-Type': 'application/json',
-        'x-moltbot-agent-id': 'main'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'moltbot',
-        user: 'velum:nutrition-api',
-        stream: false,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a nutrition data API. Return ONLY valid JSON, no markdown, no explanation.
-When asked for nutrition data, read from the food log and return this exact JSON structure:
+        tool: 'sessions_send',
+        args: {
+          sessionKey: 'velum:nutrition-api',
+          message: `Return the nutrition data for ${date} as JSON only (no markdown, no explanation). Read from the food log and return this exact structure:
 {
   "date": "YYYY-MM-DD",
   "entries": [
@@ -63,13 +58,9 @@ When asked for nutrition data, read from the food log and return this exact JSON
     "carbs": 200,
     "fat": 65
   }
-}`
-          },
-          {
-            role: 'user',
-            content: `Return the nutrition data for ${date} as JSON. If no entries exist for that date, return empty entries array with zeros for totals.`
-          }
-        ]
+}
+If no entries exist for that date, return empty entries array with zeros for totals.`
+        }
       })
     })
 
@@ -84,8 +75,12 @@ When asked for nutrition data, read from the food log and return this exact JSON
 
     const data = await response.json()
 
-    // Extract the content from the OpenAI-format response
-    const content = data.choices?.[0]?.message?.content || ''
+    // Extract reply from Moltbot response structure
+    const content = data.result?.details?.reply ||
+                    data.result?.reply ||
+                    data.response ||
+                    data.message ||
+                    ''
 
     // Try to parse as JSON
     try {
@@ -132,25 +127,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use chat to log the food via the nutrition skill
+    // Use the /tools/invoke endpoint to log the food via the nutrition skill
     const logMessage = calories
       ? `Log ${food} for ${meal || 'a meal'}: ${calories} calories, ${protein || 0}g protein, ${carbs || 0}g carbs, ${fat || 0}g fat`
       : `Log ${food} for ${meal || 'a meal'}`
 
-    const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
+    const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
-        'Content-Type': 'application/json',
-        'x-moltbot-agent-id': 'main'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'moltbot',
-        user: 'velum:nutrition-api',
-        stream: false,
-        messages: [
-          { role: 'user', content: logMessage }
-        ]
+        tool: 'sessions_send',
+        args: {
+          sessionKey: 'velum:nutrition-api',
+          message: logMessage
+        }
       })
     })
 
@@ -164,7 +157,11 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    const content = data.choices?.[0]?.message?.content || 'Food logged'
+    const content = data.result?.details?.reply ||
+                    data.result?.reply ||
+                    data.response ||
+                    data.message ||
+                    'Food logged'
 
     return NextResponse.json({
       success: true,

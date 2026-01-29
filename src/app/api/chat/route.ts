@@ -22,21 +22,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create stable session key for this user
-    const sessionUser = userId ? `velum:${userId}` : 'velum:anonymous'
+    // Get the last user message
+    const lastUserMessage = messages.filter((m: { role: string }) => m.role === 'user').pop()
+    const messageContent = lastUserMessage?.content || ''
 
-    const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
+    // Create stable session key for this user
+    const sessionKey = userId ? `velum:${userId}` : 'velum:anonymous'
+
+    // Use the /tools/invoke endpoint with sessions_send tool
+    const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
-        'Content-Type': 'application/json',
-        'x-moltbot-agent-id': 'main'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'moltbot',
-        user: sessionUser,
-        stream: true,
-        messages: messages
+        tool: 'sessions_send',
+        args: {
+          sessionKey: sessionKey,
+          message: messageContent
+        }
       })
     })
 
@@ -56,14 +61,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Stream the response back to the client
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
-    })
+    const data = await response.json()
+
+    // Extract reply from Moltbot response structure
+    const reply = data.result?.details?.reply ||
+                  data.result?.reply ||
+                  data.response ||
+                  data.message ||
+                  JSON.stringify(data)
+
+    return NextResponse.json({ reply })
   } catch (error) {
     console.error('Chat API error:', error)
     return NextResponse.json(
