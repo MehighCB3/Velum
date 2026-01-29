@@ -17,28 +17,6 @@ async function invokeTool(tool: string, args: Record<string, unknown>) {
   return response.json()
 }
 
-// Send tool call with timeout (enough to send request and start server processing)
-async function sendToolQuick(tool: string, args: Record<string, unknown>) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
-
-  try {
-    await fetch(`${GATEWAY_URL}/tools/invoke`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ tool, args }),
-      signal: controller.signal
-    })
-  } catch {
-    // Ignore abort errors - we just need the request to be sent
-  } finally {
-    clearTimeout(timeoutId)
-  }
-}
-
 // Helper to extract text from message content
 function extractText(content: unknown): string {
   if (typeof content === 'string') return content
@@ -77,17 +55,28 @@ export async function POST(request: NextRequest) {
     const uniqueMarker = `VLM${Date.now()}`
     const fullMessage = `[Velum Web UI ${uniqueMarker}] ${messageContent}`
 
-    // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
-    await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message: fullMessage })
+    // Start sending the message (don't await - let it run in parallel)
+    const sendPromise = fetch(`${GATEWAY_URL}/tools/invoke`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tool: 'sessions_send',
+        args: { sessionKey: SESSION_KEY, message: fullMessage }
+      })
+    }).catch(() => null) // Ignore errors
 
-    // Poll for new assistant response (max 20 seconds to stay under Vercel 30s limit)
+    // Poll for new assistant response (max 25 seconds)
     const startTime = Date.now()
-    const maxWait = 20000
-    const pollInterval = 800
+    const maxWait = 25000
+    const pollInterval = 1000
+
+    // Wait a bit for the message to be sent
+    await new Promise(resolve => setTimeout(resolve, 1500))
 
     while (Date.now() - startTime < maxWait) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
-
       const historyAfter = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 10 })
       const historyData = JSON.parse(historyAfter.result?.content?.[0]?.text || '{}')
       const messagesAfter = historyData.messages || []
@@ -115,6 +104,8 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
     }
 
     // Timeout - no response received yet
