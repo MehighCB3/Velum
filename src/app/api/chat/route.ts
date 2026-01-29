@@ -74,10 +74,8 @@ export async function POST(request: NextRequest) {
     const messageContent = lastUserMessage?.content || ''
     const fullMessage = `[Velum Web UI] ${messageContent}`
 
-    // Get current message count to detect new response
-    const historyBefore = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 1 })
-    const messagesBefore = JSON.parse(historyBefore.result?.content?.[0]?.text || '{}').messages || []
-    const lastTimestamp = messagesBefore[0]?.timestamp || 0
+    // Record timestamp before sending to detect new messages
+    const sendTimestamp = Date.now()
 
     // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
     await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message: fullMessage })
@@ -90,16 +88,31 @@ export async function POST(request: NextRequest) {
     while (Date.now() - startTime < maxWait) {
       await new Promise(resolve => setTimeout(resolve, pollInterval))
 
-      const historyAfter = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 5 })
+      const historyAfter = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 10 })
       const historyData = JSON.parse(historyAfter.result?.content?.[0]?.text || '{}')
       const messagesAfter = historyData.messages || []
 
-      // Look for new assistant message after our user message
-      for (const msg of messagesAfter) {
-        if (msg.role === 'assistant' && msg.timestamp > lastTimestamp) {
-          const reply = extractText(msg.content)
-          if (reply) {
-            return NextResponse.json({ reply })
+      // History is in reverse chronological order (newest first)
+      // Look for our user message (sent after sendTimestamp) and its following assistant reply
+      for (let i = 0; i < messagesAfter.length - 1; i++) {
+        const msg = messagesAfter[i]
+        const nextMsg = messagesAfter[i + 1]
+
+        // Found our user message (timestamp after we sent, contains our message text)
+        if (msg.role === 'user' && msg.timestamp >= sendTimestamp) {
+          const userText = extractText(msg.content)
+          if (userText.includes('[Velum Web UI]') && userText.includes(messageContent)) {
+            // Check if there's an assistant response before it (index 0 is newest)
+            // In reverse order, the assistant response comes at a lower index
+            if (i > 0) {
+              const prevMsg = messagesAfter[i - 1]
+              if (prevMsg.role === 'assistant' && prevMsg.timestamp > msg.timestamp) {
+                const reply = extractText(prevMsg.content)
+                if (reply) {
+                  return NextResponse.json({ reply })
+                }
+              }
+            }
           }
         }
       }
