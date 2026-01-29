@@ -5,11 +5,11 @@ const GATEWAY_PASSWORD = process.env.GATEWAY_PASSWORD
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, context } = await request.json()
+    const { messages, userId } = await request.json()
 
-    if (!message || typeof message !== 'string') {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
-        { error: 'Message is required' },
+        { error: 'Messages array is required' },
         { status: 400 }
       )
     }
@@ -22,24 +22,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build the message with context if provided
-    const fullMessage = context
-      ? `Context: ${context}\n\nUser: ${message}`
-      : message
+    // Create stable session key for this user
+    const sessionUser = userId ? `velum:${userId}` : 'velum:anonymous'
 
-    const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
+    const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
+        'Content-Type': 'application/json',
+        'x-moltbot-agent-id': 'main'
       },
       body: JSON.stringify({
-        tool: 'sessions_send',
-        args: {
-          sessionKey: 'agent:main:main',
-          message: fullMessage
-        }
-      }),
+        model: 'moltbot',
+        user: sessionUser,
+        stream: true,
+        messages: messages
+      })
     })
 
     if (!response.ok) {
@@ -58,18 +56,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
-
-    // Extract reply from Moltbot response structure
-    const reply = data.result?.details?.reply ||
-                  data.result?.reply ||
-                  data.response ||
-                  data.message ||
-                  data.content ||
-                  'No response received'
-
-    return NextResponse.json({
-      content: reply,
+    // Stream the response back to the client
+    return new Response(response.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
     })
   } catch (error) {
     console.error('Chat API error:', error)

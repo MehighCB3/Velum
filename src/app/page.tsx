@@ -599,79 +599,137 @@ function GoalsModal({
   )
 }
 
-// Chat Component
+// Get or create user ID for session persistence
+function getUserId(): string {
+  if (typeof window === 'undefined') return 'anonymous'
+  let userId = localStorage.getItem('velum-user-id')
+  if (!userId) {
+    userId = crypto.randomUUID()
+    localStorage.setItem('velum-user-id', userId)
+  }
+  return userId
+}
+
+// Chat Component with streaming support
 function Chat({ context }: { context: string }) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hey! I'm your nutrition assistant. Log what you eat, ask for meal ideas, or just chat about food. What's on your mind?",
+      content: "Hey! I'm Archie, your personal assistant. I can help with nutrition tracking, meal ideas, or anything else. What's on your mind?",
       timestamp: new Date()
     }
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
-  
+
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
-  
+  }, [messages, streamingContent])
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
-    
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input,
       timestamp: new Date()
     }
-    
+
+    // Build conversation history for context
+    const conversationHistory = messages.map(m => ({
+      role: m.role,
+      content: m.content
+    }))
+
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
-    
+    setStreamingContent('')
+
     try {
+      const userId = getUserId()
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: input,
-          context: context
+          userId,
+          messages: [
+            // Include context as system message
+            { role: 'system', content: `Current nutrition context: ${context}` },
+            ...conversationHistory,
+            { role: 'user', content: input }
+          ]
         })
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to get response')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to get response')
       }
 
+      // Handle streaming response
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No response body')
+
+      const decoder = new TextDecoder()
+      let fullContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const json = JSON.parse(line.slice(6))
+              const content = json.choices?.[0]?.delta?.content
+              if (content) {
+                fullContent += content
+                setStreamingContent(fullContent)
+              }
+            } catch {
+              // Skip invalid JSON lines
+            }
+          }
+        }
+      }
+
+      // Add completed message
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.content || "Sorry, I couldn't process that. Try again?",
+        content: fullContent || "Sorry, I couldn't process that. Try again?",
         timestamp: new Date()
       }
 
       setMessages(prev => [...prev, assistantMessage])
+      setStreamingContent('')
     } catch (error) {
       console.error('Chat error:', error)
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm having trouble connecting to the assistant right now. You can still log food manually using the + button above!",
+        content: "I'm having trouble connecting right now. You can still log food manually using the + button above!",
         timestamp: new Date()
       }
       setMessages(prev => [...prev, fallbackMessage])
+      setStreamingContent('')
     }
-    
+
     setIsLoading(false)
   }
   
@@ -702,10 +760,10 @@ function Chat({ context }: { context: string }) {
               </div>
             </div>
           ))}
-          {isLoading && (
+          {(isLoading || streamingContent) && (
             <div className="flex justify-start">
-              <div className="bg-white text-notion-text-light px-3 py-1.5 rounded-2xl text-sm border border-notion-border">
-                <span className="animate-pulse">...</span>
+              <div className="bg-white text-notion-text px-3 py-1.5 rounded-2xl text-sm border border-notion-border">
+                {streamingContent || <span className="animate-pulse text-notion-text-light">...</span>}
               </div>
             </div>
           )}
