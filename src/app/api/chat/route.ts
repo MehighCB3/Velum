@@ -26,8 +26,12 @@ export async function POST(request: NextRequest) {
     const lastUserMessage = messages.filter((m: { role: string }) => m.role === 'user').pop()
     const messageContent = lastUserMessage?.content || ''
 
-    // Create stable session key for this user
-    const sessionKey = userId ? `velum:${userId}` : 'velum:anonymous'
+    // Add context about Velum source for the bot
+    const fullMessage = `[Velum Web UI] ${messageContent}`
+
+    // Use the main session - Moltbot doesn't support creating new sessions via API
+    // All Velum users share the main session (same as Telegram)
+    const sessionKey = 'agent:main:main'
 
     // Use the /tools/invoke endpoint with sessions_send tool
     const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest) {
         tool: 'sessions_send',
         args: {
           sessionKey: sessionKey,
-          message: messageContent
+          message: fullMessage
         }
       })
     })

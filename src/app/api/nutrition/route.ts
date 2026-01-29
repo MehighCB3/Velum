@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({
         tool: 'sessions_send',
         args: {
-          sessionKey: 'velum:nutrition-api',
-          message: `Return the nutrition data for ${date} as JSON only (no markdown, no explanation). Read from the food log and return this exact structure:
+          sessionKey: 'agent:main:main',
+          message: `[Velum API] Return the nutrition data for ${date} as JSON only (no markdown, no explanation). Read from the food log and return this exact structure:
 {
   "date": "YYYY-MM-DD",
   "entries": [
@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         tool: 'sessions_send',
         args: {
-          sessionKey: 'velum:nutrition-api',
-          message: logMessage
+          sessionKey: 'agent:main:main',
+          message: `[Velum API] ${logMessage}`
         }
       })
     })
