@@ -72,16 +72,15 @@ export async function POST(request: NextRequest) {
     // Get the last user message
     const lastUserMessage = messages.filter((m: { role: string }) => m.role === 'user').pop()
     const messageContent = lastUserMessage?.content || ''
-    const fullMessage = `[Velum Web UI] ${messageContent}`
 
-    // Record timestamp before sending to detect new messages
-    const sendTimestamp = Date.now()
+    // Add unique marker to identify our message
+    const uniqueMarker = `VLM${Date.now()}`
+    const fullMessage = `[Velum Web UI ${uniqueMarker}] ${messageContent}`
 
     // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
     await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message: fullMessage })
 
     // Poll for new assistant response (max 20 seconds to stay under Vercel 30s limit)
-    // Account for 5s send timeout + time to poll
     const startTime = Date.now()
     const maxWait = 20000
     const pollInterval = 800
@@ -94,26 +93,25 @@ export async function POST(request: NextRequest) {
       const messagesAfter = historyData.messages || []
 
       // History is in reverse chronological order (newest first)
-      // Look for our user message (sent after sendTimestamp) and its following assistant reply
-      for (let i = 0; i < messagesAfter.length - 1; i++) {
+      // Find our user message by unique marker, then check if there's a response
+      for (let i = 0; i < messagesAfter.length; i++) {
         const msg = messagesAfter[i]
-        const nextMsg = messagesAfter[i + 1]
-
-        // Found our user message (timestamp after we sent, contains our message text)
-        if (msg.role === 'user' && msg.timestamp >= sendTimestamp) {
+        if (msg.role === 'user') {
           const userText = extractText(msg.content)
-          if (userText.includes('[Velum Web UI]') && userText.includes(messageContent)) {
-            // Check if there's an assistant response before it (index 0 is newest)
-            // In reverse order, the assistant response comes at a lower index
+          // Found our message by unique marker
+          if (userText.includes(uniqueMarker)) {
+            // Check if there's an assistant response before it (lower index = newer)
             if (i > 0) {
               const prevMsg = messagesAfter[i - 1]
-              if (prevMsg.role === 'assistant' && prevMsg.timestamp > msg.timestamp) {
+              if (prevMsg.role === 'assistant') {
                 const reply = extractText(prevMsg.content)
                 if (reply) {
                   return NextResponse.json({ reply })
                 }
               }
             }
+            // Our message exists but no response yet - keep polling
+            break
           }
         }
       }

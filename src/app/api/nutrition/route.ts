@@ -51,12 +51,13 @@ function extractText(content: unknown): string {
 }
 
 // Helper to send message and wait for response
-async function sendAndWaitForResponse(message: string, messageMarker: string, maxWaitMs: number = 25000): Promise<string | null> {
-  // Record timestamp before sending
-  const sendTimestamp = Date.now()
+async function sendAndWaitForResponse(message: string, maxWaitMs: number = 20000): Promise<string | null> {
+  // Add unique marker to identify our message
+  const uniqueMarker = `VLM${Date.now()}`
+  const fullMessage = message.replace('[Velum API]', `[Velum API ${uniqueMarker}]`)
 
   // Send the message with short timeout (sessions_send blocks for 30s, we just need to start it)
-  await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message })
+  await sendToolQuick('sessions_send', { sessionKey: SESSION_KEY, message: fullMessage })
 
   // Poll for new assistant response (account for 5s send timeout)
   const startTime = Date.now()
@@ -70,22 +71,23 @@ async function sendAndWaitForResponse(message: string, messageMarker: string, ma
     const messagesAfter = historyData.messages || []
 
     // History is in reverse chronological order (newest first)
-    // Look for our user message and its following assistant reply
-    for (let i = 0; i < messagesAfter.length - 1; i++) {
+    // Find our user message by unique marker, then check if there's a response
+    for (let i = 0; i < messagesAfter.length; i++) {
       const msg = messagesAfter[i]
-
-      // Found our user message (timestamp after we sent, contains our marker)
-      if (msg.role === 'user' && msg.timestamp >= sendTimestamp) {
+      if (msg.role === 'user') {
         const userText = extractText(msg.content)
-        if (userText.includes(messageMarker)) {
+        // Found our message by unique marker
+        if (userText.includes(uniqueMarker)) {
           // Check if there's an assistant response before it (lower index = newer)
           if (i > 0) {
             const prevMsg = messagesAfter[i - 1]
-            if (prevMsg.role === 'assistant' && prevMsg.timestamp > msg.timestamp) {
+            if (prevMsg.role === 'assistant') {
               const reply = extractText(prevMsg.content)
               if (reply) return reply
             }
           }
+          // Our message exists but no response yet - keep polling
+          break
         }
       }
     }
@@ -139,7 +141,7 @@ export async function GET(request: NextRequest) {
 }
 If no entries exist for that date, return empty entries array with zeros for totals.`
 
-    const content = await sendAndWaitForResponse(message, '[Velum API]')
+    const content = await sendAndWaitForResponse(message)
 
     if (!content) {
       // Return empty data if no response
@@ -199,7 +201,7 @@ export async function POST(request: NextRequest) {
       ? `[Velum API] Log ${food} for ${meal || 'a meal'}: ${calories} calories, ${protein || 0}g protein, ${carbs || 0}g carbs, ${fat || 0}g fat`
       : `[Velum API] Log ${food} for ${meal || 'a meal'}`
 
-    const content = await sendAndWaitForResponse(logMessage, '[Velum API]')
+    const content = await sendAndWaitForResponse(logMessage)
 
     return NextResponse.json({
       success: true,
