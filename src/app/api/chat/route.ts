@@ -2,7 +2,15 @@ import { NextResponse } from 'next/server'
 
 const GATEWAY_URL = process.env.GATEWAY_URL || 'https://rasppi5.tail5b3227.ts.net'
 const GATEWAY_PASSWORD = process.env.GATEWAY_PASSWORD
-const SESSION_KEY = 'agent:main:main'
+
+// Velum Web UI uses its own session, separate from Telegram
+// Format: velum:{userId} for user-specific sessions, or velum:web for shared web session
+// This keeps Velum chat isolated from Telegram conversations
+const VELUM_SESSION_PREFIX = 'velum:web'
+
+// The main shared session where Telegram and all nutrition data lives
+// This is used for reading nutrition data that was logged via Telegram
+const MAIN_SESSION_KEY = 'agent:main:main'
 
 // Helper to call gateway tools (awaits response)
 async function invokeTool(tool: string, args: Record<string, unknown>) {
@@ -29,7 +37,7 @@ function extractText(content: unknown): string {
 }
 
 // GET - Fetch chat history from the Pi
-// Returns messages from Velum Web UI conversations
+// Returns messages ONLY from Velum Web UI conversations (isolated from Telegram)
 export async function GET() {
   try {
     if (!GATEWAY_PASSWORD) {
@@ -39,30 +47,27 @@ export async function GET() {
       )
     }
 
-    // Fetch recent history from the shared session
-    const history = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 50 })
+    // Fetch from Velum-specific session (isolated from Telegram)
+    const history = await invokeTool('sessions_history', { sessionKey: VELUM_SESSION_PREFIX, limit: 50 })
     const historyData = JSON.parse(history.result?.content?.[0]?.text || '{}')
     const messages = historyData.messages || []
 
-    // Filter and transform messages from Velum Web UI conversations
+    // Transform messages for the UI
     // Messages are in reverse chronological order (newest first)
     const chatMessages: { role: string; content: string; timestamp?: string }[] = []
 
-    // Process messages - we want to find Velum Web UI user messages and their responses
+    // Process messages in pairs (user message followed by assistant response)
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
       const content = extractText(msg.content)
 
-      if (msg.role === 'user' && content.includes('[Velum Web UI')) {
-        // This is a Velum user message - extract the actual content
-        // Format: [Velum Web UI VLM{timestamp}] actual message
-        const match = content.match(/\[Velum Web UI VLM\d+\]\s*(.+)/)
-        const userContent = match ? match[1] : content.replace(/\[Velum Web UI[^\]]*\]\s*/, '')
+      if (msg.role === 'user') {
+        // Clean up the user message - remove [Velum Web UI] prefix if present
+        const cleanContent = content.replace(/\[Velum Web UI[^\]]*\]\s*/, '').trim()
 
-        // Add the user message
         chatMessages.push({
           role: 'user',
-          content: userContent,
+          content: cleanContent,
           timestamp: msg.timestamp
         })
 
@@ -71,8 +76,11 @@ export async function GET() {
           const prevMsg = messages[i - 1]
           if (prevMsg.role === 'assistant') {
             const assistantContent = extractText(prevMsg.content)
-            // Skip nutrition JSON responses (they're data, not chat)
-            if (!assistantContent.includes('"entries"') || !assistantContent.includes('"totals"')) {
+            // Skip pure nutrition JSON responses (they're data, not chat)
+            const isPureJson = assistantContent.trim().startsWith('{') &&
+                              assistantContent.includes('"entries"') &&
+                              assistantContent.includes('"totals"')
+            if (!isPureJson) {
               chatMessages.push({
                 role: 'assistant',
                 content: assistantContent,
@@ -100,7 +108,7 @@ export async function GET() {
   }
 }
 
-// POST - Send a new chat message
+// POST - Send a new chat message to the Velum-specific session
 export async function POST(request: Request) {
   try {
     const { messages } = await request.json()
@@ -124,12 +132,13 @@ export async function POST(request: Request) {
     const lastUserMessage = messages.filter((m: { role: string }) => m.role === 'user').pop()
     const messageContent = lastUserMessage?.content || ''
 
-    // Add unique marker to identify our message
+    // Add unique marker to identify our message (for polling purposes)
     const uniqueMarker = `VLM${Date.now()}`
     const fullMessage = `[Velum Web UI ${uniqueMarker}] ${messageContent}`
 
-    // Start sending the message (don't await - let it run in parallel)
-    const sendPromise = fetch(`${GATEWAY_URL}/tools/invoke`, {
+    // Send to Velum-specific session (isolated from Telegram)
+    // This session is only for Velum Web UI conversations
+    fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
@@ -137,7 +146,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         tool: 'sessions_send',
-        args: { sessionKey: SESSION_KEY, message: fullMessage }
+        args: { sessionKey: VELUM_SESSION_PREFIX, message: fullMessage }
       })
     }).catch(() => null) // Ignore errors
 
@@ -150,7 +159,7 @@ export async function POST(request: Request) {
     await new Promise(resolve => setTimeout(resolve, 1500))
 
     while (Date.now() - startTime < maxWait) {
-      const historyAfter = await invokeTool('sessions_history', { sessionKey: SESSION_KEY, limit: 10 })
+      const historyAfter = await invokeTool('sessions_history', { sessionKey: VELUM_SESSION_PREFIX, limit: 10 })
       const historyData = JSON.parse(historyAfter.result?.content?.[0]?.text || '{}')
       const messagesAfter = historyData.messages || []
 

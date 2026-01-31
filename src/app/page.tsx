@@ -78,15 +78,28 @@ export default function VelumApp() {
   const [nutritionLoading, setNutritionLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Fetch nutrition data from the Pi
+  // Week data state - 7 days of nutrition history
+  const [weekNutritionData, setWeekNutritionData] = useState<NutritionData[]>([]);
+
+  // Fetch nutrition data from the Pi (today + 7 days history)
   const fetchNutritionData = async () => {
     setNutritionLoading(true);
     try {
+      // Fetch today's data
       const today = new Date().toISOString().split('T')[0];
-      const response = await fetch(`/api/nutrition?date=${today}`);
-      if (response.ok) {
-        const data = await response.json();
+      const todayResponse = await fetch(`/api/nutrition?date=${today}`);
+      if (todayResponse.ok) {
+        const data = await todayResponse.json();
         setNutritionData(data);
+      }
+
+      // Fetch 7 days of history for the week view
+      const weekResponse = await fetch(`/api/nutrition?days=7`);
+      if (weekResponse.ok) {
+        const weekData = await weekResponse.json();
+        if (weekData.days) {
+          setWeekNutritionData(weekData.days);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch nutrition data:', error);
@@ -233,20 +246,27 @@ export default function VelumApp() {
     carbs: { current: 0, goal: 200 },
   };
 
-  // Week data - for now show today with real data, rest placeholder
-  // TODO: Fetch historical data from Pi
+  // Week data - uses real historical data from the Pi
   const today = new Date();
   const weekData = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (6 - i));
+    const dateStr = date.toISOString().split('T')[0];
     const isToday = i === 6;
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // Find the matching day in weekNutritionData (sorted newest first from API)
+    // weekNutritionData[0] = today, weekNutritionData[1] = yesterday, etc.
+    const dayIndex = 6 - i; // 0 for oldest day (6 days ago), 6 for today
+    const dayData = weekNutritionData[dayIndex];
+
     return {
       day: dayNames[date.getDay()],
       date: date.getDate(),
-      kcal: isToday && nutritionData ? nutritionData.totals.calories : 0,
-      protein: isToday && nutritionData ? nutritionData.totals.protein : 0,
-      carbs: isToday && nutritionData ? nutritionData.totals.carbs : 0,
+      dateStr,
+      kcal: dayData?.totals?.calories || (isToday && nutritionData ? nutritionData.totals.calories : 0),
+      protein: dayData?.totals?.protein || (isToday && nutritionData ? nutritionData.totals.protein : 0),
+      carbs: dayData?.totals?.carbs || (isToday && nutritionData ? nutritionData.totals.carbs : 0),
       goal: nutritionData?.goals.calories || 2000,
       isToday,
     };
