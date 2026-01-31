@@ -120,6 +120,16 @@ export async function GET(request: NextRequest) {
     // Build a map of nutrition data by date from session history
     const nutritionByDate: Map<string, { entries: FoodEntry[], totals: any, goals: any }> = new Map()
 
+    // First, check the in-memory cache (data POSTed directly by bot)
+    for (const [date, data] of nutritionCache.entries()) {
+      const normalizedEntries = normalizeEntries(data.entries || [], date)
+      nutritionByDate.set(date, {
+        entries: normalizedEntries,
+        totals: data.totals,
+        goals: data.goals
+      })
+    }
+
     // Process messages to extract nutrition JSON
     for (const msg of messages) {
       if (msg.role === 'assistant') {
@@ -205,45 +215,34 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// In-memory cache for nutrition data posted by bot
+// This avoids the circular call back to the gateway that was causing timeouts
+const nutritionCache = new Map<string, { entries: any[], totals: any, goals: any, timestamp: number }>()
+
 // POST endpoint for bot to log nutrition data directly (no visible JSON in Telegram)
 // The bot POSTs here instead of showing JSON in chat
 export async function POST(request: NextRequest) {
   try {
-    if (!GATEWAY_PASSWORD) {
-      return NextResponse.json(
-        { error: 'Gateway not configured' },
-        { status: 500 }
-      )
-    }
-
     const body = await request.json()
 
     // Accept full nutrition JSON from bot
     // Format: { date, entries, totals, goals }
     if (body.date && (body.entries || body.totals)) {
-      const date = body.date
-      const now = new Date()
-      const timestamp = now.toISOString()
-
-      // Build the nutrition JSON that Velum expects to find in session history
-      const nutritionJson = JSON.stringify({
-        date: body.date,
+      // Store in memory cache (fast, no external calls)
+      nutritionCache.set(body.date, {
         entries: body.entries || [],
         totals: body.totals || { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        goals: body.goals || DEFAULT_GOALS
-      }, null, 2)
-
-      // Inject a "hidden" message into the session that contains the JSON
-      // This message is from "system" context so it won't show in Telegram
-      // but Velum can still parse it from session history
-      const hiddenMessage = `[VELUM_NUTRITION_DATA]\n\`\`\`json\n${nutritionJson}\n\`\`\``
-
-      // Use sessions_send to add this to the session history
-      await invokeTool('sessions_send', {
-        sessionKey: MAIN_SESSION_KEY,
-        message: hiddenMessage,
-        silent: true // Try silent mode if supported
+        goals: body.goals || DEFAULT_GOALS,
+        timestamp: Date.now()
       })
+
+      // Clean old entries (keep last 30 days)
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000)
+      for (const [date, data] of nutritionCache.entries()) {
+        if (data.timestamp < thirtyDaysAgo) {
+          nutritionCache.delete(date)
+        }
+      }
 
       return NextResponse.json({
         success: true,
@@ -253,7 +252,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Legacy format: simple food logging
+    // Legacy format: simple food logging (requires gateway)
+    if (!GATEWAY_PASSWORD) {
+      return NextResponse.json(
+        { error: 'Gateway not configured' },
+        { status: 500 }
+      )
+    }
+
     const { food, meal, calories, protein, carbs, fat } = body
 
     if (!food) {
@@ -268,7 +274,7 @@ export async function POST(request: NextRequest) {
       ? `[Velum] Log ${food} for ${meal || 'a meal'}: ${calories} calories, ${protein || 0}g protein, ${carbs || 0}g carbs, ${fat || 0}g fat`
       : `[Velum] Log ${food} for ${meal || 'a meal'}`
 
-    // Send to the main session where nutrition is tracked
+    // Send to the main session where nutrition is tracked (fire and forget)
     fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
@@ -293,3 +299,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+// Export cache for GET to use
+export { nutritionCache }
