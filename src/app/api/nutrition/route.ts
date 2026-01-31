@@ -121,14 +121,14 @@ export async function GET(request: NextRequest) {
     const nutritionByDate: Map<string, { entries: FoodEntry[], totals: any, goals: any }> = new Map()
 
     // First, check the in-memory cache (data POSTed directly by bot)
-    for (const [date, data] of nutritionCache.entries()) {
+    nutritionCache.forEach((data, date) => {
       const normalizedEntries = normalizeEntries(data.entries || [], date)
       nutritionByDate.set(date, {
         entries: normalizedEntries,
         totals: data.totals,
         goals: data.goals
       })
-    }
+    })
 
     // Process messages to extract nutrition JSON
     for (const msg of messages) {
@@ -238,11 +238,13 @@ export async function POST(request: NextRequest) {
 
       // Clean old entries (keep last 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000)
-      for (const [date, data] of nutritionCache.entries()) {
+      const keysToDelete: string[] = []
+      nutritionCache.forEach((data, date) => {
         if (data.timestamp < thirtyDaysAgo) {
-          nutritionCache.delete(date)
+          keysToDelete.push(date)
         }
-      }
+      })
+      keysToDelete.forEach(key => nutritionCache.delete(key))
 
       return NextResponse.json({
         success: true,
@@ -300,5 +302,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export cache for GET to use
-export { nutritionCache }
