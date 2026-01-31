@@ -205,8 +205,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST endpoint to log food - sends to the main session where the bot will process it
-// The bot will analyze the message and write to food-log.json
+// POST endpoint for bot to log nutrition data directly (no visible JSON in Telegram)
+// The bot POSTs here instead of showing JSON in chat
 export async function POST(request: NextRequest) {
   try {
     if (!GATEWAY_PASSWORD) {
@@ -217,11 +217,48 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+
+    // Accept full nutrition JSON from bot
+    // Format: { date, entries, totals, goals }
+    if (body.date && (body.entries || body.totals)) {
+      const date = body.date
+      const now = new Date()
+      const timestamp = now.toISOString()
+
+      // Build the nutrition JSON that Velum expects to find in session history
+      const nutritionJson = JSON.stringify({
+        date: body.date,
+        entries: body.entries || [],
+        totals: body.totals || { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        goals: body.goals || DEFAULT_GOALS
+      }, null, 2)
+
+      // Inject a "hidden" message into the session that contains the JSON
+      // This message is from "system" context so it won't show in Telegram
+      // but Velum can still parse it from session history
+      const hiddenMessage = `[VELUM_NUTRITION_DATA]\n\`\`\`json\n${nutritionJson}\n\`\`\``
+
+      // Use sessions_send to add this to the session history
+      await invokeTool('sessions_send', {
+        sessionKey: MAIN_SESSION_KEY,
+        message: hiddenMessage,
+        silent: true // Try silent mode if supported
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: 'Nutrition data logged successfully',
+        date: body.date,
+        totals: body.totals
+      })
+    }
+
+    // Legacy format: simple food logging
     const { food, meal, calories, protein, carbs, fat } = body
 
     if (!food) {
       return NextResponse.json(
-        { error: 'Food name is required' },
+        { error: 'Food name or full nutrition data required' },
         { status: 400 }
       )
     }
@@ -232,7 +269,6 @@ export async function POST(request: NextRequest) {
       : `[Velum] Log ${food} for ${meal || 'a meal'}`
 
     // Send to the main session where nutrition is tracked
-    // This is the same session Telegram uses, so all food data stays centralized
     fetch(`${GATEWAY_URL}/tools/invoke`, {
       method: 'POST',
       headers: {
@@ -241,7 +277,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         tool: 'sessions_send',
-        args: { sessionKey: 'agent:main:main', message: logMessage }
+        args: { sessionKey: MAIN_SESSION_KEY, message: logMessage }
       })
     }).catch(() => {})
 
