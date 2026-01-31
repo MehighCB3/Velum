@@ -30,19 +30,61 @@ function extractText(content: unknown): string {
   return ''
 }
 
-// Interface for food log entries (from bot's JSON responses)
+// Interface for food log entries (normalized format for Velum UI)
 interface FoodEntry {
   id: string
-  date: string
-  time: string
-  meal: string
   name: string
   calories: number
   protein: number
   carbs: number
   fat: number
+  time: string
+  meal: string
   photo?: string | null
-  notes?: string
+}
+
+// Helper to normalize bot's JSON format to Velum's expected format
+// Bot outputs: { entries: [{ timestamp, meal_type, items: [{name, calories, ...}], total }] }
+// Velum needs: { entries: [{ id, name, calories, protein, carbs, fat, time, meal }] }
+function normalizeEntries(rawEntries: any[], date: string): FoodEntry[] {
+  const normalized: FoodEntry[] = []
+  let entryIndex = 0
+
+  for (const entry of rawEntries) {
+    // Check if this is the bot's nested format (has items array)
+    if (entry.items && Array.isArray(entry.items)) {
+      for (const item of entry.items) {
+        entryIndex++
+        normalized.push({
+          id: `${date}-${String(entryIndex).padStart(3, '0')}`,
+          name: item.name || 'Unknown food',
+          calories: item.calories || 0,
+          protein: item.protein || 0,
+          carbs: item.carbs || 0,
+          fat: item.fat || 0,
+          time: entry.timestamp ? new Date(entry.timestamp).toTimeString().slice(0, 5) : '12:00',
+          meal: entry.meal_type || entry.meal || 'snack',
+          photo: item.photo || null
+        })
+      }
+    } else {
+      // Already in flat format (or close to it)
+      entryIndex++
+      normalized.push({
+        id: entry.id || `${date}-${String(entryIndex).padStart(3, '0')}`,
+        name: entry.name || 'Unknown food',
+        calories: entry.calories || 0,
+        protein: entry.protein || 0,
+        carbs: entry.carbs || 0,
+        fat: entry.fat || 0,
+        time: entry.time || (entry.timestamp ? new Date(entry.timestamp).toTimeString().slice(0, 5) : '12:00'),
+        meal: entry.meal || entry.meal_type || 'snack',
+        photo: entry.photo || null
+      })
+    }
+  }
+
+  return normalized
 }
 
 // The main session where Telegram logs food - this is our source of truth
@@ -104,10 +146,13 @@ export async function GET(request: NextRequest) {
               const nutritionData = JSON.parse(cleanJson)
 
               if (nutritionData.date) {
+                // Normalize entries to Velum's expected format
+                const normalizedEntries = normalizeEntries(nutritionData.entries || [], nutritionData.date)
+
                 // Store/update nutrition data for this date
                 // Later entries override earlier ones (most recent data wins)
                 nutritionByDate.set(nutritionData.date, {
-                  entries: nutritionData.entries || [],
+                  entries: normalizedEntries,
                   totals: nutritionData.totals || { calories: 0, protein: 0, carbs: 0, fat: 0 },
                   goals: nutritionData.goals || DEFAULT_GOALS
                 })
