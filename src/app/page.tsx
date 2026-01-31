@@ -2,12 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Apple, Clock, Target, MessageCircle, Settings, Plus, Send, Camera,
-  ChevronRight, ChevronDown, Sparkles, X, FileText, Folder, Search,
-  Utensils, BarChart3, BookOpen, Dumbbell, Brain, ListTodo
+  Apple,
+  Clock,
+  MessageCircle,
+  Settings,
+  Plus,
+  Send,
+  Camera,
+  ChevronRight,
+  ChevronDown,
+  Sparkles,
+  X,
+  FileText,
+  Folder,
+  Search,
+  Utensils
 } from 'lucide-react';
 
-// Navigation item type for nested folder structure (up to 5 levels)
+// Navigation item type for nested folder structure (up to 3 levels)
 interface NavItem {
   id: string;
   name: string;
@@ -35,14 +47,14 @@ interface NutritionData {
   totals: {
     calories: number;
     protein: number;
-    carbs: number;
-    fat: number;
+    sugar?: number;
+    carbs?: number;
   };
   goals: {
     calories: number;
     protein: number;
-    carbs: number;
-    fat: number;
+    sugar?: number;
+    carbs?: number;
   };
 }
 
@@ -71,7 +83,7 @@ export default function VelumApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(true);
   const [activeNavItem, setActiveNavItem] = useState('nutrition-today');
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition', 'nutrition-meals']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['food-tracking', 'food-history']));
 
   // Nutrition data state - fetched from Pi
   const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
@@ -134,78 +146,29 @@ export default function VelumApp() {
     return () => clearInterval(interval);
   }, []);
 
-  // Notion-style navigation structure (supports up to 5 levels)
+  // Notion-style navigation structure (supports up to 3 levels)
   const navigation: NavItem[] = [
     {
-      id: 'nutrition',
-      name: 'Nutrition',
+      id: 'food-tracking',
+      name: 'Food Tracking',
       icon: Apple,
       type: 'folder',
       children: [
         { id: 'nutrition-today', name: 'Today', icon: Utensils, type: 'page' },
-        { id: 'nutrition-history', name: 'History', icon: Clock, type: 'page' },
-        { id: 'nutrition-analytics', name: 'Analytics', icon: BarChart3, type: 'page' },
         {
-          id: 'nutrition-meals',
-          name: 'Meals',
-          icon: Folder,
+          id: 'food-history',
+          name: 'History',
+          icon: Clock,
           type: 'folder',
           children: [
-            { id: 'meals-breakfast', name: 'Breakfast', icon: FileText, type: 'page' },
-            { id: 'meals-lunch', name: 'Lunch', icon: FileText, type: 'page' },
-            { id: 'meals-dinner', name: 'Dinner', icon: FileText, type: 'page' },
-            {
-              id: 'meals-recipes',
-              name: 'Recipes',
-              icon: Folder,
-              type: 'folder',
-              children: [
-                { id: 'recipes-quick', name: 'Quick Meals', icon: FileText, type: 'page' },
-                { id: 'recipes-healthy', name: 'Healthy', icon: FileText, type: 'page' },
-                {
-                  id: 'recipes-by-cuisine',
-                  name: 'By Cuisine',
-                  icon: Folder,
-                  type: 'folder',
-                  children: [
-                    { id: 'cuisine-italian', name: 'Italian', icon: FileText, type: 'page' },
-                    { id: 'cuisine-asian', name: 'Asian', icon: FileText, type: 'page' },
-                    { id: 'cuisine-mexican', name: 'Mexican', icon: FileText, type: 'page' },
-                  ]
-                }
-              ]
-            }
+            { id: 'history-week', name: 'Week', icon: FileText, type: 'page' },
+            { id: 'history-month', name: 'Month', icon: FileText, type: 'page' },
           ]
         },
-        { id: 'nutrition-goals', name: 'Goals', icon: Target, type: 'page' },
+        { id: 'nutrition-meals', name: 'Meals', icon: Folder, type: 'page' },
+        { id: 'nutrition-settings', name: 'Settings', icon: Settings, type: 'page' },
       ]
     },
-    {
-      id: 'fitness',
-      name: 'Fitness',
-      icon: Dumbbell,
-      type: 'folder',
-      children: [
-        { id: 'fitness-workouts', name: 'Workouts', icon: FileText, type: 'page' },
-        { id: 'fitness-progress', name: 'Progress', icon: BarChart3, type: 'page' },
-      ]
-    },
-    {
-      id: 'knowledge',
-      name: 'Knowledge',
-      icon: Brain,
-      type: 'folder',
-      children: [
-        { id: 'knowledge-articles', name: 'Articles', icon: BookOpen, type: 'page' },
-        { id: 'knowledge-notes', name: 'Notes', icon: FileText, type: 'page' },
-      ]
-    },
-    {
-      id: 'tasks',
-      name: 'Tasks',
-      icon: ListTodo,
-      type: 'page',
-    }
   ];
 
   const toggleFolder = (id: string) => {
@@ -225,12 +188,15 @@ export default function VelumApp() {
     consumed: nutritionData.totals.calories,
     goal: nutritionData.goals.calories,
     protein: { current: nutritionData.totals.protein, goal: nutritionData.goals.protein },
-    carbs: { current: nutritionData.totals.carbs, goal: nutritionData.goals.carbs },
+    sugar: {
+      current: nutritionData.totals.sugar ?? nutritionData.totals.carbs ?? 0,
+      goal: nutritionData.goals.sugar ?? nutritionData.goals.carbs ?? 0
+    },
   } : {
     consumed: 0,
     goal: 2000,
     protein: { current: 0, goal: 150 },
-    carbs: { current: 0, goal: 200 },
+    sugar: { current: 0, goal: 50 },
   };
 
   // Week data - for now show today with real data, rest placeholder
@@ -246,7 +212,7 @@ export default function VelumApp() {
       date: date.getDate(),
       kcal: isToday && nutritionData ? nutritionData.totals.calories : 0,
       protein: isToday && nutritionData ? nutritionData.totals.protein : 0,
-      carbs: isToday && nutritionData ? nutritionData.totals.carbs : 0,
+      carbs: isToday && nutritionData ? nutritionData.totals.carbs ?? nutritionData.totals.sugar ?? 0 : 0,
       goal: nutritionData?.goals.calories || 2000,
       isToday,
     };
@@ -318,12 +284,12 @@ export default function VelumApp() {
   };
 
   return (
-    <div className="flex h-screen font-sans antialiased bg-stone-50 text-stone-900">
+    <div className="flex h-screen font-sans antialiased bg-[#F7F6F3] text-stone-900">
 
       {/* Sidebar - Notion style */}
-      <nav className="w-60 bg-stone-100/50 border-r border-stone-200 flex flex-col">
+      <nav className="w-[260px] bg-[#F7F6F3] border-r border-stone-200 flex flex-col">
         {/* Workspace header */}
-        <div className="h-14 flex items-center gap-3 px-4 border-b border-stone-200/50">
+        <div className="h-14 flex items-center gap-3 px-4 border-b border-stone-200/60">
           <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-pink-600 rounded-lg flex items-center justify-center shadow-sm shadow-orange-500/20">
             <span className="text-white font-bold text-sm">V</span>
           </div>
@@ -332,10 +298,14 @@ export default function VelumApp() {
 
         {/* Search */}
         <div className="px-3 py-2">
-          <button className="w-full flex items-center gap-2 px-2 py-1.5 text-stone-500 hover:bg-stone-200/50 rounded-md transition-colors">
+          <div className="flex items-center gap-2 px-2 py-1.5 text-stone-500 bg-white border border-stone-200 rounded-md">
             <Search size={14} />
-            <span className="text-sm">Search</span>
-          </button>
+            <input
+              type="text"
+              placeholder="Search"
+              className="text-sm bg-transparent outline-none placeholder:text-stone-400 w-full"
+            />
+          </div>
         </div>
 
         {/* Navigation */}
@@ -367,7 +337,7 @@ export default function VelumApp() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-8 sticky top-0 z-10">
+        <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-stone-200/70 flex items-center justify-between px-8 sticky top-0 z-10">
           <div>
             <h1 className="text-lg font-semibold text-stone-900">Nutrition</h1>
             <p className="text-xs text-stone-400">
@@ -379,7 +349,7 @@ export default function VelumApp() {
             <button onClick={() => setChatOpen(!chatOpen)} className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${chatOpen ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}>
               <MessageCircle size={18} />
             </button>
-            <button className="h-10 px-5 bg-stone-900 text-white rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-stone-800">
+            <button className="h-10 px-5 bg-stone-900 text-white rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-stone-800">
               <Plus size={16} strokeWidth={2.5} />
               Log food
             </button>
@@ -429,7 +399,7 @@ export default function VelumApp() {
                       <div className="h-px bg-stone-700 mb-5" />
                       <div className="grid grid-cols-2 gap-6">
                         <MacroStat label="Protein" current={todayData.protein.current} goal={todayData.protein.goal} color="from-amber-500 to-orange-500" />
-                        <MacroStat label="Carbs" current={todayData.carbs.current} goal={todayData.carbs.goal} color="from-emerald-500 to-teal-500" />
+                        <MacroStat label="Sugar" current={todayData.sugar.current} goal={todayData.sugar.goal} color="from-emerald-500 to-teal-500" />
                       </div>
                     </div>
                   </div>
@@ -451,7 +421,7 @@ export default function VelumApp() {
                       {meals.length === 0 && !nutritionLoading ? (
                         <div className="p-6 bg-stone-50 rounded-2xl text-center">
                           <p className="text-sm text-stone-500">No meals logged today</p>
-                          <p className="text-xs text-stone-400 mt-1">Send a photo to Telegram or use the chat</p>
+                          <p className="text-xs text-stone-400 mt-1">Send a photo on Telegram or use the chat</p>
                         </div>
                       ) : (
                         meals.map((meal, i) => <MealCard key={i} {...meal} />)
@@ -472,7 +442,7 @@ export default function VelumApp() {
           </div>
 
           {/* Chat Panel */}
-          <aside className={`bg-white border-l border-stone-100 flex flex-col transition-all duration-300 ${chatOpen ? 'w-80' : 'w-0 overflow-hidden'}`}>
+          <aside className={`bg-white border-l border-stone-200/70 flex flex-col transition-all duration-300 ${chatOpen ? 'w-[340px]' : 'w-0 overflow-hidden'}`}>
             <div className="h-16 border-b border-stone-100 flex items-center justify-between px-4 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20">
@@ -504,7 +474,7 @@ export default function VelumApp() {
             <div className="p-3 border-t border-stone-100 flex-shrink-0">
               <div className="flex items-center gap-2 bg-stone-100 rounded-xl px-3 py-2">
                 <button className="p-1.5 hover:bg-stone-200 rounded-lg"><Camera size={16} className="text-stone-400" /></button>
-                <input type="text" placeholder="Ask Archie..." className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400" value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} />
+                <input type="text" placeholder="Ask about nutrition..." className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400" value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} />
                 <button onClick={sendMessage} disabled={isLoading} className="p-1.5 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 rounded-lg">
                   <Send size={14} className="text-white" />
                 </button>
@@ -517,7 +487,7 @@ export default function VelumApp() {
   );
 }
 
-// Recursive sidebar item component for Notion-style navigation (supports 5 levels)
+// Recursive sidebar item component for Notion-style navigation (supports 3 levels)
 function SidebarItem({
   item,
   depth,
@@ -537,7 +507,7 @@ function SidebarItem({
   const isActive = activeId === item.id;
   const hasChildren = item.type === 'folder' && item.children && item.children.length > 0;
   const Icon = item.icon || FileText;
-  const paddingLeft = 8 + depth * 12;
+  const paddingLeft = 8 + depth * 16;
 
   return (
     <div>
@@ -550,8 +520,8 @@ function SidebarItem({
         }}
         className={`w-full flex items-center gap-1.5 py-1 px-1 rounded-md text-sm transition-colors group ${
           isActive
-            ? 'bg-orange-100 text-orange-700'
-            : 'text-stone-600 hover:bg-stone-200/50'
+            ? 'bg-[#F3EBDD] text-stone-800 border-l-2 border-orange-400'
+            : 'text-stone-600 hover:bg-[#EFECE6]'
         }`}
         style={{ paddingLeft: `${paddingLeft}px` }}
       >
@@ -581,8 +551,8 @@ function SidebarItem({
         <span className="truncate flex-1 text-left">{item.name}</span>
       </button>
 
-      {/* Render children recursively (up to depth 4 = 5 levels total) */}
-      {hasChildren && isExpanded && depth < 4 && (
+      {/* Render children recursively (up to 3 levels total) */}
+      {hasChildren && isExpanded && depth < 2 && (
         <div>
           {item.children!.map(child => (
             <SidebarItem
@@ -694,7 +664,7 @@ function WeekView({ weekData, selectedDay, setSelectedDay }: { weekData: any[]; 
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 bg-stone-50 rounded-xl"><p className="text-xs text-stone-400 mb-1">Protein</p><p className="text-lg font-semibold text-stone-900">{weekData[selectedDay].protein}g</p></div>
-          <div className="p-3 bg-stone-50 rounded-xl"><p className="text-xs text-stone-400 mb-1">Carbs</p><p className="text-lg font-semibold text-stone-900">{weekData[selectedDay].carbs}g</p></div>
+          <div className="p-3 bg-stone-50 rounded-xl"><p className="text-xs text-stone-400 mb-1">Sugar</p><p className="text-lg font-semibold text-stone-900">{weekData[selectedDay].carbs}g</p></div>
         </div>
       </div>
       <div className="mt-4 p-4 bg-stone-100 rounded-xl">
