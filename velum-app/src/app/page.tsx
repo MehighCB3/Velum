@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useState, useMemo, useEffect } from 'react';
+'use client'
+
+import React, { useState, useEffect } from 'react'
 import { 
   Search, 
   ChevronRight, 
@@ -10,21 +12,13 @@ import {
   Settings, 
   Sparkles, 
   X, 
-  MessageCircle, 
   Apple, 
-  Clock, 
-  BarChart3, 
-  UtensilsCrossed, 
-  Coffee, 
-  Sun, 
-  Moon, 
-  BookOpen, 
   Target, 
   Dumbbell, 
   Brain, 
   CheckSquare,
   Flame 
-} from 'lucide-react';
+} from 'lucide-react'
 
 // Types
 interface FoodEntry {
