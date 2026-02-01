@@ -125,12 +125,13 @@ export async function POST(request: NextRequest) {
       message: 'Migration complete! Postgres is ready.'
     })
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Migration error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
       { 
         error: 'Migration failed', 
-        details: error.message,
+        details: errorMessage,
         results 
       },
       { status: 500 }

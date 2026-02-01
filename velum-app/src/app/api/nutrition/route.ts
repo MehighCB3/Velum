@@ -158,7 +158,7 @@ async function deleteFromPostgres(date: string, entryId?: string) {
 
 // ==================== FALLBACK FUNCTIONS ====================
 
-function findDataFile(): string | null {
+function findDataFile(): string {
   for (const filePath of DATA_PATHS) {
     if (fs.existsSync(filePath)) {
       return filePath
