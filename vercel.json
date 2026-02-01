@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd velum-app && npm run build",
+  "outputDirectory": "velum-app/.next",
+  "installCommand": "npm install && cd velum-app && npm install",
+  "env": {
+    "UPSTASH_REDIS_REST_URL": "@upstash_redis_rest_url",
+    "UPSTASH_REDIS_REST_TOKEN": "@upstash_redis_rest_token"
+  }
+}
