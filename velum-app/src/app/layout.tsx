@@ -13,7 +13,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {/* Version marker - if you see this, new code deployed */}
+        <div style={{position: 'fixed', bottom: 4, right: 4, fontSize: '10px', color: '#999', zIndex: 9999}}>
+          v2026-02-01-V3-NEW-UI
+        </div>
+        {children}
+      </body>
     </html>
   )
 }
