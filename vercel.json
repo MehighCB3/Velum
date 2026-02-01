@@ -1,7 +1,15 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "cd velum-app && rm -rf .next && npm install && npm run build",
-  "outputDirectory": "velum-app/.next",
-  "installCommand": "cd velum-app && npm install",
-  "cleanUrls": true
+  "version": 2,
+  "builds": [
+    {
+      "src": "velum-app/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "velum-app/$1"
+    }
+  ]
 }
