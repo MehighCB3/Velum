@@ -1,3 +1,7 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "buildCommand": "cd velum-app && rm -rf .next && npm install && npm run build",
+  "outputDirectory": "velum-app/.next",
+  "installCommand": "cd velum-app && npm install",
+  "cleanUrls": true
 }
