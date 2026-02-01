@@ -16,15 +16,28 @@ try {
   console.error('Redis initialization error:', error)
 }
 
-// Fallback: In-memory storage for local dev without Redis
-const memoryStore: Record<string, any> = {}
-
 // Data file path for persistence (local development with file fallback)
 const DATA_FILE = path.join(process.cwd(), 'data', 'nutrition.json')
 
 // Check storage mode
 const useRedis = !!redis
 const isServerless = process.env.VERCEL || !fs.existsSync(process.cwd() + '/package.json')
+
+// Fallback: In-memory storage for local dev without Redis
+// Seed from file if available (for serverless to have initial data)
+function loadInitialData(): Record<string, any> {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = fs.readFileSync(DATA_FILE, 'utf-8')
+      return JSON.parse(data)
+    }
+  } catch (error) {
+    console.error('Error loading initial data:', error)
+  }
+  return {}
+}
+
+const memoryStore: Record<string, any> = loadInitialData()
 
 // Ensure data directory exists (local dev only)
 function ensureDataDir() {

@@ -33,5 +33,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# data storage
+# data storage - allow nutrition.json for seed data
 data/
+!data/nutrition.json
