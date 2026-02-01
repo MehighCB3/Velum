@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Redis } from '@upstash/redis'
 import fs from 'fs'
 import path from 'path'
 
-// In-memory storage for serverless environments (Vercel)
+// Initialize Redis client (uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars)
+let redis: Redis | null = null
+try {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
+  }
+} catch (error) {
+  console.error('Redis initialization error:', error)
+}
+
+// Fallback: In-memory storage for local dev without Redis
 const memoryStore: Record<string, any> = {}
 
-// Data file path for persistence (local development)
+// Data file path for persistence (local development with file fallback)
 const DATA_FILE = path.join(process.cwd(), 'data', 'nutrition.json')
 
-// Check if we're in a serverless environment
+// Check storage mode
+const useRedis = !!redis
 const isServerless = process.env.VERCEL || !fs.existsSync(process.cwd() + '/package.json')
 
 // Ensure data directory exists (local dev only)
@@ -20,13 +35,23 @@ function ensureDataDir() {
 }
 
 // Read nutrition data
-function readData(): Record<string, any> {
-  // Use in-memory store for serverless environments
+async function readData(): Promise<Record<string, any>> {
+  // Try Redis first
+  if (useRedis && redis) {
+    try {
+      const data = await redis.get('nutrition:data')
+      return (data as Record<string, any>) || {}
+    } catch (error) {
+      console.error('Redis read error:', error)
+    }
+  }
+  
+  // Fallback: Use in-memory store for serverless without Redis
   if (isServerless) {
     return memoryStore
   }
   
-  // Use file storage for local development
+  // Fallback: Use file storage for local development
   try {
     ensureDataDir()
     if (!fs.existsSync(DATA_FILE)) {
@@ -41,13 +66,24 @@ function readData(): Record<string, any> {
 }
 
 // Write nutrition data
-function writeData(data: Record<string, any>) {
-  // Skip file writes in serverless environments
+async function writeData(data: Record<string, any>) {
+  // Try Redis first
+  if (useRedis && redis) {
+    try {
+      await redis.set('nutrition:data', data)
+      return
+    } catch (error) {
+      console.error('Redis write error:', error)
+    }
+  }
+  
+  // Fallback: In-memory store for serverless without Redis
   if (isServerless) {
     Object.assign(memoryStore, data)
     return
   }
   
+  // Fallback: File storage for local development
   try {
     ensureDataDir()
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
@@ -62,7 +98,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     
-    const allData = readData()
+    const allData = await readData()
     const dateData = allData[date] || {
       date,
       entries: [],
@@ -93,7 +129,8 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const allData = readData()
+    // Read existing data FIRST (crucial for append behavior)
+    const allData = await readData()
     
     // Get existing data for this date or create new
     const existingData = allData[date] || {
@@ -136,10 +173,10 @@ export async function POST(request: NextRequest) {
       }]
     }
     
-    // Add new entries to existing entries
+    // CRITICAL: Merge new entries with EXISTING entries (don't replace!)
     const updatedEntries = [...existingData.entries, ...newEntries]
     
-    // Recalculate totals from all entries
+    // Recalculate totals from ALL entries (existing + new)
     const calculatedTotals = updatedEntries.reduce(
       (acc, entry) => ({
         calories: acc.calories + (Number(entry.calories) || 0),
@@ -156,7 +193,7 @@ export async function POST(request: NextRequest) {
     // Update goals if provided
     const finalGoals = goals || existingData.goals
     
-    // Save updated data
+    // Save merged data
     allData[date] = {
       date,
       entries: updatedEntries,
@@ -164,14 +201,15 @@ export async function POST(request: NextRequest) {
       goals: finalGoals
     }
     
-    writeData(allData)
+    await writeData(allData)
     
     return NextResponse.json({
       success: true,
       date,
       entries: updatedEntries,
       totals: finalTotals,
-      goals: finalGoals
+      goals: finalGoals,
+      storage: useRedis ? 'redis' : isServerless ? 'memory' : 'file'
     })
     
   } catch (error) {
@@ -190,7 +228,7 @@ export async function DELETE(request: NextRequest) {
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     const entryId = searchParams.get('entryId')
     
-    const allData = readData()
+    const allData = await readData()
     
     if (!allData[date]) {
       return NextResponse.json(
@@ -218,7 +256,7 @@ export async function DELETE(request: NextRequest) {
       delete allData[date]
     }
     
-    writeData(allData)
+    await writeData(allData)
     
     return NextResponse.json({
       success: true,
