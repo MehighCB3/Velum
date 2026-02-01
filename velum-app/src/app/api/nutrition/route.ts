@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sql } from '@vercel/postgres'
 import { Redis } from '@upstash/redis'
 import fs from 'fs'
 import path from 'path'
 
-// Initialize Redis client (uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars)
+// Storage mode detection
+const usePostgres = !!process.env.POSTGRES_URL
+
+// Initialize Redis client (fallback)
 let redis: Redis | null = null
 try {
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
@@ -16,34 +20,17 @@ try {
   console.error('Redis initialization error:', error)
 }
 
-// Data file paths to try (for different environments)
+// File fallback paths
 const DATA_PATHS = [
   path.join(process.cwd(), 'data', 'nutrition.json'),
   path.join(process.cwd(), '..', 'data', 'nutrition.json'),
-  path.join(process.cwd(), '..', '..', 'data', 'nutrition.json'),
   path.join('/var/task', 'data', 'nutrition.json'),
-  '/var/task/data/nutrition.json',
 ]
 
-// Check storage mode
-const useRedis = !!redis
 const isServerless = process.env.VERCEL || !fs.existsSync(process.cwd() + '/package.json')
+const useRedis = !!redis && !usePostgres
 
-// Find the first existing data file
-function findDataFile(): string | null {
-  for (const filePath of DATA_PATHS) {
-    if (fs.existsSync(filePath)) {
-      console.log('Found data file at:', filePath)
-      return filePath
-    }
-  }
-  console.log('No data file found in:', DATA_PATHS)
-  return null
-}
-
-const DATA_FILE = findDataFile() || DATA_PATHS[0]
-
-// Embedded seed data for when file is not available (Vercel serverless)
+// Seed data for initial load
 const SEED_DATA: Record<string, any> = {
   "2026-02-01": {
     "date": "2026-02-01",
@@ -61,116 +48,252 @@ const SEED_DATA: Record<string, any> = {
   }
 }
 
-// Fallback: In-memory storage for local dev without Redis
-// Seed from file if available (for serverless to have initial data)
+// ==================== POSTGRES FUNCTIONS ====================
+
+async function readFromPostgres(date: string): Promise<any> {
+  try {
+    // Get entries for date
+    const entriesResult = await sql`
+      SELECT entry_id as id, name, calories, protein, carbs, fat, 
+             TO_CHAR(entry_time, 'HH24:MI') as time, date::text as date
+      FROM nutrition_entries 
+      WHERE date = ${date}
+      ORDER BY entry_time
+    `
+    
+    // Get goals for date (or default)
+    const goalsResult = await sql`
+      SELECT calories, protein, carbs, fat 
+      FROM nutrition_goals 
+      WHERE date = ${date}
+    `
+    
+    const goals = goalsResult.rows[0] || { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    const entries = entriesResult.rows
+    
+    // Calculate totals
+    const totals = entries.reduce(
+      (acc, entry) => ({
+        calories: acc.calories + (Number(entry.calories) || 0),
+        protein: acc.protein + (Number(entry.protein) || 0),
+        carbs: acc.carbs + (Number(entry.carbs) || 0),
+        fat: acc.fat + (Number(entry.fat) || 0)
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    )
+    
+    return {
+      date,
+      entries,
+      totals,
+      goals
+    }
+  } catch (error) {
+    console.error('Postgres read error:', error)
+    throw error
+  }
+}
+
+async function writeToPostgres(date: string, entries: any[], goals?: any) {
+  try {
+    // Insert/update goals
+    if (goals) {
+      await sql`
+        INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
+        VALUES (${date}, ${goals.calories}, ${goals.protein}, ${goals.carbs}, ${goals.fat})
+        ON CONFLICT (date) 
+        DO UPDATE SET 
+          calories = EXCLUDED.calories,
+          protein = EXCLUDED.protein,
+          carbs = EXCLUDED.carbs,
+          fat = EXCLUDED.fat,
+          updated_at = CURRENT_TIMESTAMP
+      `
+    }
+    
+    // Insert entries
+    for (const entry of entries) {
+      await sql`
+        INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
+        VALUES (
+          ${entry.id}, 
+          ${date}, 
+          ${entry.name}, 
+          ${entry.calories}, 
+          ${entry.protein}, 
+          ${entry.carbs}, 
+          ${entry.fat},
+          ${entry.time}
+        )
+        ON CONFLICT (entry_id) 
+        DO UPDATE SET 
+          name = EXCLUDED.name,
+          calories = EXCLUDED.calories,
+          protein = EXCLUDED.protein,
+          carbs = EXCLUDED.carbs,
+          fat = EXCLUDED.fat,
+          entry_time = EXCLUDED.entry_time,
+          updated_at = CURRENT_TIMESTAMP
+      `
+    }
+  } catch (error) {
+    console.error('Postgres write error:', error)
+    throw error
+  }
+}
+
+async function deleteFromPostgres(date: string, entryId?: string) {
+  try {
+    if (entryId) {
+      await sql`DELETE FROM nutrition_entries WHERE date = ${date} AND entry_id = ${entryId}`
+    } else {
+      await sql`DELETE FROM nutrition_entries WHERE date = ${date}`
+      await sql`DELETE FROM nutrition_goals WHERE date = ${date}`
+    }
+  } catch (error) {
+    console.error('Postgres delete error:', error)
+    throw error
+  }
+}
+
+// ==================== FALLBACK FUNCTIONS ====================
+
+function findDataFile(): string | null {
+  for (const filePath of DATA_PATHS) {
+    if (fs.existsSync(filePath)) {
+      return filePath
+    }
+  }
+  return DATA_PATHS[0]
+}
+
+const DATA_FILE = findDataFile()
+
 function loadInitialData(): Record<string, any> {
-  const dataFile = findDataFile()
-  if (!dataFile) {
-    console.log('No data file found, using embedded seed data')
+  if (!DATA_FILE || !fs.existsSync(DATA_FILE)) {
     return { ...SEED_DATA }
   }
-  
   try {
-    const data = fs.readFileSync(dataFile, 'utf-8')
-    console.log('Loaded data from:', dataFile)
+    const data = fs.readFileSync(DATA_FILE, 'utf-8')
     return JSON.parse(data)
-  } catch (error) {
-    console.error('Error loading initial data from', dataFile, ':', error)
-    console.log('Falling back to embedded seed data')
+  } catch {
     return { ...SEED_DATA }
   }
 }
 
 const memoryStore: Record<string, any> = loadInitialData()
-console.log('Memory store initialized with', Object.keys(memoryStore).length, 'dates')
 
-// Ensure data directory exists (local dev only)
-function ensureDataDir() {
-  if (!DATA_FILE) return
-  const dataDir = path.dirname(DATA_FILE)
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-}
-
-// Read nutrition data
-async function readData(): Promise<Record<string, any>> {
-  // Try Redis first
+async function readFromFallback(date: string): Promise<any> {
+  // Try Redis
   if (useRedis && redis) {
     try {
       const data = await redis.get('nutrition:data')
-      return (data as Record<string, any>) || {}
+      const allData = (data as Record<string, any>) || {}
+      return allData[date] || {
+        date,
+        entries: [],
+        totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+      }
     } catch (error) {
       console.error('Redis read error:', error)
     }
   }
   
-  // Fallback: Use in-memory store for serverless without Redis
+  // Use memory store
   if (isServerless) {
-    return memoryStore
+    return memoryStore[date] || {
+      date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    }
   }
   
-  // Fallback: Use file storage for local development
+  // Use file
   try {
-    ensureDataDir()
     if (!fs.existsSync(DATA_FILE)) {
-      return {}
+      return {
+        date,
+        entries: [],
+        totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+      }
     }
-    const data = fs.readFileSync(DATA_FILE, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    console.error('Error reading nutrition data:', error)
-    return {}
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'))
+    return data[date] || {
+      date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    }
+  } catch {
+    return {
+      date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    }
   }
 }
 
-// Write nutrition data
-async function writeData(data: Record<string, any>) {
-  // Try Redis first
+async function writeToFallback(date: string, data: any) {
   if (useRedis && redis) {
     try {
-      await redis.set('nutrition:data', data)
+      const allData = await redis.get('nutrition:data') as Record<string, any> || {}
+      allData[date] = data
+      await redis.set('nutrition:data', allData)
       return
     } catch (error) {
       console.error('Redis write error:', error)
     }
   }
   
-  // Fallback: In-memory store for serverless without Redis
   if (isServerless) {
-    Object.assign(memoryStore, data)
+    memoryStore[date] = data
     return
   }
   
-  // Fallback: File storage for local development
   try {
-    ensureDataDir()
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
+    const dir = path.dirname(DATA_FILE)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    let allData: Record<string, any> = {}
+    if (fs.existsSync(DATA_FILE)) {
+      allData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'))
+    }
+    allData[date] = data
+    fs.writeFileSync(DATA_FILE, JSON.stringify(allData, null, 2))
   } catch (error) {
-    console.error('Error writing nutrition data:', error)
+    console.error('File write error:', error)
   }
 }
 
-// GET /api/nutrition - Get nutrition data for a specific date
+// ==================== API HANDLERS ====================
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     
-    // First check if we have seed data for this date
+    // Check seed data first
     if (SEED_DATA[date]) {
       return NextResponse.json(SEED_DATA[date])
     }
     
-    const allData = await readData()
-    const dateData = allData[date] || {
-      date,
-      entries: [],
-      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    let data
+    if (usePostgres) {
+      try {
+        data = await readFromPostgres(date)
+      } catch {
+        data = await readFromFallback(date)
+      }
+    } else {
+      data = await readFromFallback(date)
     }
     
-    return NextResponse.json(dateData)
+    return NextResponse.json(data)
   } catch (error) {
     console.error('GET nutrition error:', error)
     return NextResponse.json(
@@ -180,7 +303,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/nutrition - Add new nutrition entry
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -193,26 +315,10 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Read existing data FIRST (crucial for append behavior)
-    const allData = await readData()
-    
-    // Get existing data for this date or create new
-    const existingData = allData[date] || {
-      date,
-      entries: [],
-      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      goals: goals || { calories: 2000, protein: 150, carbs: 200, fat: 65 }
-    }
-    
-    // Handle different input formats:
-    // 1. Single entry with name, calories, etc.
-    // 2. Array of entries
-    // 3. Complete data object with entries array
-    
+    // Build new entries array
     let newEntries: any[] = []
     
     if (entries && Array.isArray(entries)) {
-      // Format: { date, entries: [...], totals, goals }
       newEntries = entries.map((entry: any, index: number) => ({
         id: entry.id || `${Date.now()}-${index}`,
         name: entry.name || entry.food || 'Unknown food',
@@ -224,7 +330,6 @@ export async function POST(request: NextRequest) {
         date: date
       }))
     } else if (body.name || body.food) {
-      // Format: Single entry { name/food, calories, protein, carbs, fat, time }
       newEntries = [{
         id: body.id || `${Date.now()}`,
         name: body.name || body.food || 'Unknown food',
@@ -237,10 +342,26 @@ export async function POST(request: NextRequest) {
       }]
     }
     
-    // CRITICAL: Merge new entries with EXISTING entries (don't replace!)
-    const updatedEntries = [...existingData.entries, ...newEntries]
+    let existingEntries: any[] = []
     
-    // Recalculate totals from ALL entries (existing + new)
+    // Read existing data
+    if (usePostgres) {
+      try {
+        const existing = await readFromPostgres(date)
+        existingEntries = existing.entries || []
+      } catch {
+        const fallback = await readFromFallback(date)
+        existingEntries = fallback.entries || []
+      }
+    } else {
+      const fallback = await readFromFallback(date)
+      existingEntries = fallback.entries || []
+    }
+    
+    // Merge entries
+    const updatedEntries = [...existingEntries, ...newEntries]
+    
+    // Recalculate totals
     const calculatedTotals = updatedEntries.reduce(
       (acc, entry) => ({
         calories: acc.calories + (Number(entry.calories) || 0),
@@ -251,21 +372,26 @@ export async function POST(request: NextRequest) {
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     )
     
-    // Use provided totals if available, otherwise use calculated
     const finalTotals = totals || calculatedTotals
+    const finalGoals = goals || { calories: 2000, protein: 150, carbs: 200, fat: 65 }
     
-    // Update goals if provided
-    const finalGoals = goals || existingData.goals
-    
-    // Save merged data
-    allData[date] = {
+    // Save data
+    const dataToSave = {
       date,
       entries: updatedEntries,
       totals: finalTotals,
       goals: finalGoals
     }
     
-    await writeData(allData)
+    if (usePostgres) {
+      try {
+        await writeToPostgres(date, updatedEntries, finalGoals)
+      } catch {
+        await writeToFallback(date, dataToSave)
+      }
+    } else {
+      await writeToFallback(date, dataToSave)
+    }
     
     return NextResponse.json({
       success: true,
@@ -273,7 +399,7 @@ export async function POST(request: NextRequest) {
       entries: updatedEntries,
       totals: finalTotals,
       goals: finalGoals,
-      storage: useRedis ? 'redis' : isServerless ? 'memory' : 'file'
+      storage: usePostgres ? 'postgres' : useRedis ? 'redis' : isServerless ? 'memory' : 'file'
     })
     
   } catch (error) {
@@ -285,14 +411,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE /api/nutrition - Delete a specific entry
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     const entryId = searchParams.get('entryId')
     
-    const allData = await readData()
+    if (usePostgres) {
+      try {
+        await deleteFromPostgres(date, entryId || undefined)
+        const remaining = await readFromPostgres(date)
+        return NextResponse.json({
+          success: true,
+          date,
+          entries: remaining.entries,
+          totals: remaining.totals
+        })
+      } catch {
+        // Fallback to file/memory
+      }
+    }
+    
+    // Fallback delete
+    const allData = isServerless ? memoryStore : JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8') || '{}')
     
     if (!allData[date]) {
       return NextResponse.json(
@@ -302,10 +443,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     if (entryId) {
-      // Delete specific entry
       allData[date].entries = allData[date].entries.filter((e: any) => e.id !== entryId)
-      
-      // Recalculate totals
       allData[date].totals = allData[date].entries.reduce(
         (acc: any, entry: any) => ({
           calories: acc.calories + (Number(entry.calories) || 0),
@@ -316,11 +454,10 @@ export async function DELETE(request: NextRequest) {
         { calories: 0, protein: 0, carbs: 0, fat: 0 }
       )
     } else {
-      // Delete all data for this date
       delete allData[date]
     }
     
-    await writeData(allData)
+    await writeToFallback(date, allData[date])
     
     return NextResponse.json({
       success: true,
