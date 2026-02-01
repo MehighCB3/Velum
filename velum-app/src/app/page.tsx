@@ -1,4 +1,5 @@
 'use client'
+// Version: 2026-02-01-v2 - Force cache bust
 
 import { useState, useEffect, useRef } from 'react'
 import { 
