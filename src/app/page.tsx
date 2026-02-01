@@ -502,38 +502,66 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
-  
+
   useEffect(() => {
     scrollToBottom()
   }, [messages])
-  
+
+  // Fetch chat history on mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch('/api/chat?section=nutrition')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.messages && data.messages.length > 0) {
+            const formattedMessages: Message[] = data.messages.map((m: { role: string; content: string }, i: number) => ({
+              id: i.toString(),
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date()
+            }))
+            setMessages(formattedMessages)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch chat history:', error)
+      }
+    }
+    fetchHistory()
+  }, [])
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
-    
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input,
       timestamp: new Date()
     }
-    
+
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
-    
+
     try {
+      // Format messages for the API (only role and content)
+      const apiMessages = messages.map(m => ({ role: m.role, content: m.content }))
+      apiMessages.push({ role: 'user', content: input })
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: input,
-          context: context
+          messages: apiMessages,
+          section: 'nutrition'
         })
       })
 
@@ -546,12 +574,12 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.content || "Sorry, I couldn't process that. Try again?",
+        content: data.reply || "Sorry, I couldn't process that. Try again?",
         timestamp: new Date()
       }
 
       setMessages(prev => [...prev, assistantMessage])
-      
+
       // Refresh data in case food was logged via chat
       onFoodLogged()
     } catch (error) {
@@ -564,7 +592,7 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
       }
       setMessages(prev => [...prev, fallbackMessage])
     }
-    
+
     setIsLoading(false)
   }
   
