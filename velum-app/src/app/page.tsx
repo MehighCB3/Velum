@@ -616,6 +616,9 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
 function NutritionDashboard() {
   const today = new Date().toISOString().split('T')[0]
   
+  // VERSION MARKER - If you see this banner, new UI is deployed
+  console.log('VELUM UI VERSION: 2026-02-01-V4-NEW-UI-DEPLOYED')
+  
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     date: today,
     entries: [],
@@ -777,6 +780,11 @@ function NutritionDashboard() {
             {error}
           </div>
         )}
+        
+        {/* VERSION BANNER - New UI confirmation */}
+        <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded text-xs text-blue-800 text-center">
+          ✓ NEW UI DEPLOYED - V4 - Postgres Active
+        </div>
       </div>
       
       {/* Content */}

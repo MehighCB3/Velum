@@ -102,6 +102,39 @@ async function initializePostgresTables(): Promise<void> {
   }
 }
 
+async function migrateSeedDataToPostgres(): Promise<void> {
+  try {
+    for (const [date, data] of Object.entries(SEED_DATA)) {
+      // Check if data already exists
+      const existing = await sql`SELECT COUNT(*) FROM nutrition_entries WHERE date = ${date}`
+      if (Number(existing.rows[0].count) > 0) {
+        continue // Already migrated
+      }
+      
+      // Insert goals
+      await sql`
+        INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
+        VALUES (${date}, ${data.goals.calories}, ${data.goals.protein}, ${data.goals.carbs}, ${data.goals.fat})
+        ON CONFLICT (date) DO NOTHING
+      `
+      
+      // Insert entries
+      for (const entry of data.entries) {
+        await sql`
+          INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
+          VALUES (${entry.id}, ${entry.date}, ${entry.name}, ${entry.calories}, ${entry.protein}, ${entry.carbs}, ${entry.fat}, ${entry.time})
+          ON CONFLICT (entry_id) DO NOTHING
+        `
+      }
+      
+      console.log(`Migrated seed data for ${date}`)
+    }
+  } catch (error) {
+    console.error('Failed to migrate seed data:', error)
+    // Don't throw - we can still use seed data as fallback
+  }
+}
+
 async function readFromPostgres(date: string): Promise<any> {
   try {
     // Get entries for date
@@ -342,14 +375,12 @@ export async function GET(request: NextRequest) {
         // Auto-create tables if they don't exist
         await initializePostgresTables()
         
+        // Migrate seed data if tables are empty
+        await migrateSeedDataToPostgres()
+        
         data = await readFromPostgres(date)
         entryCount = data.entries.length
         storageMode = 'postgres'
-        // If no entries in Postgres, use seed data as fallback
-        if (data.entries.length === 0 && SEED_DATA[date]) {
-          data = SEED_DATA[date]
-          storageMode = 'postgres-empty-used-seed'
-        }
       } catch (error) {
         // Postgres failed, try seed data
         postgresError = error instanceof Error ? error.message : 'Unknown error'
