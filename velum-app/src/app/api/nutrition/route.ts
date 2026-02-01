@@ -53,6 +53,55 @@ const SEED_DATA: Record<string, any> = {
 
 // ==================== POSTGRES FUNCTIONS ====================
 
+let tablesInitialized = false
+
+async function initializePostgresTables(): Promise<void> {
+  if (tablesInitialized) return
+  
+  try {
+    // Create entries table
+    await sql`
+      CREATE TABLE IF NOT EXISTS nutrition_entries (
+        id SERIAL PRIMARY KEY,
+        entry_id VARCHAR(50) UNIQUE NOT NULL,
+        date DATE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        calories INTEGER NOT NULL DEFAULT 0,
+        protein DECIMAL(6,2) NOT NULL DEFAULT 0,
+        carbs DECIMAL(6,2) NOT NULL DEFAULT 0,
+        fat DECIMAL(6,2) NOT NULL DEFAULT 0,
+        entry_time TIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    
+    // Create goals table
+    await sql`
+      CREATE TABLE IF NOT EXISTS nutrition_goals (
+        id SERIAL PRIMARY KEY,
+        date DATE UNIQUE NOT NULL,
+        calories INTEGER NOT NULL DEFAULT 2000,
+        protein INTEGER NOT NULL DEFAULT 150,
+        carbs INTEGER NOT NULL DEFAULT 200,
+        fat INTEGER NOT NULL DEFAULT 65,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    
+    // Create indexes
+    await sql`CREATE INDEX IF NOT EXISTS idx_nutrition_entries_date ON nutrition_entries(date)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_nutrition_entries_entry_id ON nutrition_entries(entry_id)`
+    
+    tablesInitialized = true
+    console.log('Postgres tables initialized')
+  } catch (error) {
+    console.error('Failed to initialize Postgres tables:', error)
+    throw error
+  }
+}
+
 async function readFromPostgres(date: string): Promise<any> {
   try {
     // Get entries for date
@@ -290,6 +339,9 @@ export async function GET(request: NextRequest) {
     let data
     if (usePostgres) {
       try {
+        // Auto-create tables if they don't exist
+        await initializePostgresTables()
+        
         data = await readFromPostgres(date)
         entryCount = data.entries.length
         storageMode = 'postgres'
@@ -416,6 +468,8 @@ export async function POST(request: NextRequest) {
     
     if (usePostgres) {
       try {
+        // Ensure tables exist before writing
+        await initializePostgresTables()
         await writeToPostgres(date, updatedEntries, finalGoals)
       } catch {
         await writeToFallback(date, dataToSave)
@@ -450,6 +504,8 @@ export async function DELETE(request: NextRequest) {
     
     if (usePostgres) {
       try {
+        // Ensure tables exist before deleting
+        await initializePostgresTables()
         await deleteFromPostgres(date, entryId || undefined)
         const remaining = await readFromPostgres(date)
         return NextResponse.json({
