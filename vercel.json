@@ -1,15 +1,4 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "velum-app/package.json",
-      "use": "@vercel/next"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "velum-app/$1"
-    }
-  ]
+  "framework": "nextjs",
+  "outputDirectory": ".next"
 }
