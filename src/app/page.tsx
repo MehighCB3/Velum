@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Apple, Clock, Target, MessageCircle, Settings, Plus, Send, Camera,
-  ChevronRight, Sparkles, X, Flame, Trash2, Loader2, RefreshCw, Utensils
+  Search, LayoutDashboard, History, BarChart3, Target, User, Bot,
+  Plus, Send, Camera, ChevronRight, Sparkles, X, Flame, Trash2,
+  Loader2, RefreshCw, Utensils, ChevronDown, Settings, Apple,
+  Calendar, TrendingUp, ChevronLeft
 } from 'lucide-react';
 
 // Types
@@ -38,6 +40,17 @@ interface NutritionData {
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface DayData {
+  date: string;
+  entries: FoodEntry[];
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
 }
 
 // Add Food Modal
@@ -278,6 +291,15 @@ function GoalsModal({
 
 export default function VelumApp() {
   const today = new Date().toISOString().split('T')[0];
+  const [activeView, setActiveView] = useState<'today' | 'history' | 'analytics' | 'goals' | 'coach' | 'assistant'>('today');
+  const [expandedSections, setExpandedSections] = useState({
+    nutrition: true,
+    coach: false,
+    assistant: false
+  });
+  const [historyDays, setHistoryDays] = useState<DayData[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const [message, setMessage] = useState('');
   const [chatOpen, setChatOpen] = useState(true);
   const [chatMessages, setChatMessages] = useState<Message[]>([
@@ -333,6 +355,34 @@ export default function VelumApp() {
     }
   };
 
+  // Fetch 7-day history
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const days: DayData[] = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+
+        const response = await fetch(`/api/nutrition?date=${dateStr}`);
+        if (response.ok) {
+          const data = await response.json();
+          days.push({
+            date: dateStr,
+            entries: data.entries || [],
+            totals: data.totals || { calories: 0, protein: 0, carbs: 0, fat: 0 }
+          });
+        }
+      }
+      setHistoryDays(days);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   // Initial load
   useEffect(() => {
     fetchData();
@@ -341,6 +391,13 @@ export default function VelumApp() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [today]);
+
+  // Load history when view changes
+  useEffect(() => {
+    if (activeView === 'history' && historyDays.length === 0) {
+      fetchHistory();
+    }
+  }, [activeView]);
 
   // Add food entry
   const addFood = async (entry: Omit<FoodEntry, 'id' | 'date'>) => {
@@ -491,6 +548,31 @@ export default function VelumApp() {
     return 'Dinner';
   };
 
+  // Format date for display
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (dateStr === today.toISOString().split('T')[0]) return 'Today';
+    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  // Calculate weekly averages
+  const weeklyAverages = historyDays.length > 0 ? {
+    calories: Math.round(historyDays.reduce((acc, day) => acc + day.totals.calories, 0) / historyDays.length),
+    protein: Math.round(historyDays.reduce((acc, day) => acc + day.totals.protein, 0) / historyDays.length),
+    carbs: Math.round(historyDays.reduce((acc, day) => acc + day.totals.carbs, 0) / historyDays.length),
+    fat: Math.round(historyDays.reduce((acc, day) => acc + day.totals.fat, 0) / historyDays.length),
+  } : { calories: 0, protein: 0, carbs: 0, fat: 0 };
+
+  // Toggle section expansion
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
   if (isLoadingData) {
     return (
       <div className="flex h-screen items-center justify-center bg-stone-50">
@@ -503,50 +585,208 @@ export default function VelumApp() {
 
   return (
     <div className="flex h-screen font-sans antialiased bg-stone-50 text-stone-900">
-      {/* Sidebar */}
-      <nav className="w-20 bg-white border-r border-stone-100 flex flex-col items-center py-6">
-        <div className="w-11 h-11 bg-gradient-to-br from-orange-500 to-pink-600 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-orange-500/25">
-          <span className="text-white font-bold text-lg">A</span>
+      {/* Notion-like Sidebar */}
+      <nav className="w-64 bg-white border-r border-stone-200 flex flex-col py-4 overflow-y-auto">
+        {/* Header */}
+        <div className="px-4 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-pink-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/25">
+              <span className="text-white font-bold text-sm">A</span>
+            </div>
+            <span className="font-semibold text-stone-900">Archie</span>
+          </div>
         </div>
-        <div className="flex-1 flex flex-col items-center gap-3">
-          <NavItem icon={Apple} label="Today" active />
-          <NavItem icon={Clock} label="History" />
-          <NavItem icon={Target} label="Goals" />
+
+        {/* Search */}
+        <div className="px-4 mb-4">
+          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-500 bg-stone-50 hover:bg-stone-100 rounded-lg transition-colors">
+            <Search size={16} />
+            <span>Search</span>
+            <span className="ml-auto text-xs text-stone-400">⌘K</span>
+          </button>
         </div>
-        <NavItem icon={Settings} label="Settings" />
+
+        {/* SPACE Header */}
+        <div className="px-4 mb-2">
+          <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider">SPACE</span>
+        </div>
+
+        {/* Nutrition Section */}
+        <div className="mb-2">
+          <button
+            onClick={() => toggleSection('nutrition')}
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors"
+          >
+            <ChevronDown size={16} className={`transition-transform ${expandedSections.nutrition ? '' : '-rotate-90'}`} />
+            <Apple size={16} className="text-orange-500" />
+            <span>Nutrition</span>
+          </button>
+
+          {expandedSections.nutrition && (
+            <div className="ml-4 mt-1">
+              <NavItem
+                icon={LayoutDashboard}
+                label="Today"
+                active={activeView === 'today'}
+                onClick={() => setActiveView('today')}
+                indent
+              />
+              <NavItem
+                icon={History}
+                label="History"
+                active={activeView === 'history'}
+                onClick={() => setActiveView('history')}
+                indent
+              />
+              <NavItem
+                icon={BarChart3}
+                label="Analytics"
+                active={activeView === 'analytics'}
+                onClick={() => setActiveView('analytics')}
+                indent
+              />
+              <NavItem
+                icon={Target}
+                label="Goals & Settings"
+                active={activeView === 'goals'}
+                onClick={() => setActiveView('goals')}
+                indent
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Coach Section */}
+        <div className="mb-2">
+          <button
+            onClick={() => toggleSection('coach')}
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors"
+          >
+            <ChevronDown size={16} className={`transition-transform ${expandedSections.coach ? '' : '-rotate-90'}`} />
+            <User size={16} className="text-violet-500" />
+            <span>Coach</span>
+          </button>
+
+          {expandedSections.coach && (
+            <div className="ml-4 mt-1">
+              <NavItem
+                icon={Sparkles}
+                label="Daily Check-in"
+                active={activeView === 'coach'}
+                onClick={() => setActiveView('coach')}
+                indent
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Assistant Section */}
+        <div className="mb-2">
+          <button
+            onClick={() => toggleSection('assistant')}
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors"
+          >
+            <ChevronDown size={16} className={`transition-transform ${expandedSections.assistant ? '' : '-rotate-90'}`} />
+            <Bot size={16} className="text-blue-500" />
+            <span>Assistant</span>
+          </button>
+
+          {expandedSections.assistant && (
+            <div className="ml-4 mt-1">
+              <NavItem
+                icon={Bot}
+                label="Chat with Archie"
+                active={activeView === 'assistant'}
+                onClick={() => {
+                  setActiveView('assistant');
+                  setChatOpen(true);
+                }}
+                indent
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Settings at bottom */}
+        <div className="px-4 pt-4 border-t border-stone-100">
+          <NavItem
+            icon={Settings}
+            label="Settings"
+            onClick={() => setActiveView('goals')}
+          />
+        </div>
       </nav>
 
-      {/* Main */}
+      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
         <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-8 sticky top-0 z-10">
-          <div>
-            <h1 className="text-lg font-semibold text-stone-900">Nutrition</h1>
-            <p className="text-xs text-stone-400">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
+          <div className="flex items-center gap-4">
+            {activeView === 'history' && (
+              <button
+                onClick={() => setActiveView('today')}
+                className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+              >
+                <ChevronLeft size={18} className="text-stone-500" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-lg font-semibold text-stone-900">
+                {activeView === 'today' && 'Today'}
+                {activeView === 'history' && 'Past 7 Days'}
+                {activeView === 'analytics' && 'Analytics'}
+                {activeView === 'goals' && 'Goals & Settings'}
+                {activeView === 'coach' && 'Coach'}
+                {activeView === 'assistant' && 'Assistant'}
+              </h1>
+              <p className="text-xs text-stone-400">
+                {activeView === 'today' && new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {activeView === 'history' && 'Weekly overview and trends'}
+                {activeView === 'analytics' && 'Insights and patterns'}
+                {activeView === 'goals' && 'Customize your targets'}
+                {activeView === 'coach' && 'Your personal nutrition coach'}
+                {activeView === 'assistant' && 'AI-powered assistance'}
+              </p>
+            </div>
           </div>
+
           <div className="flex items-center gap-3">
-            <button
-              onClick={fetchData}
-              disabled={isRefreshing}
-              className="h-10 w-10 rounded-xl flex items-center justify-center bg-stone-100 text-stone-500 hover:bg-stone-200 transition-colors"
-              title="Refresh data"
-            >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={() => setChatOpen(!chatOpen)}
-              className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${chatOpen ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
-            >
-              <MessageCircle size={18} />
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="h-10 px-5 bg-stone-900 text-white rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-stone-800"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              Log food
-            </button>
+            {activeView === 'today' && (
+              <>
+                <button
+                  onClick={fetchData}
+                  disabled={isRefreshing}
+                  className="h-10 w-10 rounded-xl flex items-center justify-center bg-stone-100 text-stone-500 hover:bg-stone-200 transition-colors"
+                  title="Refresh data"
+                >
+                  <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={() => setChatOpen(!chatOpen)}
+                  className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${chatOpen ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                >
+                  <Bot size={18} />
+                </button>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="h-10 px-5 bg-stone-900 text-white rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-stone-800"
+                >
+                  <Plus size={16} strokeWidth={2.5} />
+                  Log food
+                </button>
+              </>
+            )}
+            {activeView === 'goals' && (
+              <button
+                onClick={() => setShowGoalsModal(true)}
+                className="h-10 px-5 bg-stone-900 text-white rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-stone-800"
+              >
+                <Settings size={16} />
+                Edit Goals
+              </button>
+            )}
           </div>
         </header>
 
@@ -557,171 +797,425 @@ export default function VelumApp() {
         )}
 
         <div className="flex-1 flex overflow-hidden">
+          {/* Main Content Area */}
           <div className="flex-1 p-8 overflow-auto">
-            <div className="max-w-xl mx-auto">
-              {/* Hero Stats Card - Dark */}
-              <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-6 mb-6 overflow-hidden">
-                <div className="absolute inset-0 overflow-hidden">
-                  <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
-                  <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl" />
-                </div>
-                <div className="relative">
-                  <div className="flex items-center gap-6 mb-6">
-                    <div className="relative w-28 h-28 flex-shrink-0">
-                      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="42"
-                          fill="none"
-                          stroke="url(#ringGradient)"
-                          strokeWidth="8"
-                          strokeLinecap="round"
-                          strokeDasharray={`${animatedProgress * 2.64} 264`}
-                          className="transition-all duration-1000 ease-out"
-                        />
-                        <defs>
-                          <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#f97316" />
-                            <stop offset="100%" stopColor="#ec4899" />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-2xl font-bold text-white">{Math.round(totals.calories)}</span>
-                        <span className="text-[10px] text-stone-400 uppercase tracking-wide">kcal</span>
+            <div className="max-w-4xl mx-auto">
+              {/* TODAY VIEW */}
+              {activeView === 'today' && (
+                <>
+                  {/* Hero Stats Card - Dark */}
+                  <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-6 mb-6 overflow-hidden">
+                    <div className="absolute inset-0 overflow-hidden">
+                      <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
+                      <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl" />
+                    </div>
+                    <div className="relative">
+                      <div className="flex items-center gap-6 mb-6">
+                        <div className="relative w-28 h-28 flex-shrink-0">
+                          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="42"
+                              fill="none"
+                              stroke="url(#ringGradient)"
+                              strokeWidth="8"
+                              strokeLinecap="round"
+                              strokeDasharray={`${animatedProgress * 2.64} 264`}
+                              className="transition-all duration-1000 ease-out"
+                            />
+                            <defs>
+                              <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#f97316" />
+                                <stop offset="100%" stopColor="#ec4899" />
+                              </linearGradient>
+                            </defs>
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-2xl font-bold text-white">{Math.round(totals.calories)}</span>
+                            <span className="text-[10px] text-stone-400 uppercase tracking-wide">kcal</span>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-stone-400 mb-1">Remaining</p>
+                          <p className="text-4xl font-bold text-white">{remaining}</p>
+                          <p className="text-sm text-stone-500">of {goals.calories} kcal goal</p>
+                        </div>
+                      </div>
+                      <div className="h-px bg-stone-700 mb-5" />
+                      <div className="grid grid-cols-2 gap-6">
+                        <MacroStat label="Protein" current={totals.protein} goal={goals.protein} color="from-amber-500 to-orange-500" />
+                        <MacroStat label="Carbs" current={totals.carbs} goal={goals.carbs} color="from-emerald-500 to-teal-500" />
+                      </div>
+                      <button
+                        onClick={() => setShowGoalsModal(true)}
+                        className="absolute top-0 right-0 text-xs text-stone-500 hover:text-stone-300 transition-colors"
+                      >
+                        Edit goals
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Meals */}
+                  <div>
+                    <h2 className="text-sm font-semibold text-stone-900 mb-4">
+                      Meals
+                      <span className="ml-2 text-xs text-stone-400 font-normal">
+                        ({entries.length} {entries.length === 1 ? 'meal' : 'meals'} logged)
+                      </span>
+                    </h2>
+                    <div className="space-y-3">
+                      {entries.length > 0 ? (
+                        entries.map((entry) => (
+                          <MealCard
+                            key={entry.id}
+                            type={getMealType(entry.time)}
+                            name={entry.name}
+                            time={entry.time}
+                            kcal={Math.round(entry.calories)}
+                            emoji={getMealEmoji(entry.name)}
+                            onDelete={() => deleteFood(entry.id)}
+                          />
+                        ))
+                      ) : (
+                        <div className="p-8 text-center bg-white border border-stone-100 rounded-2xl">
+                          <Utensils className="w-8 h-8 mx-auto mb-2 text-stone-300" />
+                          <p className="text-sm text-stone-400">No food logged today</p>
+                          <p className="text-xs text-stone-300 mt-1">Click &quot;Log food&quot; to add a meal</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setShowAddModal(true)}
+                        className="w-full p-4 border-2 border-dashed border-stone-200 rounded-2xl hover:border-stone-300 hover:bg-stone-50 transition-all group"
+                      >
+                        <div className="flex items-center justify-center gap-2 text-stone-400 group-hover:text-stone-600">
+                          <Plus size={18} />
+                          <span className="text-sm font-medium">Add meal</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Daily Summary */}
+                  {entries.length > 0 && (
+                    <div className="mt-6 p-4 bg-white border border-stone-100 rounded-2xl">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-semibold text-stone-900">Daily Total</span>
+                        <div className="flex gap-4 text-stone-500">
+                          <span>{Math.round(totals.calories)} cal</span>
+                          <span>{Math.round(totals.protein)}g P</span>
+                          <span>{Math.round(totals.carbs)}g C</span>
+                          <span>{Math.round(totals.fat)}g F</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-stone-400 mb-1">Remaining</p>
-                      <p className="text-4xl font-bold text-white">{remaining}</p>
-                      <p className="text-sm text-stone-500">of {goals.calories} kcal goal</p>
-                    </div>
-                  </div>
-                  <div className="h-px bg-stone-700 mb-5" />
-                  <div className="grid grid-cols-2 gap-6">
-                    <MacroStat label="Protein" current={totals.protein} goal={goals.protein} color="from-amber-500 to-orange-500" />
-                    <MacroStat label="Carbs" current={totals.carbs} goal={goals.carbs} color="from-emerald-500 to-teal-500" />
-                  </div>
-                  <button
-                    onClick={() => setShowGoalsModal(true)}
-                    className="absolute top-0 right-0 text-xs text-stone-500 hover:text-stone-300 transition-colors"
-                  >
-                    Edit goals
-                  </button>
-                </div>
-              </div>
-
-              {/* Meals */}
-              <div>
-                <h2 className="text-sm font-semibold text-stone-900 mb-4">
-                  Meals
-                  <span className="ml-2 text-xs text-stone-400 font-normal">
-                    ({entries.length} {entries.length === 1 ? 'meal' : 'meals'} logged)
-                  </span>
-                </h2>
-                <div className="space-y-3">
-                  {entries.length > 0 ? (
-                    entries.map((entry) => (
-                      <MealCard
-                        key={entry.id}
-                        type={getMealType(entry.time)}
-                        name={entry.name}
-                        time={entry.time}
-                        kcal={Math.round(entry.calories)}
-                        emoji={getMealEmoji(entry.name)}
-                        onDelete={() => deleteFood(entry.id)}
-                      />
-                    ))
-                  ) : (
-                    <div className="p-8 text-center bg-white border border-stone-100 rounded-2xl">
-                      <Utensils className="w-8 h-8 mx-auto mb-2 text-stone-300" />
-                      <p className="text-sm text-stone-400">No food logged today</p>
-                      <p className="text-xs text-stone-300 mt-1">Click &quot;Log food&quot; to add a meal</p>
-                    </div>
                   )}
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="w-full p-4 border-2 border-dashed border-stone-200 rounded-2xl hover:border-stone-300 hover:bg-stone-50 transition-all group"
-                  >
-                    <div className="flex items-center justify-center gap-2 text-stone-400 group-hover:text-stone-600">
-                      <Plus size={18} />
-                      <span className="text-sm font-medium">Add meal</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
+                </>
+              )}
 
-              {/* Daily Summary */}
-              {entries.length > 0 && (
-                <div className="mt-6 p-4 bg-white border border-stone-100 rounded-2xl">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-semibold text-stone-900">Daily Total</span>
-                    <div className="flex gap-4 text-stone-500">
-                      <span>{Math.round(totals.calories)} cal</span>
-                      <span>{Math.round(totals.protein)}g P</span>
-                      <span>{Math.round(totals.carbs)}g C</span>
-                      <span>{Math.round(totals.fat)}g F</span>
+              {/* HISTORY VIEW - 7 Days */}
+              {activeView === 'history' && (
+                <>
+                  {/* Weekly Summary Card */}
+                  <div className="bg-white rounded-2xl p-6 mb-6 border border-stone-200">
+                    <h2 className="text-sm font-semibold text-stone-900 mb-4 flex items-center gap-2">
+                      <TrendingUp size={16} className="text-orange-500" />
+                      Weekly Averages
+                    </h2>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-stone-900">{weeklyAverages.calories}</p>
+                        <p className="text-xs text-stone-500">calories/day</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-orange-500">{weeklyAverages.protein}g</p>
+                        <p className="text-xs text-stone-500">protein/day</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-emerald-500">{weeklyAverages.carbs}g</p>
+                        <p className="text-xs text-stone-500">carbs/day</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-blue-500">{weeklyAverages.fat}g</p>
+                        <p className="text-xs text-stone-500">fat/day</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* 7 Day List */}
+                  <div className="space-y-4">
+                    <h2 className="text-sm font-semibold text-stone-900 flex items-center gap-2">
+                      <Calendar size={16} className="text-stone-400" />
+                      Daily Breakdown
+                    </h2>
+
+                    {historyLoading ? (
+                      <div className="flex justify-center py-12">
+                        <Loader2 className="w-8 h-8 animate-spin text-stone-400" />
+                      </div>
+                    ) : historyDays.length === 0 ? (
+                      <div className="p-8 text-center bg-white border border-stone-100 rounded-2xl">
+                        <Calendar className="w-8 h-8 mx-auto mb-2 text-stone-300" />
+                        <p className="text-sm text-stone-400">No history data available</p>
+                      </div>
+                    ) : (
+                      historyDays.map((day) => (
+                        <div key={day.date} className="bg-white border border-stone-100 rounded-2xl p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg">{getDayEmoji(day.date)}</span>
+                              <div>
+                                <p className="font-semibold text-stone-900">{formatDate(day.date)}</p>
+                                <p className="text-xs text-stone-400">{day.entries.length} meals</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-stone-900">{Math.round(day.totals.calories)}</p>
+                              <p className="text-xs text-stone-400">kcal</p>
+                            </div>
+                          </div>
+
+                          {/* Macro bars */}
+                          <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-stone-500">Protein</span>
+                                <span className="font-medium">{Math.round(day.totals.protein)}g</span>
+                              </div>
+                              <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-orange-500 rounded-full"
+                                  style={{ width: `${Math.min((day.totals.protein / goals.protein) * 100, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-stone-500">Carbs</span>
+                                <span className="font-medium">{Math.round(day.totals.carbs)}g</span>
+                              </div>
+                              <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-emerald-500 rounded-full"
+                                  style={{ width: `${Math.min((day.totals.carbs / goals.carbs) * 100, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-stone-500">Fat</span>
+                                <span className="font-medium">{Math.round(day.totals.fat)}g</span>
+                              </div>
+                              <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-500 rounded-full"
+                                  style={{ width: `${Math.min((day.totals.fat / goals.fat) * 100, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Meals list */}
+                          {day.entries.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-stone-100">
+                              <div className="flex flex-wrap gap-2">
+                                {day.entries.slice(0, 4).map((entry, idx) => (
+                                  <span key={idx} className="text-xs px-2 py-1 bg-stone-50 rounded-lg text-stone-600">
+                                    {getMealEmoji(entry.name)} {entry.name}
+                                  </span>
+                                ))}
+                                {day.entries.length > 4 && (
+                                  <span className="text-xs px-2 py-1 bg-stone-50 rounded-lg text-stone-400">
+                                    +{day.entries.length - 4} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ANALYTICS VIEW */}
+              {activeView === 'analytics' && (
+                <div className="text-center py-16">
+                  <BarChart3 className="w-16 h-16 mx-auto mb-4 text-stone-200" />
+                  <h2 className="text-xl font-semibold text-stone-900 mb-2">Analytics Coming Soon</h2>
+                  <p className="text-stone-500 max-w-md mx-auto">
+                    Detailed insights, trends, and visualizations are on the way.
+                    Check the History tab for now to see your weekly overview.
+                  </p>
+                </div>
+              )}
+
+              {/* GOALS VIEW */}
+              {activeView === 'goals' && (
+                <>
+                  <div className="bg-white rounded-2xl p-6 mb-6 border border-stone-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-lg font-semibold text-stone-900">Current Goals</h2>
+                      <button
+                        onClick={() => setShowGoalsModal(true)}
+                        className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 transition-colors"
+                      >
+                        Edit Goals
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="p-4 bg-gradient-to-br from-orange-50 to-pink-50 rounded-xl">
+                        <p className="text-sm text-stone-500 mb-1">Daily Calories</p>
+                        <p className="text-3xl font-bold text-stone-900">{goals.calories}</p>
+                        <p className="text-xs text-stone-400 mt-1">kcal per day</p>
+                      </div>
+
+                      <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl">
+                        <p className="text-sm text-stone-500 mb-1">Protein</p>
+                        <p className="text-3xl font-bold text-orange-600">{goals.protein}g</p>
+                        <p className="text-xs text-stone-400 mt-1">grams per day</p>
+                      </div>
+
+                      <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl">
+                        <p className="text-sm text-stone-500 mb-1">Carbohydrates</p>
+                        <p className="text-3xl font-bold text-emerald-600">{goals.carbs}g</p>
+                        <p className="text-xs text-stone-400 mt-1">grams per day</p>
+                      </div>
+
+                      <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
+                        <p className="text-sm text-stone-500 mb-1">Fat</p>
+                        <p className="text-3xl font-bold text-blue-600">{goals.fat}g</p>
+                        <p className="text-xs text-stone-400 mt-1">grams per day</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-6 border border-stone-200">
+                    <h2 className="text-lg font-semibold text-stone-900 mb-4">Settings</h2>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between py-3 border-b border-stone-100">
+                        <div>
+                          <p className="font-medium text-stone-900">Notifications</p>
+                          <p className="text-sm text-stone-500">Daily reminders and alerts</p>
+                        </div>
+                        <span className="text-sm text-stone-400">Coming soon</span>
+                      </div>
+                      <div className="flex items-center justify-between py-3 border-b border-stone-100">
+                        <div>
+                          <p className="font-medium text-stone-900">Data Export</p>
+                          <p className="text-sm text-stone-500">Download your nutrition data</p>
+                        </div>
+                        <span className="text-sm text-stone-400">Coming soon</span>
+                      </div>
+                      <div className="flex items-center justify-between py-3">
+                        <div>
+                          <p className="font-medium text-stone-900">Integrations</p>
+                          <p className="text-sm text-stone-500">Connect with other apps</p>
+                        </div>
+                        <span className="text-sm text-stone-400">Coming soon</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* COACH VIEW */}
+              {activeView === 'coach' && (
+                <div className="text-center py-16">
+                  <Sparkles className="w-16 h-16 mx-auto mb-4 text-violet-200" />
+                  <h2 className="text-xl font-semibold text-stone-900 mb-2">Coach Dashboard</h2>
+                  <p className="text-stone-500 max-w-md mx-auto mb-6">
+                    Your personal nutrition coach is here to guide you through your journey.
+                    Daily check-ins coming soon!
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActiveView('assistant');
+                      setChatOpen(true);
+                    }}
+                    className="px-6 py-3 bg-violet-500 text-white rounded-xl font-medium hover:bg-violet-600 transition-colors"
+                  >
+                    Chat with Coach
+                  </button>
+                </div>
+              )}
+
+              {/* ASSISTANT VIEW */}
+              {activeView === 'assistant' && (
+                <div className="text-center py-16">
+                  <Bot className="w-16 h-16 mx-auto mb-4 text-blue-200" />
+                  <h2 className="text-xl font-semibold text-stone-900 mb-2">AI Assistant</h2>
+                  <p className="text-stone-500 max-w-md mx-auto mb-6">
+                    Ask Archie anything about nutrition, get meal suggestions, or log food with natural language.
+                  </p>
+                  <button
+                    onClick={() => setChatOpen(true)}
+                    className="px-6 py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
+                  >
+                    Open Chat
+                  </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Chat Panel */}
-          <aside className={`bg-white border-l border-stone-100 flex flex-col transition-all duration-300 ${chatOpen ? 'w-80' : 'w-0 overflow-hidden'}`}>
-            <div className="h-16 border-b border-stone-100 flex items-center justify-between px-4 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20">
-                  <Sparkles size={14} className="text-white" />
+          {/* Chat Panel - Only show for Today view */}
+          {activeView === 'today' && (
+            <aside className={`bg-white border-l border-stone-100 flex flex-col transition-all duration-300 ${chatOpen ? 'w-80' : 'w-0 overflow-hidden'}`}>
+              <div className="h-16 border-b border-stone-100 flex items-center justify-between px-4 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20">
+                    <Sparkles size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-900">Archie</p>
+                    <p className="text-[10px] text-stone-400">Nutrition coach</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-stone-900">Archie</p>
-                  <p className="text-[10px] text-stone-400">Nutrition coach</p>
-                </div>
-              </div>
-              <button onClick={() => setChatOpen(false)} className="p-2 hover:bg-stone-100 rounded-lg">
-                <X size={14} className="text-stone-400" />
-              </button>
-            </div>
-            <div className="flex-1 p-4 overflow-auto">
-              <div className="space-y-4">
-                {chatMessages.map((msg, i) =>
-                  msg.role === 'assistant' ? (
-                    <BotMessage key={i}>{msg.content}</BotMessage>
-                  ) : (
-                    <UserMessage key={i}>{msg.content}</UserMessage>
-                  )
-                )}
-                {isLoading && <BotMessage>Thinking...</BotMessage>}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-            <div className="p-3 border-t border-stone-100 flex-shrink-0">
-              <div className="flex items-center gap-2 bg-stone-100 rounded-xl px-3 py-2">
-                <button className="p-1.5 hover:bg-stone-200 rounded-lg">
-                  <Camera size={16} className="text-stone-400" />
-                </button>
-                <input
-                  type="text"
-                  placeholder="Ask Archie..."
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !message.trim()}
-                  className="p-1.5 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 rounded-lg"
-                >
-                  <Send size={14} className="text-white" />
+                <button onClick={() => setChatOpen(false)} className="p-2 hover:bg-stone-100 rounded-lg">
+                  <X size={14} className="text-stone-400" />
                 </button>
               </div>
-            </div>
-          </aside>
+              <div className="flex-1 p-4 overflow-auto">
+                <div className="space-y-4">
+                  {chatMessages.map((msg, i) =>
+                    msg.role === 'assistant' ? (
+                      <BotMessage key={i}>{msg.content}</BotMessage>
+                    ) : (
+                      <UserMessage key={i}>{msg.content}</UserMessage>
+                    )
+                  )}
+                  {isLoading && <BotMessage>Thinking...</BotMessage>}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+              <div className="p-3 border-t border-stone-100 flex-shrink-0">
+                <div className="flex items-center gap-2 bg-stone-100 rounded-xl px-3 py-2">
+                  <button className="p-1.5 hover:bg-stone-200 rounded-lg">
+                    <Camera size={16} className="text-stone-400" />
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Ask Archie..."
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={isLoading || !message.trim()}
+                    className="p-1.5 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 rounded-lg"
+                  >
+                    <Send size={14} className="text-white" />
+                  </button>
+                </div>
+              </div>
+            </aside>
+          )}
         </div>
       </main>
 
@@ -741,19 +1235,44 @@ export default function VelumApp() {
   );
 }
 
-function NavItem({ icon: Icon, active, label }: { icon: any; active?: boolean; label: string }) {
+// Navigation Item Component
+function NavItem({
+  icon: Icon,
+  active,
+  label,
+  onClick,
+  indent = false
+}: {
+  icon: any;
+  active?: boolean;
+  label: string;
+  onClick?: () => void;
+  indent?: boolean;
+}) {
   return (
     <button
-      className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-all ${
+        indent ? 'pl-10' : ''
+      } ${
         active
-          ? 'bg-gradient-to-br from-orange-500 to-pink-600 text-white shadow-lg shadow-orange-500/30'
-          : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'
+          ? 'bg-stone-100 text-stone-900 font-medium'
+          : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
       }`}
-      title={label}
     >
-      <Icon size={20} />
+      <Icon size={18} className={active ? 'text-orange-500' : 'text-stone-400'} />
+      <span>{label}</span>
+      {active && <ChevronRight size={14} className="ml-auto text-stone-400" />}
     </button>
   );
+}
+
+// Helper function to get day emoji based on date
+function getDayEmoji(dateStr: string) {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const emojis = ['☀️', '📅', '📅', '📅', '📅', '📅', '🌙'];
+  return emojis[day];
 }
 
 function MacroStat({ label, current, goal, color }: { label: string; current: number; goal: number; color: string }) {
