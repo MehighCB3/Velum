@@ -43,11 +43,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Debug: Log env var status (redacted for security)
+    console.log('GATEWAY_URL:', GATEWAY_URL)
+    console.log('GATEWAY_PASSWORD exists:', !!GATEWAY_PASSWORD)
+    console.log('GATEWAY_PASSWORD length:', GATEWAY_PASSWORD ? GATEWAY_PASSWORD.length : 0)
+    
     // If gateway not configured, use local response
     if (!GATEWAY_PASSWORD) {
       console.log('Gateway not configured, using local response for:', messageContent)
       const localReply = generateLocalResponse(messageContent, context)
-      return NextResponse.json({ content: localReply, reply: localReply, local: true })
+      return NextResponse.json({ content: localReply, reply: localReply, local: true, debug: 'no_password' })
     }
 
     // Build the message with context if provided
@@ -76,7 +81,14 @@ export async function POST(request: NextRequest) {
         console.error(`Gateway error: ${response.status} - ${errorText}`)
         // Fall back to local response
         const localReply = generateLocalResponse(messageContent, context)
-        return NextResponse.json({ content: localReply, reply: localReply, fallback: true })
+        return NextResponse.json({ 
+          content: localReply, 
+          reply: localReply, 
+          fallback: true,
+          debug: 'gateway_error',
+          status: response.status,
+          error: errorText
+        })
       }
 
       const data = await response.json()
@@ -90,7 +102,13 @@ export async function POST(request: NextRequest) {
       console.error('Fetch error:', fetchError)
       // Fall back to local response on network error
       const localReply = generateLocalResponse(messageContent, context)
-      return NextResponse.json({ content: localReply, reply: localReply, fallback: true })
+      return NextResponse.json({ 
+        content: localReply, 
+        reply: localReply, 
+        fallback: true,
+        debug: 'fetch_error',
+        error: fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'
+      })
     }
   } catch (error) {
     console.error('Chat API error:', error)
