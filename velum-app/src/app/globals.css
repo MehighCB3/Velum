@@ -20,6 +20,48 @@ body {
   background: #ffffff;
 }
 
+/* Notion-style theme classes */
+@layer base {
+  :root {
+    --notion-text: #37352f;
+    --notion-text-light: #6b6b6b;
+    --notion-sidebar: #f7f6f3;
+    --notion-hover: #ebebea;
+    --notion-border: #e3e2e0;
+    --notion-accent: #2383e2;
+  }
+}
+
+@layer components {
+  .bg-notion-sidebar {
+    background-color: #f7f6f3;
+  }
+  
+  .bg-notion-hover {
+    background-color: #ebebea;
+  }
+  
+  .border-notion-border {
+    border-color: #e3e2e0;
+  }
+  
+  .text-notion-text {
+    color: #37352f;
+  }
+  
+  .text-notion-text-light {
+    color: #6b6b6b;
+  }
+  
+  .text-notion-accent {
+    color: #2383e2;
+  }
+  
+  .focus\:border-notion-accent:focus {
+    border-color: #2383e2;
+  }
+}
+
 /* Notion-style scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
