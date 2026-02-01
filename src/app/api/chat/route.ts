@@ -44,7 +44,7 @@ function extractText(content: unknown): string {
   return ''
 }
 
-// Simple response generator for when gateway is unavailable
+// Local response generator - used when gateway is unavailable (no GATEWAY_PASSWORD set)
 function generateLocalResponse(message: string, context?: string): string {
   const lowerMsg = message.toLowerCase()
   
