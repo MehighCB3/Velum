@@ -511,30 +511,6 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
     scrollToBottom()
   }, [messages])
 
-  // Fetch chat history on mount
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const response = await fetch('/api/chat?section=nutrition')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.messages && data.messages.length > 0) {
-            const formattedMessages: Message[] = data.messages.map((m: { role: string; content: string }, i: number) => ({
-              id: i.toString(),
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-              timestamp: new Date()
-            }))
-            setMessages(formattedMessages)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch chat history:', error)
-      }
-    }
-    fetchHistory()
-  }, [])
-
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
 
@@ -550,17 +526,13 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
     setIsLoading(true)
 
     try {
-      // Format messages for the API (only role and content)
-      const apiMessages = messages.map(m => ({ role: m.role, content: m.content }))
-      apiMessages.push({ role: 'user', content: input })
-
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: apiMessages,
+          messages: [{ role: 'user', content: input }],
           section: 'nutrition'
         })
       })
