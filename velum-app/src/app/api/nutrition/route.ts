@@ -277,20 +277,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     
-    // Check seed data first
-    if (SEED_DATA[date]) {
-      return NextResponse.json(SEED_DATA[date])
-    }
-    
+    // Try Postgres first, then fall back to seed data
     let data
     if (usePostgres) {
       try {
         data = await readFromPostgres(date)
+        // If no entries in Postgres, use seed data as fallback
+        if (data.entries.length === 0 && SEED_DATA[date]) {
+          data = SEED_DATA[date]
+        }
       } catch {
-        data = await readFromFallback(date)
+        // Postgres failed, try seed data
+        data = SEED_DATA[date] || await readFromFallback(date)
       }
     } else {
-      data = await readFromFallback(date)
+      // No Postgres, use seed data or fallback
+      data = SEED_DATA[date] || await readFromFallback(date)
     }
     
     return NextResponse.json(data)
