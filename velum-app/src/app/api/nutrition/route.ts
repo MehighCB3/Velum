@@ -157,19 +157,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     
-    // Debug info
-    const debug = searchParams.get('debug')
-    if (debug) {
-      return NextResponse.json({
-        debug: true,
-        cwd: process.cwd(),
-        isServerless,
-        useRedis,
-        memoryStoreKeys: Object.keys(memoryStore),
-        seedDataKeys: Object.keys(SEED_DATA),
-        dataPaths: DATA_PATHS,
-        foundDataFile: findDataFile()
-      })
+    // First check if we have seed data for this date
+    if (SEED_DATA[date]) {
+      return NextResponse.json(SEED_DATA[date])
     }
     
     const allData = await readData()
