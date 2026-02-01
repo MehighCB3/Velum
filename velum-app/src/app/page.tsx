@@ -1,5 +1,4 @@
 'use client'
-// Version: 2026-02-01-v2 - Force cache bust
 
 import { useState, useEffect, useRef } from 'react'
 import { 
@@ -80,12 +79,6 @@ function Sidebar({
   expandedFolders: Set<string>
   toggleFolder: (id: string) => void
 }) {
-  // DEBUG: Confirm sidebar is rendering
-  console.log('SIDEBAR RENDERING:', navigation.length, 'items')
-  
-  useEffect(() => {
-    console.log('SIDEBAR MOUNTED')
-  }, [])
   const renderNavItem = (item: NavItem, depth: number = 0) => {
     const isExpanded = expandedFolders.has(item.id)
     const isActive = activeItem === item.id
@@ -94,8 +87,8 @@ function Sidebar({
     return (
       <div key={item.id}>
         <div
-          className={`flex items-center gap-1 px-2 py-1 mx-1 rounded cursor-pointer group
-            ${isActive ? 'bg-notion-hover' : 'hover:bg-notion-hover'}`}
+          className={`flex items-center gap-1 px-2 py-1 mx-1 rounded cursor-pointer group text-sm
+            ${isActive ? 'bg-[#ebebea]' : 'hover:bg-[#ebebea]'}`}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
           onClick={() => {
             if (hasChildren) {
@@ -106,16 +99,16 @@ function Sidebar({
         >
           {hasChildren ? (
             <button 
-              className="p-0.5 hover:bg-notion-border rounded"
+              className="p-0.5 hover:bg-[#e3e2e0] rounded"
               onClick={(e) => {
                 e.stopPropagation()
                 toggleFolder(item.id)
               }}
             >
               {isExpanded ? (
-                <ChevronDown className="w-3 h-3 text-notion-text-light" />
+                <ChevronDown className="w-3 h-3 text-[#6b6b6b]" />
               ) : (
-                <ChevronRight className="w-3 h-3 text-notion-text-light" />
+                <ChevronRight className="w-3 h-3 text-[#6b6b6b]" />
               )}
             </button>
           ) : (
@@ -123,10 +116,10 @@ function Sidebar({
           )}
           
           {item.icon && (
-            <span className="text-notion-text-light">{item.icon}</span>
+            <span className="text-[#6b6b6b]">{item.icon}</span>
           )}
           
-          <span className={`text-sm truncate flex-1 ${isActive ? 'text-notion-text' : 'text-notion-text-light'}`}>
+          <span className={`truncate flex-1 ${isActive ? 'text-[#37352f] font-medium' : 'text-[#6b6b6b]'}`}>
             {item.name}
           </span>
         </div>
@@ -141,22 +134,20 @@ function Sidebar({
   }
   
   return (
-    <div className="w-60 bg-[#f7f6f3] border-r border-[#e3e2e0] flex flex-col h-screen" style={{border: '2px solid red'}}>
-      {/* DEBUG: Sidebar should be visible with red border */}
-      <div className="bg-yellow-200 text-xs p-1 text-center">SIDEBAR DEBUG</div>
+    <div className="w-60 bg-[#f7f6f3] border-r border-[#e3e2e0] flex flex-col h-screen">
       {/* Workspace header */}
-      <div className="p-3 border-b border-notion-border">
+      <div className="p-3 border-b border-[#e3e2e0]">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-gradient-to-br from-orange-400 to-pink-500 rounded flex items-center justify-center text-white text-xs font-bold">
             V
           </div>
-          <span className="font-medium text-sm">Velum</span>
+          <span className="font-medium text-sm text-[#37352f]">Velum</span>
         </div>
       </div>
       
       {/* Search */}
       <div className="p-2">
-        <div className="flex items-center gap-2 px-2 py-1.5 text-notion-text-light hover:bg-notion-hover rounded cursor-pointer">
+        <div className="flex items-center gap-2 px-2 py-1.5 text-[#6b6b6b] hover:bg-[#ebebea] rounded cursor-pointer">
           <Search className="w-4 h-4" />
           <span className="text-sm">Search</span>
         </div>
@@ -165,14 +156,14 @@ function Sidebar({
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-2">
         <div className="px-3 py-1">
-          <span className="text-xs text-notion-text-light font-medium">WORKSPACE</span>
+          <span className="text-xs text-[#6b6b6b] font-medium">WORKSPACE</span>
         </div>
         {navigation.map(item => renderNavItem(item))}
       </div>
       
       {/* Settings */}
-      <div className="p-2 border-t border-notion-border">
-        <div className="flex items-center gap-2 px-2 py-1.5 text-notion-text-light hover:bg-notion-hover rounded cursor-pointer">
+      <div className="p-2 border-t border-[#e3e2e0]">
+        <div className="flex items-center gap-2 px-2 py-1.5 text-[#6b6b6b] hover:bg-[#ebebea] rounded cursor-pointer">
           <Settings className="w-4 h-4" />
           <span className="text-sm">Settings</span>
         </div>
@@ -201,12 +192,12 @@ function MacroBar({
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
-        <span className="text-notion-text-light">{label}</span>
-        <span className={isOver ? 'text-red-500 font-medium' : 'text-notion-text'}>
+        <span className="text-[#6b6b6b]">{label}</span>
+        <span className={isOver ? 'text-red-500 font-medium' : 'text-[#37352f]'}>
           {Math.round(current)}{unit} / {goal}{unit}
         </span>
       </div>
-      <div className="h-2 bg-notion-border rounded-full overflow-hidden">
+      <div className="h-2 bg-[#e3e2e0] rounded-full overflow-hidden">
         <div 
           className={`h-full rounded-full transition-all duration-300 ${isOver ? 'bg-red-400' : color}`}
           style={{ width: `${percentage}%` }}
@@ -225,18 +216,18 @@ function FoodEntryRow({
   onDelete: (id: string) => void
 }) {
   return (
-    <div className="flex items-center py-3 px-3 hover:bg-notion-hover rounded group border-b border-notion-border last:border-b-0">
+    <div className="flex items-center py-3 px-3 hover:bg-[#ebebea] rounded group border-b border-[#e3e2e0] last:border-b-0">
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">{entry.name}</div>
-        <div className="text-xs text-notion-text-light">{entry.time}</div>
+        <div className="font-medium text-sm truncate text-[#37352f]">{entry.name}</div>
+        <div className="text-xs text-[#6b6b6b]">{entry.time}</div>
       </div>
-      <div className="flex items-center gap-3 sm:gap-4 text-sm text-notion-text-light flex-shrink-0">
+      <div className="flex items-center gap-3 sm:gap-4 text-sm text-[#6b6b6b] flex-shrink-0">
         <span className="w-14 text-right">{Math.round(entry.calories)} cal</span>
-        <span className="w-12 text-right hidden sm:inline">{entry.protein}g P</span>
-        <span className="w-12 text-right hidden sm:inline">{entry.carbs}g C</span>
-        <span className="w-12 text-right hidden sm:inline">{entry.fat}g F</span>
+        <span className="w-12 text-right hidden sm:inline">{Math.round(Number(entry.protein))}g P</span>
+        <span className="w-12 text-right hidden sm:inline">{Math.round(Number(entry.carbs))}g C</span>
+        <span className="w-12 text-right hidden sm:inline">{Math.round(Number(entry.fat))}g F</span>
         <button 
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-notion-border rounded transition-opacity"
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[#e3e2e0] rounded transition-opacity"
           onClick={() => onDelete(entry.id)}
         >
           <Trash2 className="w-4 h-4" />
@@ -290,75 +281,75 @@ function AddFoodModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Add Food</h3>
-          <button onClick={onClose} className="p-1 hover:bg-notion-hover rounded">
+          <h3 className="text-lg font-semibold text-[#37352f]">Add Food</h3>
+          <button onClick={onClose} className="p-1 hover:bg-[#ebebea] rounded">
             <X className="w-5 h-5" />
           </button>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-notion-text-light mb-1">Food name</label>
+            <label className="block text-sm text-[#6b6b6b] mb-1">Food name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Chicken salad"
-              className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+              className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
             />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Calories</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Calories</label>
               <input
                 type="number"
                 value={calories}
                 onChange={(e) => setCalories(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Time</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Time</label>
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
           </div>
           
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Protein (g)</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Protein (g)</label>
               <input
                 type="number"
                 value={protein}
                 onChange={(e) => setProtein(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Carbs (g)</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Carbs (g)</label>
               <input
                 type="number"
                 value={carbs}
                 onChange={(e) => setCarbs(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Fat (g)</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Fat (g)</label>
               <input
                 type="number"
                 value={fat}
                 onChange={(e) => setFat(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
           </div>
@@ -367,13 +358,13 @@ function AddFoodModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-notion-text-light hover:bg-notion-hover rounded"
+              className="px-4 py-2 text-sm text-[#6b6b6b] hover:bg-[#ebebea] rounded"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm bg-notion-text text-white rounded hover:bg-opacity-90"
+              className="px-4 py-2 text-sm bg-[#37352f] text-white rounded hover:bg-opacity-90"
             >
               Add Food
             </button>
@@ -414,49 +405,49 @@ function GoalsModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Set Daily Goals</h3>
-          <button onClick={onClose} className="p-1 hover:bg-notion-hover rounded">
+          <h3 className="text-lg font-semibold text-[#37352f]">Set Daily Goals</h3>
+          <button onClick={onClose} className="p-1 hover:bg-[#ebebea] rounded">
             <X className="w-5 h-5" />
           </button>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-notion-text-light mb-1">Daily Calories</label>
+            <label className="block text-sm text-[#6b6b6b] mb-1">Daily Calories</label>
             <input
               type="number"
               value={localGoals.calories}
               onChange={(e) => setLocalGoals({...localGoals, calories: parseInt(e.target.value) || 0})}
-              className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+              className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
             />
           </div>
           
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Protein (g)</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Protein (g)</label>
               <input
                 type="number"
                 value={localGoals.protein}
                 onChange={(e) => setLocalGoals({...localGoals, protein: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Carbs (g)</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Carbs (g)</label>
               <input
                 type="number"
                 value={localGoals.carbs}
                 onChange={(e) => setLocalGoals({...localGoals, carbs: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-notion-text-light mb-1">Fat (g)</label>
+              <label className="block text-sm text-[#6b6b6b] mb-1">Fat (g)</label>
               <input
                 type="number"
                 value={localGoals.fat}
                 onChange={(e) => setLocalGoals({...localGoals, fat: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
+                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
               />
             </div>
           </div>
@@ -465,13 +456,13 @@ function GoalsModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-notion-text-light hover:bg-notion-hover rounded"
+              className="px-4 py-2 text-sm text-[#6b6b6b] hover:bg-[#ebebea] rounded"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm bg-notion-text text-white rounded hover:bg-opacity-90"
+              className="px-4 py-2 text-sm bg-[#37352f] text-white rounded hover:bg-opacity-90"
             >
               Save Goals
             </button>
@@ -539,7 +530,7 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.content || "Sorry, I couldn't process that. Try again?",
+        content: data.content || data.reply || "I'm having trouble connecting right now. Try again in a moment!",
         timestamp: new Date()
       }
 
@@ -562,9 +553,9 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
   }
   
   return (
-    <div className="flex flex-col h-80 border-t border-notion-border">
-      <div className="px-4 py-2 border-b border-notion-border bg-notion-sidebar">
-        <div className="flex items-center gap-2 text-sm text-notion-text-light">
+    <div className="flex flex-col h-80 border-t border-[#e3e2e0]">
+      <div className="px-4 py-2 border-b border-[#e3e2e0] bg-[#f7f6f3]">
+        <div className="flex items-center gap-2 text-sm text-[#6b6b6b]">
           <MessageSquare className="w-4 h-4" />
           <span>Nutrition Assistant</span>
         </div>
@@ -579,8 +570,8 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
             <div
               className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
                 message.role === 'user'
-                  ? 'bg-notion-text text-white'
-                  : 'bg-notion-sidebar text-notion-text'
+                  ? 'bg-[#37352f] text-white'
+                  : 'bg-[#f7f6f3] text-[#37352f]'
               }`}
             >
               {message.content}
@@ -589,7 +580,7 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-notion-sidebar text-notion-text-light px-3 py-2 rounded-lg text-sm">
+            <div className="bg-[#f7f6f3] text-[#6b6b6b] px-3 py-2 rounded-lg text-sm">
               Thinking...
             </div>
           </div>
@@ -597,7 +588,7 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
         <div ref={messagesEndRef} />
       </div>
       
-      <div className="p-3 border-t border-notion-border">
+      <div className="p-3 border-t border-[#e3e2e0]">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -605,12 +596,12 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             placeholder="Log food or ask a question..."
-            className="flex-1 px-3 py-2 border border-notion-border rounded-lg text-sm focus:border-notion-accent focus:outline-none"
+            className="flex-1 px-3 py-2 border border-[#e3e2e0] rounded-lg text-sm focus:border-[#2383e2] focus:outline-none"
           />
           <button
             onClick={sendMessage}
             disabled={isLoading || !input.trim()}
-            className="p-2 bg-notion-text text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50"
+            className="p-2 bg-[#37352f] text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
           </button>
@@ -623,9 +614,6 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
 // Main Dashboard
 function NutritionDashboard() {
   const today = new Date().toISOString().split('T')[0]
-  
-  // VERSION MARKER - If you see this banner, new UI is deployed
-  console.log('VELUM UI VERSION: 2026-02-01-V4-NEW-UI-DEPLOYED')
   
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     date: today,
@@ -752,7 +740,7 @@ function NutritionDashboard() {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-notion-text-light" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#6b6b6b]" />
       </div>
     )
   }
@@ -760,15 +748,15 @@ function NutritionDashboard() {
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
       {/* Header */}
-      <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-notion-border">
+      <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[#e3e2e0]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
               <Apple className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Nutrition</h1>
-              <p className="text-sm text-notion-text-light">
+              <h1 className="text-xl sm:text-2xl font-bold text-[#37352f]">Nutrition</h1>
+              <p className="text-sm text-[#6b6b6b]">
                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
             </div>
@@ -776,10 +764,10 @@ function NutritionDashboard() {
           <button
             onClick={fetchData}
             disabled={isRefreshing}
-            className="p-2 hover:bg-notion-hover rounded-lg transition-colors"
+            className="p-2 hover:bg-[#ebebea] rounded-lg transition-colors"
             title="Refresh data"
           >
-            <RefreshCw className={`w-5 h-5 text-notion-text-light ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 text-[#6b6b6b] ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
         
@@ -788,23 +776,18 @@ function NutritionDashboard() {
             {error}
           </div>
         )}
-        
-        {/* VERSION BANNER - New UI confirmation */}
-        <div className="mt-2 p-2 bg-blue-100 border border-blue-300 rounded text-xs text-blue-800 text-center">
-          ✓ NEW UI DEPLOYED - V4 - Postgres Active
-        </div>
       </div>
       
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-6">
           {/* Macros Overview */}
-          <div className="bg-notion-sidebar rounded-lg p-4 sm:p-5">
+          <div className="bg-[#f7f6f3] rounded-lg p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold">Daily Progress</h2>
+              <h2 className="font-semibold text-[#37352f]">Daily Progress</h2>
               <button 
                 onClick={() => setShowGoalsModal(true)}
-                className="text-sm text-notion-accent hover:underline"
+                className="text-sm text-[#2383e2] hover:underline"
               >
                 Edit goals
               </button>
@@ -842,23 +825,23 @@ function NutritionDashboard() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-5">
               <div className="bg-white rounded-lg p-3 text-center">
                 <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{Math.round(totals.calories)}</div>
-                <div className="text-xs text-notion-text-light">kcal</div>
+                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.calories)}</div>
+                <div className="text-xs text-[#6b6b6b]">kcal</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Beef className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{Math.round(totals.protein)}g</div>
-                <div className="text-xs text-notion-text-light">protein</div>
+                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.protein)}g</div>
+                <div className="text-xs text-[#6b6b6b]">protein</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Wheat className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{Math.round(totals.carbs)}g</div>
-                <div className="text-xs text-notion-text-light">carbs</div>
+                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.carbs)}g</div>
+                <div className="text-xs text-[#6b6b6b]">carbs</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Target className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{Math.round(totals.fat)}g</div>
-                <div className="text-xs text-notion-text-light">fat</div>
+                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.fat)}g</div>
+                <div className="text-xs text-[#6b6b6b]">fat</div>
               </div>
             </div>
           </div>
@@ -867,27 +850,27 @@ function NutritionDashboard() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="font-semibold">Food Log</h2>
-                <p className="text-xs text-notion-text-light">
+                <h2 className="font-semibold text-[#37352f]">Food Log</h2>
+                <p className="text-xs text-[#6b6b6b]">
                   {entries.length} {entries.length === 1 ? 'meal' : 'meals'} logged today
                 </p>
               </div>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-notion-text text-white rounded hover:bg-opacity-90"
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-[#37352f] text-white rounded hover:bg-opacity-90"
               >
                 <Plus className="w-4 h-4" />
                 Add food
               </button>
             </div>
             
-            <div className="bg-white border border-notion-border rounded-lg overflow-hidden">
+            <div className="bg-white border border-[#e3e2e0] rounded-lg overflow-hidden">
               {entries.length > 0 ? (
                 entries.map(entry => (
                   <FoodEntryRow key={entry.id} entry={entry} onDelete={deleteFood} />
                 ))
               ) : (
-                <div className="p-8 text-center text-notion-text-light">
+                <div className="p-8 text-center text-[#6b6b6b]">
                   <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p>No food logged today</p>
                   <p className="text-sm">Click &quot;Add food&quot; or use the chat below</p>
@@ -897,10 +880,10 @@ function NutritionDashboard() {
             
             {/* Totals row */}
             {entries.length > 0 && (
-              <div className="mt-3 p-3 bg-notion-sidebar rounded-lg">
+              <div className="mt-3 p-3 bg-[#f7f6f3] rounded-lg">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium">Daily Total</span>
-                  <div className="flex gap-4 text-notion-text-light">
+                  <span className="font-medium text-[#37352f]">Daily Total</span>
+                  <div className="flex gap-4 text-[#6b6b6b]">
                     <span>{Math.round(totals.calories)} cal</span>
                     <span className="hidden sm:inline">{Math.round(totals.protein)}g P</span>
                     <span className="hidden sm:inline">{Math.round(totals.carbs)}g C</span>
