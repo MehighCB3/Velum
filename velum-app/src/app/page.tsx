@@ -80,6 +80,12 @@ function Sidebar({
   expandedFolders: Set<string>
   toggleFolder: (id: string) => void
 }) {
+  // DEBUG: Confirm sidebar is rendering
+  console.log('SIDEBAR RENDERING:', navigation.length, 'items')
+  
+  useEffect(() => {
+    console.log('SIDEBAR MOUNTED')
+  }, [])
   const renderNavItem = (item: NavItem, depth: number = 0) => {
     const isExpanded = expandedFolders.has(item.id)
     const isActive = activeItem === item.id
@@ -135,7 +141,9 @@ function Sidebar({
   }
   
   return (
-    <div className="w-60 bg-notion-sidebar border-r border-notion-border flex flex-col h-screen">
+    <div className="w-60 bg-[#f7f6f3] border-r border-[#e3e2e0] flex flex-col h-screen" style={{border: '2px solid red'}}>
+      {/* DEBUG: Sidebar should be visible with red border */}
+      <div className="bg-yellow-200 text-xs p-1 text-center">SIDEBAR DEBUG</div>
       {/* Workspace header */}
       <div className="p-3 border-b border-notion-border">
         <div className="flex items-center gap-2">
