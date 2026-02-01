@@ -15,9 +15,10 @@ import {
   Flame,
   Beef,
   Wheat,
-  MoreHorizontal,
   Trash2,
-  X
+  X,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 
 // Types
@@ -30,6 +31,23 @@ interface FoodEntry {
   fat: number
   time: string
   date: string
+}
+
+interface NutritionData {
+  date: string
+  entries: FoodEntry[]
+  totals: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
+  goals: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
 }
 
 interface Message {
@@ -45,13 +63,6 @@ interface NavItem {
   icon?: React.ReactNode
   children?: NavItem[]
   type: 'page' | 'folder'
-}
-
-interface Goals {
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
 }
 
 // Sidebar Component
@@ -131,19 +142,19 @@ function Sidebar({
             <svg width="24" height="24" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <linearGradient id="spiralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:1" />
-                  <stop offset="50%" style="stop-color:#f7931e;stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:1" />
+                  <stop offset="0%" style={{stopColor:'#ff6b35',stopOpacity:1}} />
+                  <stop offset="50%" style={{stopColor:'#f7931e',stopOpacity:1}} />
+                  <stop offset="100%" style={{stopColor:'#ff6b35',stopOpacity:1}} />
                 </linearGradient>
               </defs>
-              <circle cx="32" cy="32" r="30" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+              <circle cx="32" cy="32" r="30" fill="#1a1a1a" stroke="#333" strokeWidth="2"/>
               <path d="M32,12 C40,12 48,20 48,32 C48,44 40,52 32,52 C24,52 16,44 16,32 C16,24 20,18 26,15" 
                     fill="none" 
                     stroke="url(#spiralGradient)" 
-                    stroke-width="3" 
-                    stroke-linecap="round"/>
+                    strokeWidth="3" 
+                    strokeLinecap="round"/>
               <circle cx="26" cy="15" r="2" fill="#ff6b35"/>
-              <circle cx="32" cy="32" r="28" fill="none" stroke="#ff6b35" stroke-width="1" opacity="0.3"/>
+              <circle cx="32" cy="32" r="28" fill="none" stroke="#ff6b35" strokeWidth="1" opacity="0.3"/>
             </svg>
           </div>
           <span className="font-medium text-sm">Archie</span>
@@ -199,7 +210,7 @@ function MacroBar({
       <div className="flex justify-between text-sm">
         <span className="text-notion-text-light">{label}</span>
         <span className={isOver ? 'text-red-500 font-medium' : 'text-notion-text'}>
-          {current}{unit} / {goal}{unit}
+          {Math.round(current)}{unit} / {goal}{unit}
         </span>
       </div>
       <div className="h-2 bg-notion-border rounded-full overflow-hidden">
@@ -220,21 +231,19 @@ function FoodEntryRow({
   entry: FoodEntry
   onDelete: (id: string) => void
 }) {
-  const [showMenu, setShowMenu] = useState(false)
-  
   return (
-    <div className="flex items-center py-2 px-3 hover:bg-notion-hover rounded group">
-      <div className="flex-1">
-        <div className="font-medium text-sm">{entry.name}</div>
+    <div className="flex items-center py-3 px-3 hover:bg-notion-hover rounded group border-b border-notion-border last:border-b-0">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm truncate">{entry.name}</div>
         <div className="text-xs text-notion-text-light">{entry.time}</div>
       </div>
-      <div className="flex items-center gap-4 text-sm text-notion-text-light">
-        <span>{entry.calories} cal</span>
-        <span>{entry.protein}g P</span>
-        <span>{entry.carbs}g C</span>
-        <span>{entry.fat}g F</span>
+      <div className="flex items-center gap-3 sm:gap-4 text-sm text-notion-text-light flex-shrink-0">
+        <span className="w-14 text-right">{Math.round(entry.calories)} cal</span>
+        <span className="w-12 text-right hidden sm:inline">{entry.protein}g P</span>
+        <span className="w-12 text-right hidden sm:inline">{entry.carbs}g C</span>
+        <span className="w-12 text-right hidden sm:inline">{entry.fat}g F</span>
         <button 
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-notion-border rounded"
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-notion-border rounded transition-opacity"
           onClick={() => onDelete(entry.id)}
         >
           <Trash2 className="w-4 h-4" />
@@ -259,7 +268,7 @@ function AddFoodModal({
   const [protein, setProtein] = useState('')
   const [carbs, setCarbs] = useState('')
   const [fat, setFat] = useState('')
-  const [time, setTime] = useState(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
+  const [time, setTime] = useState(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }))
   
   if (!isOpen) return null
   
@@ -286,7 +295,7 @@ function AddFoodModal({
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Add Food</h3>
           <button onClick={onClose} className="p-1 hover:bg-notion-hover rounded">
@@ -302,7 +311,7 @@ function AddFoodModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Chicken salad"
-              className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+              className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
             />
           </div>
           
@@ -314,7 +323,7 @@ function AddFoodModal({
                 value={calories}
                 onChange={(e) => setCalories(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -323,7 +332,7 @@ function AddFoodModal({
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
           </div>
@@ -336,7 +345,7 @@ function AddFoodModal({
                 value={protein}
                 onChange={(e) => setProtein(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -346,7 +355,7 @@ function AddFoodModal({
                 value={carbs}
                 onChange={(e) => setCarbs(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -356,7 +365,7 @@ function AddFoodModal({
                 value={fat}
                 onChange={(e) => setFat(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
           </div>
@@ -391,8 +400,8 @@ function GoalsModal({
 }: { 
   isOpen: boolean
   onClose: () => void
-  goals: Goals
-  onSave: (goals: Goals) => void
+  goals: { calories: number; protein: number; carbs: number; fat: number }
+  onSave: (goals: { calories: number; protein: number; carbs: number; fat: number }) => void
 }) {
   const [localGoals, setLocalGoals] = useState(goals)
   
@@ -410,7 +419,7 @@ function GoalsModal({
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Set Daily Goals</h3>
           <button onClick={onClose} className="p-1 hover:bg-notion-hover rounded">
@@ -425,7 +434,7 @@ function GoalsModal({
               type="number"
               value={localGoals.calories}
               onChange={(e) => setLocalGoals({...localGoals, calories: parseInt(e.target.value) || 0})}
-              className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+              className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
             />
           </div>
           
@@ -436,7 +445,7 @@ function GoalsModal({
                 type="number"
                 value={localGoals.protein}
                 onChange={(e) => setLocalGoals({...localGoals, protein: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -445,7 +454,7 @@ function GoalsModal({
                 type="number"
                 value={localGoals.carbs}
                 onChange={(e) => setLocalGoals({...localGoals, carbs: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -454,7 +463,7 @@ function GoalsModal({
                 type="number"
                 value={localGoals.fat}
                 onChange={(e) => setLocalGoals({...localGoals, fat: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent"
+                className="w-full px-3 py-2 border border-notion-border rounded focus:border-notion-accent focus:outline-none"
               />
             </div>
           </div>
@@ -481,7 +490,7 @@ function GoalsModal({
 }
 
 // Chat Component
-function Chat({ context }: { context: string }) {
+function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => void }) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -542,6 +551,9 @@ function Chat({ context }: { context: string }) {
       }
 
       setMessages(prev => [...prev, assistantMessage])
+      
+      // Refresh data in case food was logged via chat
+      onFoodLogged()
     } catch (error) {
       console.error('Chat error:', error)
       const fallbackMessage: Message = {
@@ -600,7 +612,7 @@ function Chat({ context }: { context: string }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             placeholder="Log food or ask a question..."
-            className="flex-1 px-3 py-2 border border-notion-border rounded-lg text-sm focus:border-notion-accent"
+            className="flex-1 px-3 py-2 border border-notion-border rounded-lg text-sm focus:border-notion-accent focus:outline-none"
           />
           <button
             onClick={sendMessage}
@@ -619,171 +631,174 @@ function Chat({ context }: { context: string }) {
 function NutritionDashboard() {
   const today = new Date().toISOString().split('T')[0]
   
-  const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([
-    {
-      id: '1',
-      name: 'Oatmeal with banana',
-      calories: 350,
-      protein: 12,
-      carbs: 58,
-      fat: 8,
-      time: '08:30',
-      date: today
-    },
-    {
-      id: '2',
-      name: 'Grilled chicken salad',
-      calories: 420,
-      protein: 35,
-      carbs: 15,
-      fat: 22,
-      time: '13:00',
-      date: today
-    },
-    {
-      id: '3',
-      name: 'Lentil & grain medley with vegetables',
-      calories: 439,
-      protein: 33.6,
-      carbs: 76.2,
-      fat: 1.6,
-      time: '21:32',
-      date: today
-    }
-  ])
-  
-  const [goals, setGoals] = useState<Goals>({
-    calories: 2000,
-    protein: 150,
-    carbs: 200,
-    fat: 65
+  const [nutritionData, setNutritionData] = useState<NutritionData>({
+    date: today,
+    entries: [],
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
   })
   
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showGoalsModal, setShowGoalsModal] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
-  // Calculate totals
-  const todayEntries = foodEntries.filter(e => e.date === today)
-  const totals = todayEntries.reduce(
-    (acc, entry) => ({
-      calories: acc.calories + entry.calories,
-      protein: acc.protein + entry.protein,
-      carbs: acc.carbs + entry.carbs,
-      fat: acc.fat + entry.fat
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-  )
-  
-  // Add the photo analysis to totals
-  const photoAnalysis = { calories: 439, protein: 33.6, carbs: 76.2, fat: 1.6 }
-  const totalsWithPhoto = {
-    calories: totals.calories + photoAnalysis.calories,
-    protein: totals.protein + photoAnalysis.protein,
-    carbs: totals.carbs + photoAnalysis.carbs,
-    fat: totals.fat + photoAnalysis.fat
-  }
-  
-  const addFood = (entry: Omit<FoodEntry, 'id' | 'date'>) => {
-    const newEntry: FoodEntry = {
-      ...entry,
-      id: Date.now().toString(),
-      date: today
+  // Fetch nutrition data from API
+  const fetchData = async () => {
+    try {
+      setIsRefreshing(true)
+      setError(null)
+      
+      const response = await fetch(`/api/nutrition?date=${today}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch nutrition data')
+      }
+      
+      const data = await response.json()
+      setNutritionData(data)
+    } catch (err) {
+      console.error('Error fetching nutrition data:', err)
+      setError('Failed to load nutrition data')
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
     }
-    setFoodEntries(prev => [...prev, newEntry])
   }
   
-  const deleteFood = (id: string) => {
-    setFoodEntries(prev => prev.filter(e => e.id !== id))
+  // Initial load
+  useEffect(() => {
+    fetchData()
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [today])
+  
+  // Add food entry via API
+  const addFood = async (entry: Omit<FoodEntry, 'id' | 'date'>) => {
+    try {
+      const response = await fetch('/api/nutrition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: today,
+          ...entry
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to add food entry')
+      }
+      
+      const data = await response.json()
+      setNutritionData(data)
+    } catch (err) {
+      console.error('Error adding food:', err)
+      setError('Failed to add food entry')
+    }
   }
   
-  const chatContext = `Today's intake: ${totals.calories} calories, ${totals.protein}g protein, ${totals.carbs}g carbs, ${totals.fat}g fat. Goals: ${goals.calories} cal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.`
+  // Delete food entry via API
+  const deleteFood = async (id: string) => {
+    try {
+      const response = await fetch(`/api/nutrition?date=${today}&entryId=${id}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete food entry')
+      }
+      
+      const data = await response.json()
+      setNutritionData(prev => ({
+        ...prev,
+        entries: data.entries,
+        totals: data.totals
+      }))
+    } catch (err) {
+      console.error('Error deleting food:', err)
+      setError('Failed to delete food entry')
+    }
+  }
+  
+  // Update goals via API
+  const updateGoals = async (newGoals: { calories: number; protein: number; carbs: number; fat: number }) => {
+    try {
+      const response = await fetch('/api/nutrition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: today,
+          goals: newGoals,
+          entries: nutritionData.entries,
+          totals: nutritionData.totals
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to update goals')
+      }
+      
+      const data = await response.json()
+      setNutritionData(prev => ({ ...prev, goals: newGoals }))
+    } catch (err) {
+      console.error('Error updating goals:', err)
+      setError('Failed to update goals')
+    }
+  }
+  
+  const chatContext = `Today's intake: ${Math.round(nutritionData.totals.calories)} calories, ${Math.round(nutritionData.totals.protein)}g protein, ${Math.round(nutritionData.totals.carbs)}g carbs, ${Math.round(nutritionData.totals.fat)}g fat. Goals: ${nutritionData.goals.calories} cal, ${nutritionData.goals.protein}g protein, ${nutritionData.goals.carbs}g carbs, ${nutritionData.goals.fat}g fat.`
+  
+  const { entries, totals, goals } = nutritionData
+  
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-notion-text-light" />
+      </div>
+    )
+  }
   
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
       {/* Header */}
-      <div className="px-8 py-6 border-b border-notion-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-green-100 rounded-lg">
-            <Apple className="w-6 h-6 text-green-600" />
+      <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-notion-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Apple className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">Nutrition</h1>
+              <p className="text-sm text-notion-text-light">
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Nutrition</h1>
-            <p className="text-sm text-notion-text-light">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
-          </div>
+          <button
+            onClick={fetchData}
+            disabled={isRefreshing}
+            className="p-2 hover:bg-notion-hover rounded-lg transition-colors"
+            title="Refresh data"
+          >
+            <RefreshCw className={`w-5 h-5 text-notion-text-light ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
+        
+        {error && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            {error}
+          </div>
+        )}
       </div>
       
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="px-8 py-6 space-y-6">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-6">
           {/* Macros Overview */}
-          {/* Food Photo Analysis - Latest Analysis */}
-      <div className="bg-white border border-notion-border rounded-lg p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-green-100 rounded-lg">
-            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="font-semibold text-lg">Latest Food Analysis</h3>
-            <p className="text-sm text-notion-text-light">Just now • USDA FoodData Central</p>
-          </div>
-        </div>
-        
-        <div className="bg-notion-sidebar rounded-lg p-4">
-          <h4 className="font-medium mb-3 text-sm">Detected Foods</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-notion-text">🥄 Lentil and grain medley</span>
-              <span className="text-notion-text-light">1.5 cups • 418 cal</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-notion-text">🥕 Mixed vegetables</span>
-              <span className="text-notion-text-light">0.5 cups • 21 cal</span>
-            </div>
-          </div>
-          
-          <div className="mt-4 pt-3 border-t border-notion-border">
-            <h5 className="font-medium mb-2 text-sm">Total Nutrition</h5>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-notion-text-light">Calories</span>
-                <div className="text-lg font-semibold">439</div>
-              </div>
-              <div>
-                <span className="text-notion-text-light">Protein</span>
-                <div className="text-lg font-semibold">33.6g</div>
-              </div>
-              <div>
-                <span className="text-notion-text-light">Carbs</span>
-                <div className="text-lg font-semibold">76.2g</div>
-              </div>
-              <div>
-                <span className="text-notion-text-light">Fat</span>
-                <div className="text-lg font-semibold">1.6g</div>
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-notion-text-light">
-              Confidence: 78% • Database: USDA FoodData Central
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <button className="flex-1 bg-notion-text text-white py-2 px-4 rounded-lg hover:bg-opacity-90 transition-colors">
-            Add to Daily Log
-          </button>
-          <button className="px-4 py-2 border border-notion-border rounded-lg hover:bg-notion-hover transition-colors">
-            Upload New Photo
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-notion-sidebar rounded-lg p-5">
+          <div className="bg-notion-sidebar rounded-lg p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold">Daily Progress</h2>
               <button 
@@ -797,51 +812,51 @@ function NutritionDashboard() {
             <div className="space-y-4">
               <MacroBar 
                 label="Calories" 
-                current={totalsWithPhoto.calories} 
+                current={totals.calories} 
                 goal={goals.calories} 
                 color="bg-orange-400"
                 unit=" kcal"
               />
               <MacroBar 
                 label="Protein" 
-                current={totalsWithPhoto.protein} 
+                current={totals.protein} 
                 goal={goals.protein} 
                 color="bg-red-400"
               />
               <MacroBar 
                 label="Carbs" 
-                current={totalsWithPhoto.carbs} 
+                current={totals.carbs} 
                 goal={goals.carbs} 
                 color="bg-yellow-400"
               />
               <MacroBar 
                 label="Fat" 
-                current={totalsWithPhoto.fat} 
+                current={totals.fat} 
                 goal={goals.fat} 
                 color="bg-blue-400"
               />
             </div>
             
             {/* Summary cards */}
-            <div className="grid grid-cols-4 gap-3 mt-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-5">
               <div className="bg-white rounded-lg p-3 text-center">
                 <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totalsWithPhoto.calories}</div>
+                <div className="text-lg font-bold">{Math.round(totals.calories)}</div>
                 <div className="text-xs text-notion-text-light">kcal</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Beef className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totalsWithPhoto.protein.toFixed(1)}g</div>
+                <div className="text-lg font-bold">{Math.round(totals.protein)}g</div>
                 <div className="text-xs text-notion-text-light">protein</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Wheat className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totalsWithPhoto.carbs.toFixed(1)}g</div>
+                <div className="text-lg font-bold">{Math.round(totals.carbs)}g</div>
                 <div className="text-xs text-notion-text-light">carbs</div>
               </div>
               <div className="bg-white rounded-lg p-3 text-center">
                 <Target className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                <div className="text-lg font-bold">{totalsWithPhoto.fat.toFixed(1)}g</div>
+                <div className="text-lg font-bold">{Math.round(totals.fat)}g</div>
                 <div className="text-xs text-notion-text-light">fat</div>
               </div>
             </div>
@@ -850,7 +865,12 @@ function NutritionDashboard() {
           {/* Food Log */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold">Food Log</h2>
+              <div>
+                <h2 className="font-semibold">Food Log</h2>
+                <p className="text-xs text-notion-text-light">
+                  {entries.length} {entries.length === 1 ? 'meal' : 'meals'} logged today
+                </p>
+              </div>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm bg-notion-text text-white rounded hover:bg-opacity-90"
@@ -860,25 +880,40 @@ function NutritionDashboard() {
               </button>
             </div>
             
-            <div className="bg-white border border-notion-border rounded-lg divide-y divide-notion-border">
-              {todayEntries.length > 0 ? (
-                todayEntries.map(entry => (
+            <div className="bg-white border border-notion-border rounded-lg overflow-hidden">
+              {entries.length > 0 ? (
+                entries.map(entry => (
                   <FoodEntryRow key={entry.id} entry={entry} onDelete={deleteFood} />
                 ))
               ) : (
                 <div className="p-8 text-center text-notion-text-light">
                   <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p>No food logged today</p>
-                  <p className="text-sm">Click "Add food" or use the chat below</p>
+                  <p className="text-sm">Click &quot;Add food&quot; or use the chat below</p>
                 </div>
               )}
             </div>
+            
+            {/* Totals row */}
+            {entries.length > 0 && (
+              <div className="mt-3 p-3 bg-notion-sidebar rounded-lg">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium">Daily Total</span>
+                  <div className="flex gap-4 text-notion-text-light">
+                    <span>{Math.round(totals.calories)} cal</span>
+                    <span className="hidden sm:inline">{Math.round(totals.protein)}g P</span>
+                    <span className="hidden sm:inline">{Math.round(totals.carbs)}g C</span>
+                    <span className="hidden sm:inline">{Math.round(totals.fat)}g F</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
       
       {/* Chat */}
-      <Chat context={chatContext} />
+      <Chat context={chatContext} onFoodLogged={fetchData} />
       
       {/* Modals */}
       <AddFoodModal 
@@ -890,7 +925,7 @@ function NutritionDashboard() {
         isOpen={showGoalsModal}
         onClose={() => setShowGoalsModal(false)}
         goals={goals}
-        onSave={setGoals}
+        onSave={updateGoals}
       />
     </div>
   )
