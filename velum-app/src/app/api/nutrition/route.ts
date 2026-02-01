@@ -16,31 +16,58 @@ try {
   console.error('Redis initialization error:', error)
 }
 
-// Data file path for persistence (local development with file fallback)
-const DATA_FILE = path.join(process.cwd(), 'data', 'nutrition.json')
+// Data file paths to try (for different environments)
+const DATA_PATHS = [
+  path.join(process.cwd(), 'data', 'nutrition.json'),
+  path.join(process.cwd(), '..', 'data', 'nutrition.json'),
+  path.join(process.cwd(), '..', '..', 'data', 'nutrition.json'),
+  path.join('/var/task', 'data', 'nutrition.json'),
+  '/var/task/data/nutrition.json',
+]
 
 // Check storage mode
 const useRedis = !!redis
 const isServerless = process.env.VERCEL || !fs.existsSync(process.cwd() + '/package.json')
 
+// Find the first existing data file
+function findDataFile(): string | null {
+  for (const filePath of DATA_PATHS) {
+    if (fs.existsSync(filePath)) {
+      console.log('Found data file at:', filePath)
+      return filePath
+    }
+  }
+  console.log('No data file found in:', DATA_PATHS)
+  return null
+}
+
+const DATA_FILE = findDataFile() || DATA_PATHS[0]
+
 // Fallback: In-memory storage for local dev without Redis
 // Seed from file if available (for serverless to have initial data)
 function loadInitialData(): Record<string, any> {
+  const dataFile = findDataFile()
+  if (!dataFile) {
+    console.log('No data file found to load')
+    return {}
+  }
+  
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf-8')
-      return JSON.parse(data)
-    }
+    const data = fs.readFileSync(dataFile, 'utf-8')
+    console.log('Loaded data from:', dataFile)
+    return JSON.parse(data)
   } catch (error) {
-    console.error('Error loading initial data:', error)
+    console.error('Error loading initial data from', dataFile, ':', error)
   }
   return {}
 }
 
 const memoryStore: Record<string, any> = loadInitialData()
+console.log('Memory store initialized with', Object.keys(memoryStore).length, 'dates')
 
 // Ensure data directory exists (local dev only)
 function ensureDataDir() {
+  if (!DATA_FILE) return
   const dataDir = path.dirname(DATA_FILE)
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true })
