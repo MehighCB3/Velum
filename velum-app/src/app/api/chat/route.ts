@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
     let fetchResult: any = {}
     try {
       const fetchStart = Date.now()
+      // Try sessions_send instead of agent_send (correct OpenClaw tool)
       const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
         method: 'POST',
         headers: {
@@ -58,8 +59,9 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${GATEWAY_PASSWORD}`,
         },
         body: JSON.stringify({
-          tool: 'agent_send',
+          tool: 'sessions_send',
           args: {
+            sessionKey: 'agent:main:main',
             message: fullMessage
           }
         }),
