@@ -41,9 +41,12 @@ const SEED_DATA: Record<string, any> = {
       { "id": "20260201-004", "name": "Grilled seafood platter", "calories": 220, "protein": 28, "carbs": 5, "fat": 8, "time": "14:30", "date": "2026-02-01" },
       { "id": "20260201-005", "name": "Fideuà with seafood", "calories": 420, "protein": 24, "carbs": 58, "fat": 10, "time": "15:00", "date": "2026-02-01" },
       { "id": "20260201-006", "name": "Coke (can)", "calories": 139, "protein": 0, "carbs": 35, "fat": 0, "time": "16:00", "date": "2026-02-01" },
-      { "id": "20260201-007", "name": "Cinnamon roll", "calories": 220, "protein": 4, "carbs": 32, "fat": 8, "time": "17:00", "date": "2026-02-01" }
+      { "id": "20260201-007", "name": "Cinnamon roll", "calories": 220, "protein": 4, "carbs": 32, "fat": 8, "time": "17:00", "date": "2026-02-01" },
+      { "id": "20260201-008", "name": "Pringles Salt & Vinegar (165g)", "calories": 850, "protein": 6, "carbs": 90, "fat": 55, "time": "20:30", "date": "2026-02-01" },
+      { "id": "20260201-009", "name": "Dr Pepper (330ml)", "calories": 140, "protein": 0, "carbs": 36, "fat": 0, "time": "20:31", "date": "2026-02-01" },
+      { "id": "20260201-010", "name": "Toblerone (50g)", "calories": 260, "protein": 3, "carbs": 29, "fat": 14, "time": "20:32", "date": "2026-02-01" }
     ],
-    "totals": { "calories": 1552, "protein": 76, "carbs": 191, "fat": 52 },
+    "totals": { "calories": 2802, "protein": 85, "carbs": 346, "fat": 121 },
     "goals": { "calories": 2000, "protein": 150, "carbs": 200, "fat": 65 }
   }
 }
@@ -277,22 +280,48 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
     
+    // Debug info
+    const debug = searchParams.get('debug') === '1'
+    let storageMode = 'unknown'
+    let postgresError = null
+    let entryCount = 0
+    
     // Try Postgres first, then fall back to seed data
     let data
     if (usePostgres) {
       try {
         data = await readFromPostgres(date)
+        entryCount = data.entries.length
+        storageMode = 'postgres'
         // If no entries in Postgres, use seed data as fallback
         if (data.entries.length === 0 && SEED_DATA[date]) {
           data = SEED_DATA[date]
+          storageMode = 'postgres-empty-used-seed'
         }
-      } catch {
+      } catch (error) {
         // Postgres failed, try seed data
+        postgresError = error instanceof Error ? error.message : 'Unknown error'
         data = SEED_DATA[date] || await readFromFallback(date)
+        storageMode = postgresError.includes('relation') ? 'postgres-no-table-used-seed' : 'postgres-error-used-seed'
       }
     } else {
       // No Postgres, use seed data or fallback
       data = SEED_DATA[date] || await readFromFallback(date)
+      storageMode = 'no-postgres-env-used-seed'
+    }
+    
+    if (debug) {
+      return NextResponse.json({
+        ...data,
+        _debug: {
+          storageMode,
+          postgresConnected: usePostgres,
+          postgresUrl: process.env.POSTGRES_URL ? 'SET' : 'NOT_SET',
+          postgresError,
+          entryCount,
+          timestamp: new Date().toISOString()
+        }
+      })
     }
     
     return NextResponse.json(data)
