@@ -1,25 +1,30 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
+  Search, 
   ChevronRight, 
   ChevronDown, 
   Plus, 
-  Search, 
+  Send, 
   Settings, 
+  Sparkles, 
+  X, 
+  MessageCircle, 
   Apple, 
+  Clock, 
+  BarChart3, 
+  UtensilsCrossed, 
+  Coffee, 
+  Sun, 
+  Moon, 
+  BookOpen, 
   Target, 
-  MessageSquare,
-  Send,
-  Utensils,
-  Flame,
-  Beef,
-  Wheat,
-  Trash2,
-  X,
-  Loader2,
-  RefreshCw
-} from 'lucide-react'
+  Dumbbell, 
+  Brain, 
+  CheckSquare,
+  Flame 
+} from 'lucide-react';
 
 // Types
 interface FoodEntry {
@@ -86,46 +91,37 @@ function Sidebar({
     
     return (
       <div key={item.id}>
-        <div
-          className={`flex items-center gap-1 px-2 py-1 mx-1 rounded cursor-pointer group text-sm
-            ${isActive ? 'bg-[#ebebea]' : 'hover:bg-[#ebebea]'}`}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        <button
           onClick={() => {
             if (hasChildren) {
               toggleFolder(item.id)
+            } else {
+              setActiveItem(item.id)
             }
-            setActiveItem(item.id)
           }}
+          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all group
+            ${isActive ? 'bg-orange-100 text-orange-700' : 'text-stone-600 hover:bg-stone-100'}`}
+          style={{ paddingLeft: `${8 + depth * 12}px` }}
         >
           {hasChildren ? (
-            <button 
-              className="p-0.5 hover:bg-[#e3e2e0] rounded"
-              onClick={(e) => {
-                e.stopPropagation()
-                toggleFolder(item.id)
-              }}
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-3 h-3 text-[#6b6b6b]" />
-              ) : (
-                <ChevronRight className="w-3 h-3 text-[#6b6b6b]" />
-              )}
-            </button>
+            <span className="w-4 h-4 flex items-center justify-center text-stone-400">
+              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </span>
           ) : (
             <span className="w-4" />
           )}
           
           {item.icon && (
-            <span className="text-[#6b6b6b]">{item.icon}</span>
+            <span className={isActive ? 'text-orange-500' : 'text-stone-400 group-hover:text-stone-500'}>
+              {item.icon}
+            </span>
           )}
           
-          <span className={`truncate flex-1 ${isActive ? 'text-[#37352f] font-medium' : 'text-[#6b6b6b]'}`}>
-            {item.name}
-          </span>
-        </div>
+          <span className="flex-1 text-left truncate">{item.name}</span>
+        </button>
         
         {hasChildren && isExpanded && (
-          <div>
+          <div className="mt-0.5">
             {item.children!.map(child => renderNavItem(child, depth + 1))}
           </div>
         )}
@@ -134,416 +130,93 @@ function Sidebar({
   }
   
   return (
-    <div className="w-60 bg-[#f7f6f3] border-r border-[#e3e2e0] flex flex-col h-screen">
-      {/* Workspace header */}
-      <div className="p-3 border-b border-[#e3e2e0]">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-gradient-to-br from-orange-400 to-pink-500 rounded flex items-center justify-center text-white text-xs font-bold">
-            V
-          </div>
-          <span className="font-medium text-sm text-[#37352f]">Velum</span>
+    <aside className="w-60 bg-stone-100/50 border-r border-stone-200/50 flex flex-col h-screen">
+      {/* Logo */}
+      <div className="h-14 flex items-center gap-3 px-4 border-b border-stone-200/50">
+        <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-pink-600 rounded-lg flex items-center justify-center shadow-sm shadow-orange-500/20">
+          <span className="text-white font-bold text-sm">V</span>
         </div>
+        <span className="font-semibold text-stone-800">Velum</span>
       </div>
       
       {/* Search */}
-      <div className="p-2">
-        <div className="flex items-center gap-2 px-2 py-1.5 text-[#6b6b6b] hover:bg-[#ebebea] rounded cursor-pointer">
-          <Search className="w-4 h-4" />
-          <span className="text-sm">Search</span>
-        </div>
+      <div className="px-3 py-3">
+        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-400 hover:bg-stone-200/50 rounded-lg transition-colors">
+          <Search size={16} />
+          <span>Search</span>
+        </button>
       </div>
       
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-2">
-        <div className="px-3 py-1">
-          <span className="text-xs text-[#6b6b6b] font-medium">WORKSPACE</span>
-        </div>
-        {navigation.map(item => renderNavItem(item))}
+      <div className="flex-1 overflow-auto px-3 pb-4">
+        <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider px-2 mb-2">
+          WORKSPACE
+        </p>
+        <nav className="space-y-0.5">
+          {navigation.map(item => renderNavItem(item))}
+        </nav>
       </div>
       
       {/* Settings */}
-      <div className="p-2 border-t border-[#e3e2e0]">
-        <div className="flex items-center gap-2 px-2 py-1.5 text-[#6b6b6b] hover:bg-[#ebebea] rounded cursor-pointer">
-          <Settings className="w-4 h-4" />
-          <span className="text-sm">Settings</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Macro Progress Bar
-function MacroBar({ 
-  label, 
-  current, 
-  goal, 
-  color, 
-  unit = 'g' 
-}: { 
-  label: string
-  current: number
-  goal: number
-  color: string
-  unit?: string
-}) {
-  const percentage = Math.min((current / goal) * 100, 100)
-  const isOver = current > goal
-  
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="text-[#6b6b6b]">{label}</span>
-        <span className={isOver ? 'text-red-500 font-medium' : 'text-[#37352f]'}>
-          {Math.round(current)}{unit} / {goal}{unit}
-        </span>
-      </div>
-      <div className="h-2 bg-[#e3e2e0] rounded-full overflow-hidden">
-        <div 
-          className={`h-full rounded-full transition-all duration-300 ${isOver ? 'bg-red-400' : color}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-// Food Entry Row
-function FoodEntryRow({ 
-  entry, 
-  onDelete 
-}: { 
-  entry: FoodEntry
-  onDelete: (id: string) => void
-}) {
-  return (
-    <div className="flex items-center py-3 px-3 hover:bg-[#ebebea] rounded group border-b border-[#e3e2e0] last:border-b-0">
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate text-[#37352f]">{entry.name}</div>
-        <div className="text-xs text-[#6b6b6b]">{entry.time}</div>
-      </div>
-      <div className="flex items-center gap-3 sm:gap-4 text-sm text-[#6b6b6b] flex-shrink-0">
-        <span className="w-14 text-right">{Math.round(entry.calories)} cal</span>
-        <span className="w-12 text-right hidden sm:inline">{Math.round(Number(entry.protein))}g P</span>
-        <span className="w-12 text-right hidden sm:inline">{Math.round(Number(entry.carbs))}g C</span>
-        <span className="w-12 text-right hidden sm:inline">{Math.round(Number(entry.fat))}g F</span>
-        <button 
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[#e3e2e0] rounded transition-opacity"
-          onClick={() => onDelete(entry.id)}
-        >
-          <Trash2 className="w-4 h-4" />
+      <div className="p-3 border-t border-stone-200/50">
+        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-500 hover:bg-stone-200/50 rounded-lg transition-colors">
+          <Settings size={16} />
+          <span>Settings</span>
         </button>
       </div>
-    </div>
-  )
-}
-
-// Add Food Modal
-function AddFoodModal({ 
-  isOpen, 
-  onClose, 
-  onAdd 
-}: { 
-  isOpen: boolean
-  onClose: () => void
-  onAdd: (entry: Omit<FoodEntry, 'id' | 'date'>) => void
-}) {
-  const [name, setName] = useState('')
-  const [calories, setCalories] = useState('')
-  const [protein, setProtein] = useState('')
-  const [carbs, setCarbs] = useState('')
-  const [fat, setFat] = useState('')
-  const [time, setTime] = useState(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }))
-  
-  if (!isOpen) return null
-  
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name || !calories) return
-    
-    onAdd({
-      name,
-      calories: parseInt(calories) || 0,
-      protein: parseInt(protein) || 0,
-      carbs: parseInt(carbs) || 0,
-      fat: parseInt(fat) || 0,
-      time
-    })
-    
-    setName('')
-    setCalories('')
-    setProtein('')
-    setCarbs('')
-    setFat('')
-    onClose()
-  }
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-[#37352f]">Add Food</h3>
-          <button onClick={onClose} className="p-1 hover:bg-[#ebebea] rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-[#6b6b6b] mb-1">Food name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Chicken salad"
-              className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-            />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Calories</label>
-              <input
-                type="number"
-                value={calories}
-                onChange={(e) => setCalories(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Time</label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Protein (g)</label>
-              <input
-                type="number"
-                value={protein}
-                onChange={(e) => setProtein(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Carbs (g)</label>
-              <input
-                type="number"
-                value={carbs}
-                onChange={(e) => setCarbs(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Fat (g)</label>
-              <input
-                type="number"
-                value={fat}
-                onChange={(e) => setFat(e.target.value)}
-                placeholder="0"
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-[#6b6b6b] hover:bg-[#ebebea] rounded"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm bg-[#37352f] text-white rounded hover:bg-opacity-90"
-            >
-              Add Food
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// Goals Modal
-function GoalsModal({ 
-  isOpen, 
-  onClose, 
-  goals,
-  onSave 
-}: { 
-  isOpen: boolean
-  onClose: () => void
-  goals: { calories: number; protein: number; carbs: number; fat: number }
-  onSave: (goals: { calories: number; protein: number; carbs: number; fat: number }) => void
-}) {
-  const [localGoals, setLocalGoals] = useState(goals)
-  
-  useEffect(() => {
-    setLocalGoals(goals)
-  }, [goals])
-  
-  if (!isOpen) return null
-  
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSave(localGoals)
-    onClose()
-  }
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-[#37352f]">Set Daily Goals</h3>
-          <button onClick={onClose} className="p-1 hover:bg-[#ebebea] rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-[#6b6b6b] mb-1">Daily Calories</label>
-            <input
-              type="number"
-              value={localGoals.calories}
-              onChange={(e) => setLocalGoals({...localGoals, calories: parseInt(e.target.value) || 0})}
-              className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-            />
-          </div>
-          
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Protein (g)</label>
-              <input
-                type="number"
-                value={localGoals.protein}
-                onChange={(e) => setLocalGoals({...localGoals, protein: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Carbs (g)</label>
-              <input
-                type="number"
-                value={localGoals.carbs}
-                onChange={(e) => setLocalGoals({...localGoals, carbs: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[#6b6b6b] mb-1">Fat (g)</label>
-              <input
-                type="number"
-                value={localGoals.fat}
-                onChange={(e) => setLocalGoals({...localGoals, fat: parseInt(e.target.value) || 0})}
-                className="w-full px-3 py-2 border border-[#e3e2e0] rounded focus:border-[#2383e2] focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-[#6b6b6b] hover:bg-[#ebebea] rounded"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm bg-[#37352f] text-white rounded hover:bg-opacity-90"
-            >
-              Save Goals
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    </aside>
   )
 }
 
 // Chat Component
-function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => void }) {
+function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOpen: (open: boolean) => void; context: string }) {
+  const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hey! I'm your nutrition assistant. Log what you eat, ask for meal ideas, or just chat about food. What's on your mind?",
+      content: "Hey! You've got calories left today. Want dinner suggestions? 🍽️",
       timestamp: new Date()
     }
   ])
-  const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-  
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
   
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return
+    if (!message.trim() || isLoading) return
     
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: message,
       timestamp: new Date()
     }
     
     setMessages(prev => [...prev, userMessage])
-    setInput('')
+    setMessage('')
     setIsLoading(true)
     
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: input,
-          context: context
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, context })
       })
-
+      
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get response')
-      }
-
+      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.content || data.reply || "I'm having trouble connecting right now. Try again in a moment!",
+        content: data.content || data.reply || "I'm here to help! What would you like to know?",
         timestamp: new Date()
       }
-
-      setMessages(prev => [...prev, assistantMessage])
       
-      // Refresh data in case food was logged via chat
-      onFoodLogged()
+      setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
-      console.error('Chat error:', error)
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm having trouble connecting to the assistant right now. You can still log food manually using the + button above!",
+        content: "I'm having trouble connecting. You can still log food manually!",
         timestamp: new Date()
       }
       setMessages(prev => [...prev, fallbackMessage])
@@ -553,57 +226,172 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
   }
   
   return (
-    <div className="flex flex-col h-80 border-t border-[#e3e2e0]">
-      <div className="px-4 py-2 border-b border-[#e3e2e0] bg-[#f7f6f3]">
-        <div className="flex items-center gap-2 text-sm text-[#6b6b6b]">
-          <MessageSquare className="w-4 h-4" />
-          <span>Nutrition Assistant</span>
+    <aside className={`bg-white border-l border-stone-100 flex flex-col transition-all duration-300 ${chatOpen ? 'w-72' : 'w-0 overflow-hidden'}`}>
+      <div className="h-14 border-b border-stone-100 flex items-center justify-between px-4 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm shadow-violet-500/20">
+            <Sparkles size={12} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-stone-900">Archie</p>
+            <p className="text-[10px] text-stone-400">Online</p>
+          </div>
+        </div>
+        <button onClick={() => setChatOpen(false)} className="p-1.5 hover:bg-stone-100 rounded-lg">
+          <X size={14} className="text-stone-400" />
+        </button>
+      </div>
+      
+      <div className="flex-1 p-4 overflow-auto">
+        <div className="space-y-3">
+          {messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' ? (
+                <div className="flex gap-2">
+                  <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-md flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={10} className="text-white" />
+                  </div>
+                  <div className="flex-1 p-2.5 bg-stone-50 rounded-xl rounded-tl-sm">
+                    <p className="text-xs text-stone-700 leading-relaxed">{msg.content}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs bg-stone-900 text-white px-3 py-2 rounded-xl rounded-tr-sm">{msg.content}</p>
+              )}
+            </div>
+          ))}
+          {isLoading && (
+            <div className="flex gap-2">
+              <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-md flex items-center justify-center flex-shrink-0">
+                <Sparkles size={10} className="text-white" />
+              </div>
+              <div className="flex-1 p-2.5 bg-stone-50 rounded-xl rounded-tl-sm">
+                <p className="text-xs text-stone-500">Thinking...</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map(message => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
-                message.role === 'user'
-                  ? 'bg-[#37352f] text-white'
-                  : 'bg-[#f7f6f3] text-[#37352f]'
-              }`}
-            >
-              {message.content}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-[#f7f6f3] text-[#6b6b6b] px-3 py-2 rounded-lg text-sm">
-              Thinking...
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-      
-      <div className="p-3 border-t border-[#e3e2e0]">
-        <div className="flex items-center gap-2">
+      <div className="p-3 border-t border-stone-100">
+        <div className="flex items-center gap-2 bg-stone-100 rounded-lg px-3 py-2">
           <input
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask Archie..."
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Log food or ask a question..."
-            className="flex-1 px-3 py-2 border border-[#e3e2e0] rounded-lg text-sm focus:border-[#2383e2] focus:outline-none"
           />
-          <button
+          <button 
             onClick={sendMessage}
-            disabled={isLoading || !input.trim()}
-            className="p-2 bg-[#37352f] text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50"
+            disabled={isLoading || !message.trim()}
+            className="p-1 bg-stone-900 hover:bg-stone-800 rounded transition-colors disabled:opacity-50"
           >
-            <Send className="w-4 h-4" />
+            <Send size={12} className="text-white" />
+          </button>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// Nutrition Today View
+function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData }) {
+  const [activeTab, setActiveTab] = useState('today')
+  const { entries, totals, goals } = nutritionData
+  
+  const progress = Math.round((totals.calories / goals.calories) * 100)
+  const remaining = goals.calories - totals.calories
+  const [animatedProgress, setAnimatedProgress] = useState(0)
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimatedProgress(progress), 100)
+    return () => clearTimeout(timer)
+  }, [progress])
+  
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-5 w-fit">
+        <button 
+          onClick={() => setActiveTab('today')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'today' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+        >
+          Today
+        </button>
+        <button 
+          onClick={() => setActiveTab('week')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'week' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+        >
+          Past 7 days
+        </button>
+      </div>
+      
+      {/* Hero Stats Card */}
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
+        </div>
+        <div className="relative">
+          <div className="flex items-center gap-5 mb-5">
+            {/* Ring */}
+            <div className="relative w-24 h-24 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
+                <circle 
+                  cx="50" cy="50" r="42" fill="none" stroke="url(#ringGrad)" strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={`${animatedProgress * 2.64} 264`}
+                  className="transition-all duration-1000 ease-out"
+                />
+                <defs>
+                  <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#f97316" />
+                    <stop offset="100%" stopColor="#ec4899" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-bold text-white">{totals.calories}</span>
+                <span className="text-[9px] text-stone-400 uppercase">kcal</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-stone-400 mb-1">Remaining</p>
+              <p className="text-3xl font-bold text-white">{remaining}</p>
+              <p className="text-xs text-stone-500">of {goals.calories} kcal goal</p>
+            </div>
+          </div>
+          <div className="h-px bg-stone-700 mb-4" />
+          <div className="grid grid-cols-2 gap-5">
+            <MacroStat label="Protein" current={totals.protein} goal={goals.protein} color="from-amber-500 to-orange-500" />
+            <MacroStat label="Carbs" current={totals.carbs} goal={goals.carbs} color="from-emerald-500 to-teal-500" />
+          </div>
+        </div>
+      </div>
+      
+      {/* Meals */}
+      <div>
+        <h2 className="text-sm font-semibold text-stone-900 mb-3">Meals</h2>
+        <div className="space-y-2">
+          {entries.map((entry) => (
+            <div key={entry.id} className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all cursor-pointer">
+              <div className="w-9 h-9 bg-stone-50 rounded-lg flex items-center justify-center text-base">
+                🍽️
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-stone-900 truncate">{entry.name}</p>
+                <p className="text-[10px] text-stone-400">{entry.time}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
+                <p className="text-[10px] text-stone-400">kcal</p>
+              </div>
+            </div>
+          ))}
+          <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">
+            + Add meal
           </button>
         </div>
       </div>
@@ -611,306 +399,78 @@ function Chat({ context, onFoodLogged }: { context: string; onFoodLogged: () => 
   )
 }
 
-// Main Dashboard
-function NutritionDashboard() {
-  const today = new Date().toISOString().split('T')[0]
-  
-  const [nutritionData, setNutritionData] = useState<NutritionData>({
-    date: today,
-    entries: [],
-    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
-  })
-  
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [showGoalsModal, setShowGoalsModal] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  // Fetch nutrition data from API
-  const fetchData = async () => {
-    try {
-      setIsRefreshing(true)
-      setError(null)
-      
-      const response = await fetch(`/api/nutrition?date=${today}`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch nutrition data')
-      }
-      
-      const data = await response.json()
-      setNutritionData(data)
-    } catch (err) {
-      console.error('Error fetching nutrition data:', err)
-      setError('Failed to load nutrition data')
-    } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
-  }
-  
-  // Initial load
-  useEffect(() => {
-    fetchData()
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000)
-    return () => clearInterval(interval)
-  }, [today])
-  
-  // Add food entry via API
-  const addFood = async (entry: Omit<FoodEntry, 'id' | 'date'>) => {
-    try {
-      const response = await fetch('/api/nutrition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: today,
-          ...entry
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to add food entry')
-      }
-      
-      const data = await response.json()
-      setNutritionData(data)
-    } catch (err) {
-      console.error('Error adding food:', err)
-      setError('Failed to add food entry')
-    }
-  }
-  
-  // Delete food entry via API
-  const deleteFood = async (id: string) => {
-    try {
-      const response = await fetch(`/api/nutrition?date=${today}&entryId=${id}`, {
-        method: 'DELETE'
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete food entry')
-      }
-      
-      const data = await response.json()
-      setNutritionData(prev => ({
-        ...prev,
-        entries: data.entries,
-        totals: data.totals
-      }))
-    } catch (err) {
-      console.error('Error deleting food:', err)
-      setError('Failed to delete food entry')
-    }
-  }
-  
-  // Update goals via API
-  const updateGoals = async (newGoals: { calories: number; protein: number; carbs: number; fat: number }) => {
-    try {
-      const response = await fetch('/api/nutrition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: today,
-          goals: newGoals,
-          entries: nutritionData.entries,
-          totals: nutritionData.totals
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to update goals')
-      }
-      
-      const data = await response.json()
-      setNutritionData(prev => ({ ...prev, goals: newGoals }))
-    } catch (err) {
-      console.error('Error updating goals:', err)
-      setError('Failed to update goals')
-    }
-  }
-  
-  const chatContext = `Today's intake: ${Math.round(nutritionData.totals.calories)} calories, ${Math.round(nutritionData.totals.protein)}g protein, ${Math.round(nutritionData.totals.carbs)}g carbs, ${Math.round(nutritionData.totals.fat)}g fat. Goals: ${nutritionData.goals.calories} cal, ${nutritionData.goals.protein}g protein, ${nutritionData.goals.carbs}g carbs, ${nutritionData.goals.fat}g fat.`
-  
-  const { entries, totals, goals } = nutritionData
-  
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-[#6b6b6b]" />
+function MacroStat({ label, current, goal, color }: { label: string; current: number; goal: number; color: string }) {
+  const pct = Math.round((current / goal) * 100)
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs text-stone-400">{label}</span>
+        <span className="text-xs font-semibold text-white">{current}<span className="text-stone-500 font-normal">/{goal}g</span></span>
       </div>
-    )
-  }
+      <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
+        <div className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-700`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
+// Goals View (Simplified)
+function GoalsView() {
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white border border-stone-100 rounded-xl p-8 text-center">
+        <Target className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+        <h2 className="text-lg font-semibold text-stone-900 mb-2">Goals</h2>
+        <p className="text-stone-500">Goal tracking coming soon...</p>
+      </div>
+    </div>
+  )
+}
+
+// Main Dashboard
+function Dashboard({ activeView, nutritionData }: { activeView: string; nutritionData: NutritionData }) {
+  const { entries, totals, goals } = nutritionData
+  const chatContext = `Today's intake: ${Math.round(totals.calories)} calories, ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs, ${Math.round(totals.fat)}g fat. Goals: ${goals.calories} cal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.`
   
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
-      <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[#e3e2e0]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Apple className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#37352f]">Nutrition</h1>
-              <p className="text-sm text-[#6b6b6b]">
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={fetchData}
-            disabled={isRefreshing}
-            className="p-2 hover:bg-[#ebebea] rounded-lg transition-colors"
-            title="Refresh data"
-          >
-            <RefreshCw className={`w-5 h-5 text-[#6b6b6b] ${isRefreshing ? 'animate-spin' : ''}`} />
+      <header className="h-14 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-6 sticky top-0 z-10">
+        <div>
+          <h1 className="text-base font-semibold text-stone-900">
+            {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : 'Velum'}
+          </h1>
+          <p className="text-xs text-stone-400">
+            {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="h-9 px-4 bg-stone-900 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-stone-800 transition-colors">
+            <Plus size={14} strokeWidth={2.5} />
+            {activeView.startsWith('nutrition') ? 'Log food' : 'Add'}
           </button>
         </div>
-        
-        {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {error}
+      </header>
+      
+      {/* Content */}
+      <div className="flex-1 p-6 overflow-auto">
+        {activeView === 'nutrition-today' && (
+          <NutritionTodayView nutritionData={nutritionData} />
+        )}
+        {activeView === 'goals' && (
+          <GoalsView />
+        )}
+        {!['nutrition-today', 'goals'].includes(activeView) && (
+          <div className="flex items-center justify-center h-64 text-stone-400">
+            <div className="text-center">
+              <p className="text-lg font-medium text-stone-500">
+                {activeView === 'nutrition-history' ? 'History' : activeView === 'fitness' ? 'Fitness' : 'Coming soon'}
+              </p>
+              <p className="text-sm mt-1">This feature is under development</p>
+            </div>
           </div>
         )}
       </div>
-      
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-6">
-          {/* Macros Overview */}
-          <div className="bg-[#f7f6f3] rounded-lg p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-[#37352f]">Daily Progress</h2>
-              <button 
-                onClick={() => setShowGoalsModal(true)}
-                className="text-sm text-[#2383e2] hover:underline"
-              >
-                Edit goals
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <MacroBar 
-                label="Calories" 
-                current={totals.calories} 
-                goal={goals.calories} 
-                color="bg-orange-400"
-                unit=" kcal"
-              />
-              <MacroBar 
-                label="Protein" 
-                current={totals.protein} 
-                goal={goals.protein} 
-                color="bg-red-400"
-              />
-              <MacroBar 
-                label="Carbs" 
-                current={totals.carbs} 
-                goal={goals.carbs} 
-                color="bg-yellow-400"
-              />
-              <MacroBar 
-                label="Fat" 
-                current={totals.fat} 
-                goal={goals.fat} 
-                color="bg-blue-400"
-              />
-            </div>
-            
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-5">
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.calories)}</div>
-                <div className="text-xs text-[#6b6b6b]">kcal</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Beef className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.protein)}g</div>
-                <div className="text-xs text-[#6b6b6b]">protein</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Wheat className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.carbs)}g</div>
-                <div className="text-xs text-[#6b6b6b]">carbs</div>
-              </div>
-              <div className="bg-white rounded-lg p-3 text-center">
-                <Target className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                <div className="text-lg font-bold text-[#37352f]">{Math.round(totals.fat)}g</div>
-                <div className="text-xs text-[#6b6b6b]">fat</div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Food Log */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="font-semibold text-[#37352f]">Food Log</h2>
-                <p className="text-xs text-[#6b6b6b]">
-                  {entries.length} {entries.length === 1 ? 'meal' : 'meals'} logged today
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-[#37352f] text-white rounded hover:bg-opacity-90"
-              >
-                <Plus className="w-4 h-4" />
-                Add food
-              </button>
-            </div>
-            
-            <div className="bg-white border border-[#e3e2e0] rounded-lg overflow-hidden">
-              {entries.length > 0 ? (
-                entries.map(entry => (
-                  <FoodEntryRow key={entry.id} entry={entry} onDelete={deleteFood} />
-                ))
-              ) : (
-                <div className="p-8 text-center text-[#6b6b6b]">
-                  <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No food logged today</p>
-                  <p className="text-sm">Click &quot;Add food&quot; or use the chat below</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Totals row */}
-            {entries.length > 0 && (
-              <div className="mt-3 p-3 bg-[#f7f6f3] rounded-lg">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-[#37352f]">Daily Total</span>
-                  <div className="flex gap-4 text-[#6b6b6b]">
-                    <span>{Math.round(totals.calories)} cal</span>
-                    <span className="hidden sm:inline">{Math.round(totals.protein)}g P</span>
-                    <span className="hidden sm:inline">{Math.round(totals.carbs)}g C</span>
-                    <span className="hidden sm:inline">{Math.round(totals.fat)}g F</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Chat */}
-      <Chat context={chatContext} onFoodLogged={fetchData} />
-      
-      {/* Modals */}
-      <AddFoodModal 
-        isOpen={showAddModal} 
-        onClose={() => setShowAddModal(false)} 
-        onAdd={addFood}
-      />
-      <GoalsModal
-        isOpen={showGoalsModal}
-        onClose={() => setShowGoalsModal(false)}
-        goals={goals}
-        onSave={updateGoals}
-      />
     </div>
   )
 }
@@ -919,51 +479,70 @@ function NutritionDashboard() {
 export default function Home() {
   const [activeItem, setActiveItem] = useState('nutrition-today')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition']))
+  const [chatOpen, setChatOpen] = useState(true)
+  const [nutritionData, setNutritionData] = useState<NutritionData>({
+    date: new Date().toISOString().split('T')[0],
+    entries: [],
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+  })
+  
+  // Fetch nutrition data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const response = await fetch(`/api/nutrition?date=${today}`)
+        if (response.ok) {
+          const data = await response.json()
+          setNutritionData(data)
+        }
+      } catch (error) {
+        console.error('Error fetching nutrition data:', error)
+      }
+    }
+    fetchData()
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [])
   
   const navigation: NavItem[] = [
     {
       id: 'nutrition',
       name: 'Nutrition',
-      icon: <Apple className="w-4 h-4" />,
+      icon: <Apple size={16} />,
       type: 'folder',
       children: [
-        {
-          id: 'nutrition-today',
-          name: 'Today',
-          type: 'page',
-        },
-        {
-          id: 'nutrition-history',
-          name: 'History',
-          type: 'page',
-        },
-        {
-          id: 'nutrition-goals',
-          name: 'Goals & Settings',
-          type: 'page',
-        }
+        { id: 'nutrition-today', name: 'Today', type: 'page' },
+        { id: 'nutrition-history', name: 'History', type: 'page' },
       ]
     },
     {
-      id: 'coach',
-      name: 'Coach',
-      icon: <Target className="w-4 h-4" />,
-      type: 'folder',
-      children: [
-        { id: 'coach-goals', name: 'Goals', type: 'page' },
-        { id: 'coach-habits', name: 'Habits', type: 'page' },
-      ]
+      id: 'goals',
+      name: 'Goals',
+      icon: <Target size={16} />,
+      type: 'page',
     },
     {
-      id: 'assistant',
-      name: 'Assistant',
-      icon: <MessageSquare className="w-4 h-4" />,
-      type: 'folder',
-      children: [
-        { id: 'assistant-tasks', name: 'Tasks', type: 'page' },
-        { id: 'assistant-reminders', name: 'Reminders', type: 'page' },
-      ]
-    }
+      id: 'fitness',
+      name: 'Fitness',
+      icon: <Dumbbell size={16} />,
+      type: 'page',
+    },
+    {
+      id: 'knowledge',
+      name: 'Knowledge',
+      icon: <Brain size={16} />,
+      type: 'page',
+    },
+    {
+      id: 'tasks',
+      name: 'Tasks',
+      icon: <CheckSquare size={16} />,
+      type: 'page',
+    },
   ]
   
   const toggleFolder = (id: string) => {
@@ -979,7 +558,7 @@ export default function Home() {
   }
   
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen font-sans antialiased bg-stone-50 text-stone-900">
       <Sidebar 
         navigation={navigation}
         activeItem={activeItem}
@@ -987,7 +566,16 @@ export default function Home() {
         expandedFolders={expandedFolders}
         toggleFolder={toggleFolder}
       />
-      <NutritionDashboard />
+      
+      <div className="flex flex-1 min-w-0">
+        <Dashboard activeView={activeItem} nutritionData={nutritionData} />
+        
+        <Chat 
+          chatOpen={chatOpen} 
+          setChatOpen={setChatOpen}
+          context={`Today's intake: ${nutritionData.totals.calories} calories, ${nutritionData.totals.protein}g protein, ${nutritionData.totals.carbs}g carbs`}
+        />
+      </div>
     </div>
   )
 }
