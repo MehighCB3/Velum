@@ -3,34 +3,90 @@ import { Redis } from '@upstash/redis'
 import fs from 'fs'
 import path from 'path'
 
-// Initialize Redis client (uses Vercel KV env vars: KV_REST_API_URL and KV_REST_API_TOKEN)
+// Initialize Redis client (uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars)
 let redis: Redis | null = null
 try {
-  const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
-  const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
-
-  if (redisUrl && redisToken) {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     redis = new Redis({
-      url: redisUrl,
-      token: redisToken,
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
     })
   }
 } catch (error) {
   console.error('Redis initialization error:', error)
 }
 
-// Fallback: In-memory storage for local dev without Redis
-const memoryStore: Record<string, any> = {}
-
-// Data file path for persistence (local development with file fallback)
-const DATA_FILE = path.join(process.cwd(), 'data', 'nutrition.json')
+// Data file paths to try (for different environments)
+const DATA_PATHS = [
+  path.join(process.cwd(), 'data', 'nutrition.json'),
+  path.join(process.cwd(), '..', 'data', 'nutrition.json'),
+  path.join(process.cwd(), '..', '..', 'data', 'nutrition.json'),
+  path.join('/var/task', 'data', 'nutrition.json'),
+  '/var/task/data/nutrition.json',
+]
 
 // Check storage mode
 const useRedis = !!redis
 const isServerless = process.env.VERCEL || !fs.existsSync(process.cwd() + '/package.json')
 
+// Find the first existing data file
+function findDataFile(): string | null {
+  for (const filePath of DATA_PATHS) {
+    if (fs.existsSync(filePath)) {
+      console.log('Found data file at:', filePath)
+      return filePath
+    }
+  }
+  console.log('No data file found in:', DATA_PATHS)
+  return null
+}
+
+const DATA_FILE = findDataFile() || DATA_PATHS[0]
+
+// Embedded seed data for when file is not available (Vercel serverless)
+const SEED_DATA: Record<string, any> = {
+  "2026-02-01": {
+    "date": "2026-02-01",
+    "entries": [
+      { "id": "20260201-001", "name": "Matcha latte", "calories": 70, "protein": 4, "carbs": 8, "fat": 2, "time": "08:00", "date": "2026-02-01" },
+      { "id": "20260201-002", "name": "Huevos rancheros", "calories": 203, "protein": 12, "carbs": 18, "fat": 10, "time": "09:30", "date": "2026-02-01" },
+      { "id": "20260201-003", "name": "Patatas bravas", "calories": 280, "protein": 4, "carbs": 35, "fat": 14, "time": "13:00", "date": "2026-02-01" },
+      { "id": "20260201-004", "name": "Grilled seafood platter", "calories": 220, "protein": 28, "carbs": 5, "fat": 8, "time": "14:30", "date": "2026-02-01" },
+      { "id": "20260201-005", "name": "Fideuà with seafood", "calories": 420, "protein": 24, "carbs": 58, "fat": 10, "time": "15:00", "date": "2026-02-01" },
+      { "id": "20260201-006", "name": "Coke (can)", "calories": 139, "protein": 0, "carbs": 35, "fat": 0, "time": "16:00", "date": "2026-02-01" },
+      { "id": "20260201-007", "name": "Cinnamon roll", "calories": 220, "protein": 4, "carbs": 32, "fat": 8, "time": "17:00", "date": "2026-02-01" }
+    ],
+    "totals": { "calories": 1552, "protein": 76, "carbs": 191, "fat": 52 },
+    "goals": { "calories": 2000, "protein": 150, "carbs": 200, "fat": 65 }
+  }
+}
+
+// Fallback: In-memory storage for local dev without Redis
+// Seed from file if available (for serverless to have initial data)
+function loadInitialData(): Record<string, any> {
+  const dataFile = findDataFile()
+  if (!dataFile) {
+    console.log('No data file found, using embedded seed data')
+    return { ...SEED_DATA }
+  }
+  
+  try {
+    const data = fs.readFileSync(dataFile, 'utf-8')
+    console.log('Loaded data from:', dataFile)
+    return JSON.parse(data)
+  } catch (error) {
+    console.error('Error loading initial data from', dataFile, ':', error)
+    console.log('Falling back to embedded seed data')
+    return { ...SEED_DATA }
+  }
+}
+
+const memoryStore: Record<string, any> = loadInitialData()
+console.log('Memory store initialized with', Object.keys(memoryStore).length, 'dates')
+
 // Ensure data directory exists (local dev only)
 function ensureDataDir() {
+  if (!DATA_FILE) return
   const dataDir = path.dirname(DATA_FILE)
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true })
