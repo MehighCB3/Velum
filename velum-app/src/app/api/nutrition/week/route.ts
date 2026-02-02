@@ -25,19 +25,26 @@ export async function GET(request: NextRequest) {
     
     if (usePostgres) {
       try {
+        const startDate = dates[0]
+        const endDateQuery = dates[6]
+        
+        console.log('Fetching week data:', { startDate, endDateQuery, dates })
+        
         // Fetch all entries for the date range
         const entriesResult = await sql`
-          SELECT date, entry_id as id, name, calories, protein, carbs, fat, entry_time as time
+          SELECT date::text as date, entry_id as id, name, calories, protein, carbs, fat, entry_time as time
           FROM nutrition_entries 
-          WHERE date >= ${dates[0]} AND date <= ${dates[6]}
+          WHERE date >= ${startDate}::date AND date <= ${endDateQuery}::date
           ORDER BY date, entry_time
         `
         
+        console.log('Entries found:', entriesResult.rows.length)
+        
         // Fetch goals for the range
         const goalsResult = await sql`
-          SELECT date, calories, protein, carbs, fat
+          SELECT date::text as date, calories, protein, carbs, fat
           FROM nutrition_goals 
-          WHERE date >= ${dates[0]} AND date <= ${dates[6]}
+          WHERE date >= ${startDate}::date AND date <= ${endDateQuery}::date
         `
         
         // Build daily summaries

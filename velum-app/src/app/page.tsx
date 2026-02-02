@@ -389,49 +389,6 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
       {/* Content based on active tab */}
       {activeTab === 'today' ? (
         <>
-          {/* Hero Stats Card */}
-          <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
-            <div className="absolute inset-0 overflow-hidden">
-              <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
-              <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-5 mb-5">
-                {/* Ring */}
-                <div className="relative w-24 h-24 flex-shrink-0">
-                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
-                    <circle 
-                      cx="50" cy="50" r="42" fill="none" stroke="url(#ringGrad)" strokeWidth="8" strokeLinecap="round"
-                      strokeDasharray={`${animatedProgress * 2.64} 264`}
-                      className="transition-all duration-1000 ease-out"
-                    />
-                    <defs>
-                      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#f97316" />
-                        <stop offset="100%" stopColor="#ec4899" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold text-white">{totals.calories}</span>
-                    <span className="text-[9px] text-stone-400 uppercase">kcal</span>
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-stone-400 mb-1">Remaining</p>
-                  <p className="text-3xl font-bold text-white">{remaining}</p>
-                  <p className="text-xs text-stone-500">of {goals.calories} kcal goal</p>
-                </div>
-              </div>
-              <div className="h-px bg-stone-700 mb-4" />
-              <div className="grid grid-cols-2 gap-5">
-                <MacroStat label="Protein" current={totals.protein} goal={goals.protein} color="from-amber-500 to-orange-500" />
-                <MacroStat label="Carbs" current={totals.carbs} goal={goals.carbs} color="from-emerald-500 to-teal-500" />
-              </div>
-            </div>
-          </div>
-          
           {/* Meals */}
           <div>
             <h2 className="text-sm font-semibold text-stone-900 mb-3">Meals</h2>
