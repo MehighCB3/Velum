@@ -7,6 +7,7 @@ import {
   Search, 
   ChevronRight, 
   ChevronDown, 
+  ChevronLeft,
   Plus, 
   Send, 
   Settings, 
@@ -17,7 +18,8 @@ import {
   Dumbbell, 
   Brain, 
   CheckSquare,
-  Flame 
+  Flame,
+  ArrowLeft
 } from 'lucide-react'
 
 // Types
@@ -62,6 +64,25 @@ interface NavItem {
   icon?: React.ReactNode
   children?: NavItem[]
   type: 'page' | 'folder'
+}
+
+interface WeekDayData {
+  date: string
+  dayName: string
+  dayNumber: number
+  entries: FoodEntry[]
+  totals: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
+  goals: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
 }
 
 // Sidebar Component
@@ -365,30 +386,80 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
         </div>
       </div>
       
-      {/* Meals */}
-      <div>
-        <h2 className="text-sm font-semibold text-stone-900 mb-3">Meals</h2>
-        <div className="space-y-2">
-          {entries.map((entry) => (
-            <div key={entry.id} className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all cursor-pointer">
-              <div className="w-9 h-9 bg-stone-50 rounded-lg flex items-center justify-center text-base">
-                🍽️
+      {/* Content based on active tab */}
+      {activeTab === 'today' ? (
+        <>
+          {/* Hero Stats Card */}
+          <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
+              <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-5 mb-5">
+                {/* Ring */}
+                <div className="relative w-24 h-24 flex-shrink-0">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
+                    <circle 
+                      cx="50" cy="50" r="42" fill="none" stroke="url(#ringGrad)" strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={`${animatedProgress * 2.64} 264`}
+                      className="transition-all duration-1000 ease-out"
+                    />
+                    <defs>
+                      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#f97316" />
+                        <stop offset="100%" stopColor="#ec4899" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-xl font-bold text-white">{totals.calories}</span>
+                    <span className="text-[9px] text-stone-400 uppercase">kcal</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-stone-400 mb-1">Remaining</p>
+                  <p className="text-3xl font-bold text-white">{remaining}</p>
+                  <p className="text-xs text-stone-500">of {goals.calories} kcal goal</p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-stone-900 truncate">{entry.name}</p>
-                <p className="text-[10px] text-stone-400">{entry.time}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
-                <p className="text-[10px] text-stone-400">kcal</p>
+              <div className="h-px bg-stone-700 mb-4" />
+              <div className="grid grid-cols-2 gap-5">
+                <MacroStat label="Protein" current={totals.protein} goal={goals.protein} color="from-amber-500 to-orange-500" />
+                <MacroStat label="Carbs" current={totals.carbs} goal={goals.carbs} color="from-emerald-500 to-teal-500" />
               </div>
             </div>
-          ))}
-          <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">
-            + Add meal
-          </button>
-        </div>
-      </div>
+          </div>
+          
+          {/* Meals */}
+          <div>
+            <h2 className="text-sm font-semibold text-stone-900 mb-3">Meals</h2>
+            <div className="space-y-2">
+              {entries.map((entry) => (
+                <div key={entry.id} className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all cursor-pointer">
+                  <div className="w-9 h-9 bg-stone-50 rounded-lg flex items-center justify-center text-base">
+                    🍽️
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-stone-900 truncate">{entry.name}</p>
+                    <p className="text-[10px] text-stone-400">{entry.time}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
+                    <p className="text-[10px] text-stone-400">kcal</p>
+                  </div>
+                </div>
+              ))}
+              <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">
+                + Add meal
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <WeekView onDayClick={(day) => console.log('Selected:', day)} />
+      )}
     </div>
   )
 }
@@ -403,6 +474,162 @@ function MacroStat({ label, current, goal, color }: { label: string; current: nu
       </div>
       <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
         <div className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-700`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
+// Week View Component
+function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
+  const [weekData, setWeekData] = useState<WeekDayData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedDay, setSelectedDay] = useState<WeekDayData | null>(null)
+  
+  useEffect(() => {
+    const fetchWeek = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const response = await fetch(`/api/nutrition/week?date=${today}`)
+        if (response.ok) {
+          const data = await response.json()
+          setWeekData(data.days)
+        }
+      } catch (error) {
+        console.error('Error fetching week:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchWeek()
+  }, [])
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-stone-300 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+  
+  if (selectedDay) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <button 
+          onClick={() => setSelectedDay(null)}
+          className="flex items-center gap-2 text-sm text-stone-500 hover:text-stone-700 mb-4"
+        >
+          <ArrowLeft size={16} />
+          Back to week
+        </button>
+        
+        <div className="bg-white border border-stone-100 rounded-xl p-5 mb-5">
+          <h2 className="text-lg font-semibold text-stone-900 mb-1">
+            {new Date(selectedDay.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </h2>
+          <p className="text-sm text-stone-500 mb-4">
+            {selectedDay.totals.calories} kcal · {selectedDay.totals.protein}g protein · {selectedDay.entries.length} meals
+          </p>
+          
+          <div className="space-y-2">
+            {selectedDay.entries.length > 0 ? (
+              selectedDay.entries.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
+                  <div className="w-8 h-8 bg-stone-200 rounded-lg flex items-center justify-center">🍽️</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-stone-900">{entry.name}</p>
+                    <p className="text-xs text-stone-400">{entry.time}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
+                    <p className="text-xs text-stone-400">kcal</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-stone-400 text-center py-4">No meals logged</p>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+  
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h2 className="text-lg font-semibold text-stone-900 mb-4">Past 7 Days</h2>
+      
+      <div className="grid grid-cols-7 gap-2 mb-6">
+        {weekData.map((day) => {
+          const progress = Math.round((day.totals.calories / day.goals.calories) * 100)
+          const isToday = day.date === new Date().toISOString().split('T')[0]
+          
+          return (
+            <button
+              key={day.date}
+              onClick={() => setSelectedDay(day)}
+              className={`flex flex-col items-center p-3 rounded-xl transition-all ${
+                isToday ? 'bg-orange-100 border-2 border-orange-300' : 'bg-white border border-stone-100 hover:border-stone-300'
+              }`}
+            >
+              <span className="text-xs text-stone-500 mb-1">{day.dayName}</span>
+              <span className="text-lg font-bold text-stone-900 mb-2">{day.dayNumber}</span>
+              
+              {/* Mini ring */}
+              <div className="relative w-10 h-10">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e5e5" strokeWidth="12" />
+                  <circle 
+                    cx="50" cy="50" r="42" fill="none" 
+                    stroke={progress > 100 ? '#ef4444' : '#f97316'} 
+                    strokeWidth="12" strokeLinecap="round"
+                    strokeDasharray={`${Math.min(progress, 100) * 2.64} 264`}
+                    className="transition-all duration-500"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[9px] font-medium">{Math.min(progress, 100)}%</span>
+                </div>
+              </div>
+              
+              <span className={`text-xs mt-1 ${progress > day.goals.calories ? 'text-red-500' : 'text-stone-500'}`}>
+                {day.totals.calories}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      
+      {/* Weekly Summary */}
+      <div className="bg-stone-100 rounded-xl p-4">
+        <h3 className="text-sm font-medium text-stone-700 mb-3">Weekly Average</h3>
+        {weekData.length > 0 && (
+          <div className="grid grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-lg font-bold text-stone-900">
+                {Math.round(weekData.reduce((a, d) => a + d.totals.calories, 0) / 7)}
+              </p>
+              <p className="text-xs text-stone-500">kcal/day</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-stone-900">
+                {Math.round(weekData.reduce((a, d) => a + d.totals.protein, 0) / 7)}
+              </p>
+              <p className="text-xs text-stone-500">protein</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-stone-900">
+                {Math.round(weekData.reduce((a, d) => a + d.totals.carbs, 0) / 7)}
+              </p>
+              <p className="text-xs text-stone-500">carbs</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-stone-900">
+                {Math.round(weekData.reduce((a, d) => a + d.entries.length, 0) / 7)}
+              </p>
+              <p className="text-xs text-stone-500">meals/day</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
