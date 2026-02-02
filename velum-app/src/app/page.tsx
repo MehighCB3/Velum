@@ -942,8 +942,8 @@ function GoalsView() {
       {/* Weeks View - Life in Weeks */}
       {viewMode === 'weeks' && (
         <div className="bg-white border border-stone-100 rounded-xl p-4">
-          <h3 className="font-medium text-stone-900 mb-4">Life in Weeks</h3>
-          <div className="overflow-x-auto">
+          <h3 className="font-medium text-stone-900 mb-4 text-center">Life in Weeks</h3>
+          <div className="overflow-x-auto flex justify-center">
             <div className="inline-flex flex-col items-center gap-0.5">
               {Array.from({ length: life_expectancy }, (_, year) => {
                 const showYearLabel = year % 5 === 0 || year === life_expectancy - 1
