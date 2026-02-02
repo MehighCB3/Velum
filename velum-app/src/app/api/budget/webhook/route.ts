@@ -10,6 +10,7 @@ interface ParsedExpense {
   description: string
   category: 'Food' | 'Fun'
   week: number | null // null = current week
+  reason?: string
 }
 
 function parseExpenseMessage(text: string): ParsedExpense | null {
@@ -18,6 +19,7 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
   // "20€ drinks fun" -> amount: 20, desc: drinks, category: Fun, week: current
   // "25€ dinner food" -> amount: 25, desc: dinner, category: Food, week: current
   // "30€ movie fun w3" -> amount: 30, desc: movie, category: Fun, week: 3
+  // "40€ dinner food for team celebration" -> reason: "team celebration"
   
   // Extract amount (€ symbol or just number at start)
   const amountMatch = text.match(/^(\d+(?:\.\d{1,2})?)\s*(?:€|eur|euros?)?/i)
@@ -25,6 +27,14 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
   
   const amount = parseFloat(amountMatch[1])
   let remaining = text.slice(amountMatch[0].length).trim()
+  
+  // Extract reason (after "for" or similar keywords)
+  let reason: string | undefined
+  const reasonMatch = remaining.match(/\b(?:for|because|reason)\s+(.+)$/i)
+  if (reasonMatch) {
+    reason = reasonMatch[1].trim()
+    remaining = remaining.replace(reasonMatch[0], '').trim()
+  }
   
   // Extract week if specified
   let week: number | null = null
@@ -55,7 +65,7 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
     description = category === 'Food' ? 'Food expense' : 'Fun expense'
   }
   
-  return { amount, description, category, week }
+  return { amount, description, category, week, reason }
 }
 
 function getWeekKey(weekNum: number | null): string {
@@ -113,7 +123,8 @@ export async function POST(request: NextRequest) {
       category: parsed.category,
       description: parsed.description,
       date: new Date().toISOString().split('T')[0],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      reason: parsed.reason
     }
     
     // Call the budget API to save
@@ -132,14 +143,15 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      message: `✅ Logged: €${parsed.amount} ${parsed.description} (${parsed.category}) - Week ${parsed.week || 'current'}`,
+      message: `✅ Logged: €${parsed.amount} ${parsed.description} (${parsed.category}) - Week ${parsed.week || 'current'}${parsed.reason ? ` for "${parsed.reason}"` : ''}`,
       data: {
         amount: parsed.amount,
         description: parsed.description,
         category: parsed.category,
         week: weekKey,
         remaining: savedData.remaining,
-        totalSpent: savedData.totalSpent
+        totalSpent: savedData.totalSpent,
+        reason: parsed.reason
       }
     })
     
@@ -160,7 +172,9 @@ export async function GET() {
       '15€ lunch food week 2',
       '20€ drinks fun',
       '25€ dinner food',
-      '30€ movie fun w3'
+      '30€ movie fun w3',
+      '40€ dinner food for team celebration',
+      '12€ coffee food for energy boost'
     ]
   })
 }

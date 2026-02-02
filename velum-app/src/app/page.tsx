@@ -107,6 +107,7 @@ interface BudgetEntry {
   description: string
   date: string
   timestamp: string
+  reason?: string
 }
 
 interface BudgetWeek {
@@ -1027,8 +1028,8 @@ function BudgetView() {
       spent: 45,
       remaining: 25,
       expenditures: [
-        { id: '1', description: 'Lunch with team', category: 'Food - Eating Out', amount: 25, date: '2026-02-01' },
-        { id: '2', description: 'Coffee and pastry', category: 'Food - Eating Out', amount: 12, date: '2026-02-02' },
+        { id: '1', description: 'Lunch with team', category: 'Food - Eating Out', amount: 25, date: '2026-02-01', reason: 'Team bonding and project discussion' },
+        { id: '2', description: 'Coffee and pastry', category: 'Food - Eating Out', amount: 12, date: '2026-02-02', reason: 'Needed energy for focus work' },
         { id: '3', description: 'Stationery', category: 'Miscellaneous', amount: 8, date: '2026-02-03' },
       ]
     },
@@ -1191,7 +1192,12 @@ function BudgetView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-stone-900 truncate">{entry.description}</p>
-                      <p className="text-[10px] text-stone-400">{entry.category}</p>
+                      <p className="text-[10px] text-stone-400">
+                        {entry.category}
+                        {entry.reason && (
+                          <span className="ml-1 text-stone-500 italic">— "{entry.reason}"</span>
+                        )}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-stone-900">€{entry.amount}</p>

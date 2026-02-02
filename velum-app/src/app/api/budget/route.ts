@@ -27,6 +27,7 @@ interface BudgetEntry {
   description: string
   date: string
   timestamp: string
+  reason?: string
 }
 
 interface WeekData {
@@ -195,7 +196,8 @@ export async function POST(request: NextRequest) {
       category: entry.category,
       description: entry.description || '',
       date: entry.date || new Date().toISOString().split('T')[0],
-      timestamp: entry.timestamp || new Date().toISOString()
+      timestamp: entry.timestamp || new Date().toISOString(),
+      reason: entry.reason
     }
 
     // Get existing data
