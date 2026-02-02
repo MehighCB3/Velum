@@ -1016,25 +1016,61 @@ function GoalsView() {
 
 // Budget View Component
 function BudgetView() {
-  const [activeTab, setActiveTab] = useState('weeks')
   const [loading, setLoading] = useState(false)
   
-  // Monthly budget data structure
-  const weeklyBudgets = [
-    { week: 'Week 1 Budget', budget: 70, spent: 45, remaining: 25 },
-    { week: 'Week 2 Budget', budget: 70, spent: 62, remaining: 8 },
-    { week: 'Week 3 Budget', budget: 70, spent: 0, remaining: 70 },
-    { week: 'Week 4 Budget', budget: 70, spent: 0, remaining: 70 },
-    { week: 'Week 5 Budget', budget: 70, spent: 0, remaining: 70 },
+  // Monthly budget data with expenditures per week
+  const weeklyData = [
+    {
+      weekNum: 1,
+      weekLabel: 'Week 1 Budget',
+      budget: 70,
+      spent: 45,
+      remaining: 25,
+      expenditures: [
+        { id: '1', description: 'Lunch with team', category: 'Food - Eating Out', amount: 25, date: '2026-02-01' },
+        { id: '2', description: 'Coffee and pastry', category: 'Food - Eating Out', amount: 12, date: '2026-02-02' },
+        { id: '3', description: 'Stationery', category: 'Miscellaneous', amount: 8, date: '2026-02-03' },
+      ]
+    },
+    {
+      weekNum: 2,
+      weekLabel: 'Week 2 Budget',
+      budget: 70,
+      spent: 62,
+      remaining: 8,
+      expenditures: [
+        { id: '4', description: 'Dinner date', category: 'Food - Eating Out', amount: 45, date: '2026-02-08' },
+        { id: '5', description: 'Uber ride', category: 'Miscellaneous', amount: 17, date: '2026-02-09' },
+      ]
+    },
+    {
+      weekNum: 3,
+      weekLabel: 'Week 3 Budget',
+      budget: 70,
+      spent: 0,
+      remaining: 70,
+      expenditures: []
+    },
+    {
+      weekNum: 4,
+      weekLabel: 'Week 4 Budget',
+      budget: 70,
+      spent: 0,
+      remaining: 70,
+      expenditures: []
+    },
+    {
+      weekNum: 5,
+      weekLabel: 'Week 5 Budget',
+      budget: 70,
+      spent: 0,
+      remaining: 70,
+      expenditures: []
+    },
   ]
   
-  const categorySpending = {
-    'Food - Eating Out': 45,
-    'Miscellaneous': 62
-  }
-  
   const totalBudget = 350 // 5 weeks × €70
-  const totalSpent = weeklyBudgets.reduce((a, w) => a + w.spent, 0)
+  const totalSpent = weeklyData.reduce((a, w) => a + w.spent, 0)
   const totalRemaining = totalBudget - totalSpent
   const progress = Math.round((totalSpent / totalBudget) * 100)
 
@@ -1048,23 +1084,7 @@ function BudgetView() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-5 w-fit">
-        <button 
-          onClick={() => setActiveTab('weeks')}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'weeks' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-        >
-          Weeks
-        </button>
-        <button 
-          onClick={() => setActiveTab('categories')}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-        >
-          Categories
-        </button>
-      </div>
-      
-      {/* Hero Stats Card */}
+      {/* Hero Stats Card with Weekly Budget Widget */}
       <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
@@ -1099,89 +1119,96 @@ function BudgetView() {
               <p className="text-xs text-stone-500">of €{totalBudget} monthly budget</p>
             </div>
           </div>
-          <div className="h-px bg-stone-700 mb-4" />
-          <div className="grid grid-cols-2 gap-5">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-stone-400">Food - Eating Out</span>
-                <span className="text-xs font-semibold text-white">€{categorySpending['Food - Eating Out']}</span>
-              </div>
-              <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-700" style={{ width: `${(categorySpending['Food - Eating Out'] / totalSpent * 100) || 0}%` }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-stone-400">Miscellaneous</span>
-                <span className="text-xs font-semibold text-white">€{categorySpending['Miscellaneous']}</span>
-              </div>
-              <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700" style={{ width: `${(categorySpending['Miscellaneous'] / totalSpent * 100) || 0}%` }} />
-              </div>
+          
+          {/* Weekly Budget Widget */}
+          <div className="bg-stone-800/50 rounded-xl p-3 mb-4">
+            <p className="text-xs text-stone-400 mb-2">Weekly Budgets</p>
+            <div className="flex gap-2">
+              {weeklyData.map((week) => (
+                <div key={week.weekNum} className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-stone-500">W{week.weekNum}</span>
+                    <span className="text-[10px] text-stone-400">€{week.remaining}</span>
+                  </div>
+                  <div className="h-8 bg-stone-700 rounded-md overflow-hidden relative">
+                    <div 
+                      className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ${
+                        week.spent > week.budget * 0.8 ? 'bg-red-500' : week.spent > 0 ? 'bg-emerald-500' : 'bg-stone-600'
+                      }`}
+                      style={{ height: `${Math.min((week.spent / week.budget) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content based on tab */}
-      {activeTab === 'weeks' ? (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-stone-900 mb-3">Weekly Budgets</h2>
-          {weeklyBudgets.map((week) => (
-            <div key={week.week} className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
-              <div className="flex-1">
-                <p className="text-sm text-stone-900">{week.week}</p>
-                <p className="text-[10px] text-stone-400">€{week.spent} spent • €{week.remaining} left</p>
+      {/* Expenditures by Week */}
+      <div className="space-y-4">
+        {weeklyData.map((week) => (
+          <div key={week.weekNum} className="bg-white border border-stone-100 rounded-xl overflow-hidden">
+            {/* Week Header */}
+            <div className="flex items-center justify-between p-3 bg-stone-50 border-b border-stone-100">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-stone-900">{week.weekLabel}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  week.spent > week.budget * 0.9 ? 'bg-red-100 text-red-600' : 
+                  week.spent > week.budget * 0.7 ? 'bg-amber-100 text-amber-600' : 
+                  'bg-emerald-100 text-emerald-600'
+                }`}>
+                  €{week.remaining} left
+                </span>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold text-stone-900">€{week.remaining}</p>
-                <p className="text-[10px] text-stone-400">remaining</p>
+                <span className="text-sm font-bold text-stone-900">€{week.spent}</span>
+                <span className="text-xs text-stone-400"> / €{week.budget}</span>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-stone-900 mb-3">Categories</h2>
-          {Object.entries(categorySpending).map(([category, amount]) => (
-            <div key={category} className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base ${
-                category.includes('Food') ? 'bg-emerald-50' : 'bg-blue-50'
-              }`}>
-                {category.includes('Food') ? '🍽️' : '📦'}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-stone-900">{category}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-stone-900">€{amount}</p>
+            
+            {/* Week Progress Bar */}
+            <div className="px-3 py-2 border-b border-stone-100">
+              <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    week.spent > week.budget ? 'bg-red-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${Math.min((week.spent / week.budget) * 100, 100)}%` }}
+                />
               </div>
             </div>
-          ))}
-        </div>
-      )}
+            
+            {/* Expenditures List */}
+            <div className="divide-y divide-stone-50">
+              {week.expenditures.length > 0 ? (
+                week.expenditures.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-3 p-3 hover:bg-stone-50 transition-colors">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
+                      entry.category.includes('Food') ? 'bg-emerald-50' : 'bg-blue-50'
+                    }`}>
+                      {entry.category.includes('Food') ? '🍽️' : '📦'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-stone-900 truncate">{entry.description}</p>
+                      <p className="text-[10px] text-stone-400">{entry.category}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-stone-900">€{entry.amount}</p>
+                      <p className="text-[10px] text-stone-400">{entry.date}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-stone-400 text-center py-4 text-sm">No expenditures this week</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
-}function CategoryStat({ label, amount, total, color }: { label: string; amount: number; total: number; color: string }) {
-  const pct = total > 0 ? Math.round((amount / total) * 100) : 0
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs text-stone-400">{label}</span>
-        <span className="text-xs font-semibold text-white">€{amount}</span>
-      </div>
-      <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
-        <div className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
-}
-
-// Main Dashboard
-function Dashboard({ activeView, nutritionData }: { activeView: string; nutritionData: NutritionData }) {
-  const { entries, totals, goals } = nutritionData
-  const chatContext = `Today's intake: ${Math.round(totals.calories)} calories, ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs, ${Math.round(totals.fat)}g fat. Goals: ${goals.calories} cal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.`
-  
+}  
   return (
     <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
