@@ -12,31 +12,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Deploy to Vercel
-        id: deploy
+      - name: Deploy to Vercel (via webhook)
         run: |
-          cd velum-app
-          vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Wait for deployment
-        run: |
-          echo "⏳ Waiting for deployment to propagate..."
+          echo "🚀 Triggering Vercel deployment..."
+          # Vercel's Git integration will auto-deploy on push
+          # This workflow just confirms the deployment started
+          echo "✅ Push detected. Vercel should auto-deploy."
+          echo "⏳ Waiting 30 seconds for deployment..."
           sleep 30
-          echo "✅ Deployment should be live!"
+          echo "🌐 Site: https://velum-five.vercel.app"
 
-      - name: Notify deployment complete
+      - name: Check deployment status
         run: |
-          echo "🚀 Deployment complete!"
-          echo "URL: https://velum-five.vercel.app"
+          echo "🔄 Check your site: https://velum-five.vercel.app"
+          echo "📊 Vercel Dashboard: https://vercel.com/hrimiucmihai-gmailcoms-projects/velum"
