@@ -1,7 +1,5 @@
 'use client'
 
-'use client'
-
 import React, { useState, useEffect } from 'react'
 import { 
   Search, 
@@ -20,7 +18,8 @@ import {
   CheckSquare,
   Flame,
   ArrowLeft,
-  Wallet
+  Wallet,
+  Menu
 } from 'lucide-react'
 
 // Profile type
@@ -128,13 +127,17 @@ function Sidebar({
   activeItem, 
   setActiveItem,
   expandedFolders,
-  toggleFolder 
+  toggleFolder,
+  isOpen,
+  onClose
 }: {
   navigation: NavItem[]
   activeItem: string
   setActiveItem: (id: string) => void
   expandedFolders: Set<string>
   toggleFolder: (id: string) => void
+  isOpen: boolean
+  onClose: () => void
 }) {
   const renderNavItem = (item: NavItem, depth: number = 0) => {
     const isExpanded = expandedFolders.has(item.id)
@@ -149,6 +152,7 @@ function Sidebar({
               toggleFolder(item.id)
             } else {
               setActiveItem(item.id)
+              onClose()
             }
           }}
           className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all group
@@ -182,41 +186,63 @@ function Sidebar({
   }
   
   return (
-    <aside className="w-60 bg-stone-100/50 border-r border-stone-200/50 flex flex-col h-screen">
-      {/* Logo */}
-      <div className="h-14 flex items-center gap-3 px-4 border-b border-stone-200/50">
-        <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-pink-600 rounded-lg flex items-center justify-center shadow-sm shadow-orange-500/20">
-          <span className="text-white font-bold text-sm">V</span>
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        w-60 bg-stone-100/50 border-r border-stone-200/50 flex flex-col h-screen
+        transform transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Logo */}
+        <div className="h-14 flex items-center gap-3 px-4 border-b border-stone-200/50">
+          <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-pink-600 rounded-lg flex items-center justify-center shadow-sm shadow-orange-500/20">
+            <span className="text-white font-bold text-sm">V</span>
+          </div>
+          <span className="font-semibold text-stone-800">Velum</span>
+          <button 
+            onClick={onClose}
+            className="ml-auto lg:hidden p-1.5 hover:bg-stone-200 rounded-lg"
+          >
+            <X size={18} className="text-stone-500" />
+          </button>
         </div>
-        <span className="font-semibold text-stone-800">Velum</span>
-      </div>
-      
-      {/* Search */}
-      <div className="px-3 py-3">
-        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-400 hover:bg-stone-200/50 rounded-lg transition-colors">
-          <Search size={16} />
-          <span>Search</span>
-        </button>
-      </div>
-      
-      {/* Navigation */}
-      <div className="flex-1 overflow-auto px-3 pb-4">
-        <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider px-2 mb-2">
-          WORKSPACE
-        </p>
-        <nav className="space-y-0.5">
-          {navigation.map(item => renderNavItem(item))}
-        </nav>
-      </div>
-      
-      {/* Settings */}
-      <div className="p-3 border-t border-stone-200/50">
-        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-500 hover:bg-stone-200/50 rounded-lg transition-colors">
-          <Settings size={16} />
-          <span>Settings</span>
-        </button>
-      </div>
-    </aside>
+        
+        {/* Search */}
+        <div className="px-3 py-3">
+          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-400 hover:bg-stone-200/50 rounded-lg transition-colors">
+            <Search size={16} />
+            <span>Search</span>
+          </button>
+        </div>
+        
+        {/* Navigation */}
+        <div className="flex-1 overflow-auto px-3 pb-4">
+          <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider px-2 mb-2">
+            WORKSPACE
+          </p>
+          <nav className="space-y-0.5">
+            {navigation.map(item => renderNavItem(item))}
+          </nav>
+        </div>
+        
+        {/* Settings */}
+        <div className="p-3 border-t border-stone-200/50">
+          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-500 hover:bg-stone-200/50 rounded-lg transition-colors">
+            <Settings size={16} />
+            <span>Settings</span>
+          </button>
+        </div>
+      </aside>
+    </>
   )
 }
 
@@ -278,73 +304,90 @@ function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOp
   }
   
   return (
-    <aside className={`bg-white border-l border-stone-100 flex flex-col transition-all duration-300 ${chatOpen ? 'w-72' : 'w-0 overflow-hidden'}`}>
-      <div className="h-14 border-b border-stone-100 flex items-center justify-between px-4 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm shadow-violet-500/20">
-            <Sparkles size={12} className="text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-stone-900">Archie</p>
-            <p className="text-[10px] text-stone-400">Online</p>
-          </div>
-        </div>
-        <button onClick={() => setChatOpen(false)} className="p-1.5 hover:bg-stone-100 rounded-lg">
-          <X size={14} className="text-stone-400" />
-        </button>
-      </div>
+    <>
+      {/* Mobile overlay */}
+      {chatOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setChatOpen(false)}
+        />
+      )}
       
-      <div className="flex-1 p-4 overflow-auto">
-        <div className="space-y-3">
-          {messages.map(msg => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' ? (
-                <div className="flex gap-2">
-                  <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-md flex items-center justify-center flex-shrink-0">
-                    <Sparkles size={10} className="text-white" />
-                  </div>
-                  <div className="flex-1 p-2.5 bg-stone-50 rounded-xl rounded-tl-sm">
-                    <p className="text-xs text-stone-700 leading-relaxed">{msg.content}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs bg-stone-900 text-white px-3 py-2 rounded-xl rounded-tr-sm">{msg.content}</p>
-              )}
+      {/* Chat panel */}
+      <aside className={`
+        fixed lg:static inset-y-0 right-0 z-50
+        bg-white border-l border-stone-100 flex flex-col
+        transition-all duration-300 ease-in-out
+        w-full lg:w-72
+        ${chatOpen ? 'translate-x-0' : 'translate-x-full lg:w-0 lg:overflow-hidden lg:opacity-0'}
+      `}>
+        <div className="h-14 border-b border-stone-100 flex items-center justify-between px-4 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm shadow-violet-500/20">
+              <Sparkles size={12} className="text-white" />
             </div>
-          ))}
-          {isLoading && (
-            <div className="flex gap-2">
-              <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-md flex items-center justify-center flex-shrink-0">
-                <Sparkles size={10} className="text-white" />
-              </div>
-              <div className="flex-1 p-2.5 bg-stone-50 rounded-xl rounded-tl-sm">
-                <p className="text-xs text-stone-500">Thinking...</p>
-              </div>
+            <div>
+              <p className="text-sm font-medium text-stone-900">Archie</p>
+              <p className="text-[10px] text-stone-400">Online</p>
             </div>
-          )}
-        </div>
-      </div>
-      
-      <div className="p-3 border-t border-stone-100">
-        <div className="flex items-center gap-2 bg-stone-100 rounded-lg px-3 py-2">
-          <input
-            type="text"
-            placeholder="Ask Archie..."
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          />
-          <button 
-            onClick={sendMessage}
-            disabled={isLoading || !message.trim()}
-            className="p-1 bg-stone-900 hover:bg-stone-800 rounded transition-colors disabled:opacity-50"
-          >
-            <Send size={12} className="text-white" />
+          </div>
+          <button onClick={() => setChatOpen(false)} className="p-1.5 hover:bg-stone-100 rounded-lg">
+            <X size={14} className="text-stone-400" />
           </button>
         </div>
-      </div>
-    </aside>
+        
+        <div className="flex-1 p-4 overflow-auto">
+          <div className="space-y-3">
+            {messages.map(msg => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.role === 'assistant' ? (
+                  <div className="flex gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-md flex items-center justify-center flex-shrink-0">
+                      <Sparkles size={10} className="text-white" />
+                    </div>
+                    <div className="flex-1 p-2.5 bg-stone-50 rounded-xl rounded-tl-sm">
+                      <p className="text-xs text-stone-700 leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs bg-stone-900 text-white px-3 py-2 rounded-xl rounded-tr-sm">{msg.content}</p>
+                )}
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex gap-2">
+                <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-md flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={10} className="text-white" />
+                </div>
+                <div className="flex-1 p-2.5 bg-stone-50 rounded-xl rounded-tl-sm">
+                  <p className="text-xs text-stone-500">Thinking...</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="p-3 border-t border-stone-100">
+          <div className="flex items-center gap-2 bg-stone-100 rounded-lg px-3 py-2">
+            <input
+              type="text"
+              placeholder="Ask Archie..."
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            />
+            <button 
+              onClick={sendMessage}
+              disabled={isLoading || !message.trim()}
+              className="p-1 bg-stone-900 hover:bg-stone-800 rounded transition-colors disabled:opacity-50"
+            >
+              <Send size={12} className="text-white" />
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   )
 }
 
@@ -1217,32 +1260,64 @@ function BudgetView() {
 }
 
 // Main Dashboard
-function Dashboard({ activeView, nutritionData }: { activeView: string; nutritionData: NutritionData }) {
+function Dashboard({ 
+  activeView, 
+  nutritionData,
+  onMenuClick,
+  onChatClick,
+  chatOpen 
+}: { 
+  activeView: string; 
+  nutritionData: NutritionData
+  onMenuClick: () => void
+  onChatClick: () => void
+  chatOpen: boolean
+}) {
   const { entries, totals, goals } = nutritionData
   const chatContext = `Today's intake: ${Math.round(totals.calories)} calories, ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs, ${Math.round(totals.fat)}g fat. Goals: ${goals.calories} cal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.`
   
   return (
     <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
-      <header className="h-14 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-6 sticky top-0 z-10">
-        <div>
-          <h1 className="text-base font-semibold text-stone-900">
-            {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : 'Velum'}
-          </h1>
-          <p className="text-xs text-stone-400">
-            {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : ''}
-          </p>
+      <header className="h-14 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          {/* Mobile menu button */}
+          <button 
+            onClick={onMenuClick}
+            className="lg:hidden p-2 -ml-2 hover:bg-stone-100 rounded-lg"
+          >
+            <Menu size={20} className="text-stone-600" />
+          </button>
+          
+          <div>
+            <h1 className="text-base font-semibold text-stone-900">
+              {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : 'Velum'}
+            </h1>
+            <p className="text-xs text-stone-400 hidden sm:block">
+              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : ''}
+            </p>
+          </div>
         </div>
+        
         <div className="flex items-center gap-2">
-          <button className="h-9 px-4 bg-stone-900 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-stone-800 transition-colors">
-            <Plus size={14} strokeWidth={2.5} />
-            {activeView.startsWith('nutrition') ? 'Log food' : 'Add'}
+          {/* Chat toggle button (mobile) */}
+          <button 
+            onClick={onChatClick}
+            className={`lg:hidden p-2 rounded-lg transition-colors ${chatOpen ? 'bg-violet-100 text-violet-600' : 'hover:bg-stone-100 text-stone-600'}`}
+          >
+            <Sparkles size={20} />
+          </button>
+          
+          <button className="h-9 px-3 sm:px-4 bg-stone-900 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-stone-800 transition-colors">
+            <Plus size={14} strokeWidth={2.5} className="hidden sm:block" />
+            <span className="hidden sm:inline">{activeView.startsWith('nutrition') ? 'Log food' : 'Add'}</span>
+            <Plus size={16} strokeWidth={2.5} className="sm:hidden" />
           </button>
         </div>
       </header>
       
       {/* Content */}
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 p-4 sm:p-6 overflow-auto">
         {activeView === 'nutrition-today' && (
           <NutritionTodayView nutritionData={nutritionData} />
         )}
@@ -1271,13 +1346,26 @@ function Dashboard({ activeView, nutritionData }: { activeView: string; nutritio
 export default function Home() {
   const [activeItem, setActiveItem] = useState('nutrition-today')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition']))
-  const [chatOpen, setChatOpen] = useState(true)
+  const [chatOpen, setChatOpen] = useState(false) // Default closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     date: new Date().toISOString().split('T')[0],
     entries: [],
     totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
   })
+  
+  // Detect desktop and auto-open chat
+  useEffect(() => {
+    const checkDesktop = () => {
+      if (window.innerWidth >= 1024) {
+        setChatOpen(true)
+      }
+    }
+    checkDesktop()
+    window.addEventListener('resize', checkDesktop)
+    return () => window.removeEventListener('resize', checkDesktop)
+  }, [])
   
   // Fetch nutrition data
   useEffect(() => {
@@ -1363,10 +1451,18 @@ export default function Home() {
         setActiveItem={setActiveItem}
         expandedFolders={expandedFolders}
         toggleFolder={toggleFolder}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       
-      <div className="flex flex-1 min-w-0">
-        <Dashboard activeView={activeItem} nutritionData={nutritionData} />
+      <div className="flex flex-1 min-w-0 overflow-hidden">
+        <Dashboard 
+          activeView={activeItem} 
+          nutritionData={nutritionData}
+          onMenuClick={() => setSidebarOpen(true)}
+          onChatClick={() => setChatOpen(!chatOpen)}
+          chatOpen={chatOpen}
+        />
         
         <Chat 
           chatOpen={chatOpen} 
