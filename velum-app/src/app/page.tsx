@@ -1016,58 +1016,73 @@ function GoalsView() {
 
 // Budget View Component
 function BudgetView() {
-  const [loading, setLoading] = useState(false)
+  const [weeklyData, setWeeklyData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   
-  // Monthly budget data with expenditures per week
-  const weeklyData = [
-    {
-      weekNum: 1,
-      weekLabel: 'Week 1 Budget',
-      budget: 70,
-      spent: 45,
-      remaining: 25,
-      expenditures: [
-        { id: '1', description: 'Lunch with team', category: 'Food - Eating Out', amount: 25, date: '2026-02-01' },
-        { id: '2', description: 'Coffee and pastry', category: 'Food - Eating Out', amount: 12, date: '2026-02-02' },
-        { id: '3', description: 'Stationery', category: 'Miscellaneous', amount: 8, date: '2026-02-03' },
-      ]
-    },
-    {
-      weekNum: 2,
-      weekLabel: 'Week 2 Budget',
-      budget: 70,
-      spent: 62,
-      remaining: 8,
-      expenditures: [
-        { id: '4', description: 'Dinner date', category: 'Food - Eating Out', amount: 45, date: '2026-02-08' },
-        { id: '5', description: 'Uber ride', category: 'Miscellaneous', amount: 17, date: '2026-02-09' },
-      ]
-    },
-    {
-      weekNum: 3,
-      weekLabel: 'Week 3 Budget',
-      budget: 70,
-      spent: 0,
-      remaining: 70,
-      expenditures: []
-    },
-    {
-      weekNum: 4,
-      weekLabel: 'Week 4 Budget',
-      budget: 70,
-      spent: 0,
-      remaining: 70,
-      expenditures: []
-    },
-    {
-      weekNum: 5,
-      weekLabel: 'Week 5 Budget',
-      budget: 70,
-      spent: 0,
-      remaining: 70,
-      expenditures: []
-    },
-  ]
+  // Fetch budget data for all weeks
+  useEffect(() => {
+    const fetchAllWeeks = async () => {
+      setLoading(true)
+      try {
+        // Get current week number
+        const now = new Date()
+        const year = now.getFullYear()
+        const startOfYear = new Date(year, 0, 1)
+        const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000))
+        const currentWeekNum = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7)
+        
+        // Fetch weeks 1-5
+        const weeks = []
+        for (let i = 1; i <= 5; i++) {
+          const weekKey = `${year}-W${String(i).padStart(2, '0')}`
+          try {
+            const response = await fetch(`/api/budget?week=${weekKey}`)
+            if (response.ok) {
+              const data = await response.json()
+              weeks.push({
+                weekNum: i,
+                weekLabel: `Week ${i} Budget`,
+                budget: 70,
+                spent: data.totalSpent || 0,
+                remaining: data.remaining || 70,
+                expenditures: data.entries || []
+              })
+            } else {
+              // Default empty week
+              weeks.push({
+                weekNum: i,
+                weekLabel: `Week ${i} Budget`,
+                budget: 70,
+                spent: 0,
+                remaining: 70,
+                expenditures: []
+              })
+            }
+          } catch (e) {
+            weeks.push({
+              weekNum: i,
+              weekLabel: `Week ${i} Budget`,
+              budget: 70,
+              spent: 0,
+              remaining: 70,
+              expenditures: []
+            })
+          }
+        }
+        setWeeklyData(weeks)
+      } catch (error) {
+        console.error('Error fetching budget:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchAllWeeks()
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchAllWeeks, 10000)
+    return () => clearInterval(interval)
+  }, [])
   
   const totalBudget = 350 // 5 weeks × €70
   const totalSpent = weeklyData.reduce((a, w) => a + w.spent, 0)
@@ -1182,6 +1197,33 @@ function BudgetView() {
             {/* Expenditures List */}
             <div className="divide-y divide-stone-50">
               {week.expenditures.length > 0 ? (
+                week.expenditures.map((entry: any) => (
+                  <div key={entry.id} className="flex items-center gap-3 p-3 hover:bg-stone-50 transition-colors">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
+                      entry.category === 'Food' ? 'bg-emerald-50' : 'bg-blue-50'
+                    }`}>
+                      {entry.category === 'Food' ? '🍽️' : '🎉'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-stone-900 truncate">{entry.description}</p>
+                      <p className="text-[10px] text-stone-400">{entry.category}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-stone-900">€{entry.amount}</p>
+                      <p className="text-[10px] text-stone-400">{entry.date}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-stone-400 text-center py-4 text-sm">No expenditures this week</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}              {week.expenditures.length > 0 ? (
                 week.expenditures.map((entry) => (
                   <div key={entry.id} className="flex items-center gap-3 p-3 hover:bg-stone-50 transition-colors">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
