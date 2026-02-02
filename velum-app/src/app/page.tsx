@@ -1016,56 +1016,27 @@ function GoalsView() {
 
 // Budget View Component
 function BudgetView() {
-  const [budgetData, setBudgetData] = useState<BudgetWeek | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedWeek, setSelectedWeek] = useState(() => {
-    const now = new Date()
-    const startOfYear = new Date(now.getFullYear(), 0, 1)
-    const pastDays = (now.getTime() - startOfYear.getTime()) / 86400000
-    const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7)
-    return `${now.getFullYear()}-W${weekNum.toString().padStart(2, '0')}`
-  })
-
-  // Fetch budget data
-  useEffect(() => {
-    const fetchBudget = async () => {
-      try {
-        const response = await fetch(`/api/budget?week=${selectedWeek}`)
-        if (response.ok) {
-          const data = await response.json()
-          setBudgetData(data)
-        }
-      } catch (error) {
-        console.error('Error fetching budget:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchBudget()
-  }, [selectedWeek])
-
-  // Get week label
-  const getWeekLabel = (weekKey: string) => {
-    const [year, week] = weekKey.split('-W')
-    return `Week ${parseInt(week)}`
+  const [activeTab, setActiveTab] = useState('weeks')
+  const [loading, setLoading] = useState(false)
+  
+  // Monthly budget data structure
+  const weeklyBudgets = [
+    { week: 'Week 1 Budget', budget: 70, spent: 45, remaining: 25 },
+    { week: 'Week 2 Budget', budget: 70, spent: 62, remaining: 8 },
+    { week: 'Week 3 Budget', budget: 70, spent: 0, remaining: 70 },
+    { week: 'Week 4 Budget', budget: 70, spent: 0, remaining: 70 },
+    { week: 'Week 5 Budget', budget: 70, spent: 0, remaining: 70 },
+  ]
+  
+  const categorySpending = {
+    'Food - Eating Out': 45,
+    'Miscellaneous': 62
   }
-
-  // Navigate weeks
-  const changeWeek = (delta: number) => {
-    const [year, weekStr] = selectedWeek.split('-W')
-    let weekNum = parseInt(weekStr) + delta
-    let yearNum = parseInt(year)
-    
-    if (weekNum > 52) {
-      weekNum = 1
-      yearNum++
-    } else if (weekNum < 1) {
-      weekNum = 52
-      yearNum--
-    }
-    
-    setSelectedWeek(`${yearNum}-W${weekNum.toString().padStart(2, '0')}`)
-  }
+  
+  const totalBudget = 350 // 5 weeks × €70
+  const totalSpent = weeklyBudgets.reduce((a, w) => a + w.spent, 0)
+  const totalRemaining = totalBudget - totalSpent
+  const progress = Math.round((totalSpent / totalBudget) * 100)
 
   if (loading) {
     return (
@@ -1075,38 +1046,24 @@ function BudgetView() {
     )
   }
 
-  const data = budgetData || {
-    week: selectedWeek,
-    entries: [],
-    totalSpent: 0,
-    remaining: 70,
-    budgetLimit: 70,
-    categories: { Food: 0, Fun: 0 }
-  }
-
-  const progress = Math.round((data.totalSpent / data.budgetLimit) * 100)
-  const foodPct = data.totalSpent > 0 ? Math.round((data.categories.Food / data.totalSpent) * 100) : 0
-  const funPct = data.totalSpent > 0 ? Math.round((data.categories.Fun / data.totalSpent) * 100) : 0
-
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-5">
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-5 w-fit">
         <button 
-          onClick={() => changeWeek(-1)}
-          className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+          onClick={() => setActiveTab('weeks')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'weeks' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
         >
-          <ChevronLeft size={20} className="text-stone-500" />
+          Weeks
         </button>
-        <h2 className="text-lg font-semibold text-stone-900">{getWeekLabel(selectedWeek)}</h2>
         <button 
-          onClick={() => changeWeek(1)}
-          className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+          onClick={() => setActiveTab('categories')}
+          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
         >
-          <ChevronRight size={20} className="text-stone-500" />
+          Categories
         </button>
       </div>
-
+      
       {/* Hero Stats Card */}
       <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
@@ -1132,55 +1089,80 @@ function BudgetView() {
                 </defs>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-white">€{data.totalSpent}</span>
+                <span className="text-xl font-bold text-white">€{totalSpent}</span>
                 <span className="text-[9px] text-stone-400 uppercase">spent</span>
               </div>
             </div>
             <div className="flex-1">
               <p className="text-xs text-stone-400 mb-1">Remaining</p>
-              <p className="text-3xl font-bold text-white">€{data.remaining}</p>
-              <p className="text-xs text-stone-500">of €{data.budgetLimit} weekly budget</p>
+              <p className="text-3xl font-bold text-white">€{totalRemaining}</p>
+              <p className="text-xs text-stone-500">of €{totalBudget} monthly budget</p>
             </div>
           </div>
           <div className="h-px bg-stone-700 mb-4" />
           <div className="grid grid-cols-2 gap-5">
-            <CategoryStat label="Food" amount={data.categories.Food} total={data.totalSpent} color="from-emerald-500 to-teal-500" />
-            <CategoryStat label="Fun" amount={data.categories.Fun} total={data.totalSpent} color="from-blue-500 to-indigo-500" />
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-stone-400">Food - Eating Out</span>
+                <span className="text-xs font-semibold text-white">€{categorySpending['Food - Eating Out']}</span>
+              </div>
+              <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-700" style={{ width: `${(categorySpending['Food - Eating Out'] / totalSpent * 100) || 0}%` }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-stone-400">Miscellaneous</span>
+                <span className="text-xs font-semibold text-white">€{categorySpending['Miscellaneous']}</span>
+              </div>
+              <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700" style={{ width: `${(categorySpending['Miscellaneous'] / totalSpent * 100) || 0}%` }} />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Expenditures List */}
-      <div>
-        <h2 className="text-sm font-semibold text-stone-900 mb-3">Expenditures</h2>
+      {/* Content based on tab */}
+      {activeTab === 'weeks' ? (
         <div className="space-y-2">
-          {data.entries.length > 0 ? (
-            data.entries.map((entry) => (
-              <div key={entry.id} className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base ${
-                  entry.category === 'Food' ? 'bg-emerald-50' : 'bg-blue-50'
-                }`}>
-                  {entry.category === 'Food' ? '🍽️' : '🎉'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-stone-900 truncate">{entry.description}</p>
-                  <p className="text-[10px] text-stone-400">{entry.category} • {new Date(entry.timestamp).toLocaleDateString()}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-stone-900">€{entry.amount}</p>
-                </div>
+          <h2 className="text-sm font-semibold text-stone-900 mb-3">Weekly Budgets</h2>
+          {weeklyBudgets.map((week) => (
+            <div key={week.week} className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
+              <div className="flex-1">
+                <p className="text-sm text-stone-900">{week.week}</p>
+                <p className="text-[10px] text-stone-400">€{week.spent} spent • €{week.remaining} left</p>
               </div>
-            ))
-          ) : (
-            <p className="text-stone-400 text-center py-8">No expenditures this week</p>
-          )}
+              <div className="text-right">
+                <p className="text-sm font-bold text-stone-900">€{week.remaining}</p>
+                <p className="text-[10px] text-stone-400">remaining</p>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-stone-900 mb-3">Categories</h2>
+          {Object.entries(categorySpending).map(([category, amount]) => (
+            <div key={category} className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base ${
+                category.includes('Food') ? 'bg-emerald-50' : 'bg-blue-50'
+              }`}>
+                {category.includes('Food') ? '🍽️' : '📦'}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-stone-900">{category}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-stone-900">€{amount}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
-}
-
-function CategoryStat({ label, amount, total, color }: { label: string; amount: number; total: number; color: string }) {
+}function CategoryStat({ label, amount, total, color }: { label: string; amount: number; total: number; color: string }) {
   const pct = total > 0 ? Math.round((amount / total) * 100) : 0
   return (
     <div>
