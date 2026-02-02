@@ -19,7 +19,9 @@ import {
   Flame,
   ArrowLeft,
   Wallet,
-  Menu
+  Menu,
+  Star,
+  ImageIcon
 } from 'lucide-react'
 
 // Profile type
@@ -35,7 +37,7 @@ interface Profile {
   yearsRemaining: number
 }
 
-// Types
+// Types - Extended with photoUrl and notes
 interface FoodEntry {
   id: string
   name: string
@@ -45,6 +47,9 @@ interface FoodEntry {
   fat: number
   time: string
   date: string
+  photoUrl?: string
+  notes?: string
+  belief?: string
 }
 
 interface NutritionData {
@@ -98,27 +103,235 @@ interface WeekDayData {
   }
 }
 
-// Budget Types
-interface BudgetEntry {
-  id: string
-  amount: number
-  category: 'Food' | 'Fun'
-  description: string
-  date: string
-  timestamp: string
-  reason?: string
+// 7-Day Bar Chart Component
+function SevenDayBarChart({ days, calorieGoal = 2000 }: { days: WeekDayData[], calorieGoal?: number }) {
+  const maxCalories = Math.max(...days.map(d => d.totals.calories), calorieGoal)
+  
+  return (
+    <div className="bg-white border border-stone-100 rounded-xl p-4 mb-5">
+      <h3 className="text-sm font-semibold text-stone-900 mb-4">Last 7 Days</h3>
+      <div className="flex items-end justify-between gap-2 h-32">
+        {days.map((day) => {
+          const isOverGoal = day.totals.calories > calorieGoal
+          const barHeight = Math.min((day.totals.calories / maxCalories) * 100, 100)
+          
+          return (
+            <div key={day.date} className="flex flex-col items-center flex-1">
+              <div className="relative w-full flex items-end justify-center h-24 mb-2">
+                {/* Goal line indicator */}
+                <div 
+                  className="absolute w-full border-t border-dashed border-stone-300 z-10"
+                  style={{ bottom: `${(calorieGoal / maxCalories) * 100}%` }}
+                />
+                {/* Bar */}
+                <div
+                  className={`w-full max-w-8 rounded-t-md transition-all duration-500 ${
+                    isOverGoal ? 'bg-red-500' : 'bg-emerald-500'
+                  }`}
+                  style={{ height: `${barHeight}%` }}
+                  title={`${day.totals.calories} kcal`}
+                />
+              </div>
+              <span className="text-[10px] text-stone-500 font-medium">{day.dayName}</span>
+              <span className="text-[9px] text-stone-400">{day.totals.calories}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-emerald-500 rounded" />
+          <span className="text-stone-500">≤{calorieGoal}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-red-500 rounded" />
+          <span className="text-stone-500">&gt;{calorieGoal}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 border-t border-dashed border-stone-300" />
+          <span className="text-stone-500">Goal</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-interface BudgetWeek {
-  week: string
-  entries: BudgetEntry[]
-  totalSpent: number
-  remaining: number
-  budgetLimit: number
-  categories: {
-    Food: number
-    Fun: number
+// Meal Detail Modal
+function MealDetailModal({ 
+  entry, 
+  isOpen, 
+  onClose 
+}: { 
+  entry: FoodEntry | null
+  isOpen: boolean
+  onClose: () => void
+}) {
+  if (!isOpen || !entry) return null
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
+      <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-auto shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-stone-100">
+          <h3 className="text-lg font-semibold text-stone-900">Meal Details</h3>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-stone-100 rounded-lg"
+          >
+            <X size={20} className="text-stone-500" />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="p-4">
+          {/* Photo */}
+          {entry.photoUrl ? (
+            <div className="mb-4">
+              <img 
+                src={entry.photoUrl} 
+                alt={entry.name}
+                className="w-full h-48 object-cover rounded-xl"
+              />
+            </div>
+          ) : (
+            <div className="mb-4 h-32 bg-stone-100 rounded-xl flex flex-col items-center justify-center text-stone-400">
+              <ImageIcon size={32} className="mb-2" />
+              <span className="text-sm">No photo</span>
+            </div>
+          )}
+          
+          {/* Name & Time */}
+          <div className="mb-4">
+            <h4 className="text-xl font-semibold text-stone-900">{entry.name}</h4>
+            <p className="text-sm text-stone-500">{entry.time} · {entry.date}</p>
+          </div>
+          
+          {/* Nutrient Grid */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="bg-orange-50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-orange-600">{entry.calories}</p>
+              <p className="text-xs text-orange-500">kcal</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-blue-600">{entry.protein}g</p>
+              <p className="text-xs text-blue-500">protein</p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-green-600">{entry.carbs}g</p>
+              <p className="text-xs text-green-500">carbs</p>
+            </div>
+            <div className="bg-purple-50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-purple-600">{entry.fat}g</p>
+              <p className="text-xs text-purple-500">fat</p>
+            </div>
+          </div>
+          
+          {/* Notes/Belief */}
+          {(entry.notes || entry.belief) && (
+            <div className="bg-stone-50 rounded-xl p-4">
+              <p className="text-xs font-medium text-stone-500 uppercase mb-2">Notes</p>
+              <p className="text-sm text-stone-700">{entry.notes || entry.belief}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Edit Meal Modal (uses chat)
+function EditMealModal({
+  entry,
+  isOpen,
+  onClose,
+  onSendToChat
+}: {
+  entry: FoodEntry | null
+  isOpen: boolean
+  onClose: () => void
+  onSendToChat: (message: string) => void
+}) {
+  const [editText, setEditText] = useState('')
+  
+  useEffect(() => {
+    if (entry && isOpen) {
+      setEditText(`Change '${entry.name}' to `)
+    }
+  }, [entry, isOpen])
+  
+  if (!isOpen || !entry) return null
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (editText.trim()) {
+      const context = `Editing meal: "${entry.name}" (${entry.calories} cal, ${entry.protein}g protein, ${entry.carbs}g carbs, ${entry.fat}g fat) logged at ${entry.time}. User wants to correct it.`
+      onSendToChat(`${editText}\n\n[Context: ${context}]`)
+      onClose()
+    }
   }
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
+      <div className="relative bg-white rounded-2xl w-full max-w-md shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-stone-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Sparkles size={14} className="text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-stone-900">Correct with AI</h3>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-stone-100 rounded-lg"
+          >
+            <X size={20} className="text-stone-500" />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="p-4">
+          <p className="text-sm text-stone-600 mb-4">
+            Tell Archie how to correct <strong>{entry.name}</strong>:
+          </p>
+          
+          <form onSubmit={handleSubmit}>
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              className="w-full px-4 py-3 border border-stone-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-violet-500"
+              rows={3}
+              placeholder="e.g., Change 'burger' to 'grilled chicken sandwich'"
+              autoFocus
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+              >
+                Send to Archie
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // Sidebar Component
@@ -247,7 +460,19 @@ function Sidebar({
 }
 
 // Chat Component
-function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOpen: (open: boolean) => void; context: string }) {
+function Chat({ 
+  chatOpen, 
+  setChatOpen, 
+  context,
+  externalMessage,
+  onExternalMessageHandled
+}: { 
+  chatOpen: boolean
+  setChatOpen: (open: boolean) => void
+  context: string
+  externalMessage?: string | null
+  onExternalMessageHandled?: () => void
+}) {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -259,25 +484,37 @@ function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOp
   ])
   const [isLoading, setIsLoading] = useState(false)
   
-  const sendMessage = async () => {
-    if (!message.trim() || isLoading) return
-    
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: message,
-      timestamp: new Date()
+  // Handle external messages (from edit modal)
+  useEffect(() => {
+    if (externalMessage && onExternalMessageHandled) {
+      // Add user message
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: externalMessage,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, userMessage])
+      
+      // Open chat
+      setChatOpen(true)
+      
+      // Send to API
+      handleSendMessage(externalMessage)
+      
+      // Mark as handled
+      onExternalMessageHandled()
     }
-    
-    setMessages(prev => [...prev, userMessage])
-    setMessage('')
+  }, [externalMessage])
+  
+  const handleSendMessage = async (msg: string) => {
     setIsLoading(true)
     
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, context })
+        body: JSON.stringify({ message: msg, context })
       })
       
       const data = await response.json()
@@ -301,6 +538,23 @@ function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOp
     }
     
     setIsLoading(false)
+  }
+  
+  const sendMessage = async () => {
+    if (!message.trim() || isLoading) return
+    
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: message,
+      timestamp: new Date()
+    }
+    
+    setMessages(prev => [...prev, userMessage])
+    const msgToSend = message
+    setMessage('')
+    
+    await handleSendMessage(msgToSend)
   }
   
   return (
@@ -350,7 +604,7 @@ function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOp
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs bg-stone-900 text-white px-3 py-2 rounded-xl rounded-tr-sm">{msg.content}</p>
+                  <p className="text-xs bg-stone-900 text-white px-3 py-2 rounded-xl rounded-tr-sm max-w-[80%]">{msg.content}</p>
                 )}
               </div>
             ))}
@@ -392,8 +646,19 @@ function Chat({ chatOpen, setChatOpen, context }: { chatOpen: boolean; setChatOp
 }
 
 // Nutrition Today View
-function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData }) {
+function NutritionTodayView({ 
+  nutritionData,
+  onSendToChat
+}: { 
+  nutritionData: NutritionData
+  onSendToChat: (message: string) => void
+}) {
   const [activeTab, setActiveTab] = useState('today')
+  const [weekData, setWeekData] = useState<WeekDayData[]>([])
+  const [selectedMeal, setSelectedMeal] = useState<FoodEntry | null>(null)
+  const [mealDetailOpen, setMealDetailOpen] = useState(false)
+  const [editMealOpen, setEditMealOpen] = useState(false)
+  const [mealToEdit, setMealToEdit] = useState<FoodEntry | null>(null)
   const { entries, totals, goals } = nutritionData
   
   const progress = Math.round((totals.calories / goals.calories) * 100)
@@ -404,6 +669,38 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
     const timer = setTimeout(() => setAnimatedProgress(progress), 100)
     return () => clearTimeout(timer)
   }, [progress])
+  
+  // Fetch 7-day data for bar chart
+  useEffect(() => {
+    const fetchWeekData = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const response = await fetch(`/api/nutrition/week?date=${today}`)
+        if (response.ok) {
+          const data = await response.json()
+          setWeekData(data.days || [])
+        }
+      } catch (error) {
+        console.error('Error fetching week data:', error)
+      }
+    }
+    fetchWeekData()
+  }, [])
+  
+  const handleMealClick = (entry: FoodEntry) => {
+    setSelectedMeal(entry)
+    setMealDetailOpen(true)
+  }
+  
+  const handleEditClick = (entry: FoodEntry, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setMealToEdit(entry)
+    setEditMealOpen(true)
+  }
+  
+  const handleSendEditToChat = (message: string) => {
+    onSendToChat(message)
+  }
   
   return (
     <div className="max-w-2xl mx-auto">
@@ -466,6 +763,11 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
         </div>
       </div>
       
+      {/* 7-Day Bar Chart - Only show on Today tab */}
+      {activeTab === 'today' && weekData.length > 0 && (
+        <SevenDayBarChart days={weekData} calorieGoal={goals.calories} />
+      )}
+      
       {/* Content based on active tab */}
       {activeTab === 'today' ? (
         <>
@@ -474,7 +776,11 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
             <h2 className="text-sm font-semibold text-stone-900 mb-3">Meals</h2>
             <div className="space-y-2">
               {entries.map((entry) => (
-                <div key={entry.id} className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all cursor-pointer">
+                <div 
+                  key={entry.id} 
+                  onClick={() => handleMealClick(entry)}
+                  className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all cursor-pointer"
+                >
                   <div className="w-9 h-9 bg-stone-50 rounded-lg flex items-center justify-center text-base">
                     🍽️
                   </div>
@@ -482,9 +788,19 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
                     <p className="text-sm text-stone-900 truncate">{entry.name}</p>
                     <p className="text-[10px] text-stone-400">{entry.time}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
-                    <p className="text-[10px] text-stone-400">kcal</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
+                      <p className="text-[10px] text-stone-400">kcal</p>
+                    </div>
+                    {/* Edit/Star button */}
+                    <button
+                      onClick={(e) => handleEditClick(entry, e)}
+                      className="p-1.5 text-stone-300 hover:text-amber-400 hover:bg-amber-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      title="Edit with AI"
+                    >
+                      <Star size={16} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -497,6 +813,20 @@ function NutritionTodayView({ nutritionData }: { nutritionData: NutritionData })
       ) : (
         <WeekView onDayClick={(day) => console.log('Selected:', day)} />
       )}
+      
+      {/* Modals */}
+      <MealDetailModal
+        entry={selectedMeal}
+        isOpen={mealDetailOpen}
+        onClose={() => setMealDetailOpen(false)}
+      />
+      
+      <EditMealModal
+        entry={mealToEdit}
+        isOpen={editMealOpen}
+        onClose={() => setEditMealOpen(false)}
+        onSendToChat={handleSendEditToChat}
+      />
     </div>
   )
 }
@@ -1265,13 +1595,15 @@ function Dashboard({
   nutritionData,
   onMenuClick,
   onChatClick,
-  chatOpen 
+  chatOpen,
+  onSendToChat
 }: { 
-  activeView: string; 
+  activeView: string
   nutritionData: NutritionData
   onMenuClick: () => void
   onChatClick: () => void
   chatOpen: boolean
+  onSendToChat: (message: string) => void
 }) {
   const { entries, totals, goals } = nutritionData
   const chatContext = `Today's intake: ${Math.round(totals.calories)} calories, ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs, ${Math.round(totals.fat)}g fat. Goals: ${goals.calories} cal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.`
@@ -1319,7 +1651,10 @@ function Dashboard({
       {/* Content */}
       <div className="flex-1 p-4 sm:p-6 overflow-auto">
         {activeView === 'nutrition-today' && (
-          <NutritionTodayView nutritionData={nutritionData} />
+          <NutritionTodayView 
+            nutritionData={nutritionData}
+            onSendToChat={onSendToChat}
+          />
         )}
         {activeView === 'goals' && (
           <GoalsView />
@@ -1346,8 +1681,9 @@ function Dashboard({
 export default function Home() {
   const [activeItem, setActiveItem] = useState('nutrition-today')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition']))
-  const [chatOpen, setChatOpen] = useState(false) // Default closed on mobile
+  const [chatOpen, setChatOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [externalChatMessage, setExternalChatMessage] = useState<string | null>(null)
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     date: new Date().toISOString().split('T')[0],
     entries: [],
@@ -1387,6 +1723,14 @@ export default function Home() {
     const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [])
+  
+  const handleSendToChat = (message: string) => {
+    setExternalChatMessage(message)
+  }
+  
+  const handleExternalMessageHandled = () => {
+    setExternalChatMessage(null)
+  }
   
   const navigation: NavItem[] = [
     {
@@ -1462,12 +1806,15 @@ export default function Home() {
           onMenuClick={() => setSidebarOpen(true)}
           onChatClick={() => setChatOpen(!chatOpen)}
           chatOpen={chatOpen}
+          onSendToChat={handleSendToChat}
         />
         
         <Chat 
           chatOpen={chatOpen} 
           setChatOpen={setChatOpen}
           context={`Today's intake: ${nutritionData.totals.calories} calories, ${nutritionData.totals.protein}g protein, ${nutritionData.totals.carbs}g carbs`}
+          externalMessage={externalChatMessage}
+          onExternalMessageHandled={handleExternalMessageHandled}
         />
       </div>
     </div>
