@@ -944,28 +944,44 @@ function GoalsView() {
         <div className="bg-white border border-stone-100 rounded-xl p-4">
           <h3 className="font-medium text-stone-900 mb-4">Life in Weeks</h3>
           <div className="overflow-x-auto">
-            <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: 'repeat(52, minmax(4px, 1fr))' }}>
-              {Array.from({ length: life_expectancy }, (_, year) => 
-                Array.from({ length: 52 }, (_, week) => {
-                  const totalWeek = year * 52 + week
-                  const isLived = totalWeek < profile.ageInWeeks
-                  const isCurrent = totalWeek === profile.ageInWeeks
-                  
-                  return (
-                    <div
-                      key={`${year}-${week}`}
-                      className={`w-1.5 h-1.5 rounded-[1px] ${
-                        isCurrent 
-                          ? 'bg-gradient-to-br from-orange-500 to-pink-500' 
-                          : isLived 
-                            ? 'bg-stone-700' 
-                            : 'bg-stone-200'
-                      }`}
-                      title={`Year ${year + 1}, Week ${week + 1}`}
-                    />
-                  )
-                })
-              ).flat()}
+            <div className="inline-flex flex-col items-center gap-0.5">
+              {Array.from({ length: life_expectancy }, (_, year) => {
+                const showYearLabel = year % 5 === 0 || year === life_expectancy - 1
+                return (
+                  <div key={year} className="flex items-center gap-2">
+                    {/* Year label on the left */}
+                    <span className="text-[10px] text-stone-400 w-6 text-right">
+                      {showYearLabel ? year : ''}
+                    </span>
+                    {/* Weeks grid for this year */}
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 52 }, (_, week) => {
+                        const totalWeek = year * 52 + week
+                        const isLived = totalWeek < profile.ageInWeeks
+                        const isCurrent = totalWeek === profile.ageInWeeks
+                        
+                        return (
+                          <div
+                            key={`${year}-${week}`}
+                            className={`w-1.5 h-1.5 rounded-[1px] ${
+                              isCurrent 
+                                ? 'bg-gradient-to-br from-orange-500 to-pink-500' 
+                                : isLived 
+                                  ? 'bg-stone-700' 
+                                  : 'bg-stone-200'
+                            }`}
+                            title={`Year ${year + 1}, Week ${week + 1}`}
+                          />
+                        )
+                      })}
+                    </div>
+                    {/* Year label on the right */}
+                    <span className="text-[10px] text-stone-400 w-6 text-left">
+                      {showYearLabel ? year : ''}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
           <p className="text-xs text-stone-400 mt-2">Each dot = 1 week • {totalWeeks.toLocaleString()} total weeks</p>
