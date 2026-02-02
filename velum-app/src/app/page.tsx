@@ -22,6 +22,19 @@ import {
   ArrowLeft
 } from 'lucide-react'
 
+// Profile type
+interface Profile {
+  birth_date: string
+  country?: string
+  life_expectancy: number
+  ageInWeeks: number
+  totalWeeks: number
+  weeksRemaining: number
+  currentAge: number
+  percentLived: number
+  yearsRemaining: number
+}
+
 // Types
 interface FoodEntry {
   id: string
@@ -592,15 +605,372 @@ function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
   )
 }
 
-// Goals View (Simplified)
+// Goals View with Life Timeline
 function GoalsView() {
-  return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white border border-stone-100 rounded-xl p-8 text-center">
-        <Target className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-        <h2 className="text-lg font-semibold text-stone-900 mb-2">Goals</h2>
-        <p className="text-stone-500">Goal tracking coming soon...</p>
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [showSettings, setShowSettings] = useState(false)
+  const [viewMode, setViewMode] = useState<'years' | 'weeks'>('years')
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [formData, setFormData] = useState({ birthDate: '', country: '', lifeExpectancy: 85 })
+
+  // Fetch profile
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch('/api/profile')
+        if (response.ok) {
+          const data = await response.json()
+          setProfile(data.profile)
+          if (data.profile) {
+            setFormData({
+              birthDate: data.profile.birth_date.split('T')[0],
+              country: data.profile.country || '',
+              lifeExpectancy: data.profile.life_expectancy
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  // Save profile
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          birthDate: formData.birthDate,
+          country: formData.country,
+          lifeExpectancy: parseInt(formData.lifeExpectancy as any)
+        })
+      })
+      if (response.ok) {
+        // Refresh profile
+        const refresh = await fetch('/api/profile')
+        const data = await refresh.json()
+        setProfile(data.profile)
+        setShowSettings(false)
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-stone-300 border-t-orange-500 rounded-full animate-spin" />
       </div>
+    )
+  }
+
+  // Show profile setup form if no profile
+  if (!profile) {
+    return (
+      <div className="max-w-md mx-auto p-6">
+        <div className="bg-white border border-stone-100 rounded-2xl p-6">
+          <h2 className="text-xl font-semibold text-stone-900 mb-2">Welcome to Goals</h2>
+          <p className="text-sm text-stone-500 mb-6">Set up your profile to see your life timeline</p>
+          
+          <form onSubmit={saveProfile} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Birth Date</label>
+              <input
+                type="date"
+                value={formData.birthDate}
+                onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Country (optional)</label>
+              <input
+                type="text"
+                value={formData.country}
+                onChange={(e) => setFormData({...formData, country: e.target.value})}
+                placeholder="Spain"
+                className="w-full px-3 py-2 border border-stone-200 rounded-lg"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-2 bg-stone-900 text-white rounded-lg font-medium"
+            >
+              Get Started
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  const { currentAge, weeksRemaining, totalWeeks, percentLived, life_expectancy, yearsRemaining } = profile
+
+  return (
+    <div className="max-w-3xl mx-auto p-4">
+      {/* Header with stats */}
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-6 mb-6 text-white">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
+        </div>
+        <div className="relative">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-xs text-stone-400 mb-1">Week {Math.floor(profile.ageInWeeks % 52) + 1} of 2026</p>
+              <h2 className="text-4xl font-bold">{weeksRemaining.toLocaleString()}</h2>
+              <p className="text-sm text-stone-400">weeks remaining</p>
+            </div>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 bg-stone-700 rounded-lg text-stone-300 hover:text-white"
+            >
+              <Settings size={18} />
+            </button>
+          </div>
+          
+          <div className="flex gap-6 text-sm">
+            <div>
+              <p className="font-semibold text-lg">{currentAge}</p>
+              <p className="text-stone-500 text-xs">years old</p>
+            </div>
+            <div>
+              <p className="font-semibold text-lg">{yearsRemaining}</p>
+              <p className="text-stone-500 text-xs">years left</p>
+            </div>
+            <div>
+              <p className="font-semibold text-lg">{percentLived}%</p>
+              <p className="text-stone-500 text-xs">complete</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="bg-white border border-stone-100 rounded-xl p-4 mb-6">
+          <h3 className="font-medium text-stone-900 mb-4">Profile Settings</h3>
+          <form onSubmit={saveProfile} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-stone-600 mb-1">Birth Date</label>
+                <input
+                  type="date"
+                  value={formData.birthDate}
+                  onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-stone-600 mb-1">Country</label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({...formData, country: e.target.value})}
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm">
+                Save Changes
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 text-stone-600 text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* View Toggle */}
+      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-6 w-fit">
+        <button
+          onClick={() => { setViewMode('years'); setSelectedYear(null); }}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'years' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+        >
+          Years
+        </button>
+        <button
+          onClick={() => setViewMode('weeks')}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'weeks' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+        >
+          Weeks
+        </button>
+      </div>
+
+      {/* Years View */}
+      {viewMode === 'years' && !selectedYear && (
+        <div className="bg-white border border-stone-100 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-medium text-stone-900">Your Timeline</h3>
+            <p className="text-xs text-stone-400">Click current year to expand</p>
+          </div>
+          
+          <div className="space-y-2">
+            {Array.from({ length: Math.ceil(life_expectancy / 10) }, (_, i) => {
+              const decadeStart = i * 10
+              const decadeEnd = Math.min(decadeStart + 10, life_expectancy)
+              
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-xs text-stone-400 w-6">{decadeStart}</span>
+                  <div className="flex-1 flex gap-1">
+                    {Array.from({ length: decadeEnd - decadeStart }, (_, y) => {
+                      const year = decadeStart + y
+                      const isLived = year < currentAge
+                      const isCurrent = year === currentAge
+                      
+                      return (
+                        <button
+                          key={year}
+                          onClick={() => isCurrent && setSelectedYear(year)}
+                          className={`flex-1 h-8 rounded transition-all ${
+                            isCurrent 
+                              ? 'bg-gradient-to-t from-orange-500 to-amber-400 cursor-pointer hover:scale-105' 
+                              : isLived 
+                                ? 'bg-stone-700' 
+                                : 'bg-stone-100'
+                          }`}
+                          title={`Age ${year}`}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          
+          <div className="flex items-center gap-4 mt-4 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-stone-700 rounded" />
+              <span className="text-stone-500">Lived</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-gradient-to-t from-orange-500 to-amber-400 rounded" />
+              <span className="text-stone-500">Current</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-stone-100 rounded" />
+              <span className="text-stone-500">Future</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Year Detail View */}
+      {viewMode === 'years' && selectedYear !== null && (
+        <div className="bg-white border border-stone-100 rounded-xl p-4">
+          <button 
+            onClick={() => setSelectedYear(null)}
+            className="flex items-center gap-2 text-sm text-stone-500 hover:text-stone-700 mb-4"
+          >
+            <ArrowLeft size={16} />
+            Back to timeline
+          </button>
+          
+          <h3 className="font-semibold text-stone-900 mb-1">Age {selectedYear}</h3>
+          <p className="text-sm text-stone-500 mb-4">
+            {selectedYear === currentAge ? `Week ${Math.floor(profile.ageInWeeks % 52) + 1} of 52` : 'All weeks'}
+          </p>
+          
+          <div className="space-y-3">
+            {['Q1', 'Q2', 'Q3', 'Q4'].map((q, qi) => {
+              const weeksInQuarter = 13
+              const quarterStart = qi * weeksInQuarter
+              
+              return (
+                <div key={q} className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 w-8">{q}</span>
+                  <div className="flex-1 flex gap-0.5">
+                    {Array.from({ length: weeksInQuarter }, (_, w) => {
+                      const weekOfYear = quarterStart + w
+                      const isPassed = selectedYear < currentAge || 
+                        (selectedYear === currentAge && weekOfYear < profile.ageInWeeks % 52)
+                      const isCurrent = selectedYear === currentAge && weekOfYear === Math.floor(profile.ageInWeeks % 52)
+                      
+                      return (
+                        <div
+                          key={w}
+                          className={`flex-1 aspect-square rounded-[2px] ${
+                            isCurrent 
+                              ? 'bg-gradient-to-br from-orange-500 to-pink-500' 
+                              : isPassed 
+                                ? 'bg-stone-600' 
+                                : 'bg-stone-200'
+                          }`}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          
+          {selectedYear === currentAge && (
+            <div className="mt-4 pt-4 border-t border-stone-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-stone-600">Year progress</span>
+                <span className="text-sm font-semibold">{Math.round((profile.ageInWeeks % 52) / 52 * 100)}%</span>
+              </div>
+              <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-orange-500 to-pink-500 rounded-full"
+                  style={{ width: `${(profile.ageInWeeks % 52) / 52 * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-stone-400 mt-2">{52 - (profile.ageInWeeks % 52)} weeks until your next birthday</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Weeks View - Life in Weeks */}
+      {viewMode === 'weeks' && (
+        <div className="bg-white border border-stone-100 rounded-xl p-4">
+          <h3 className="font-medium text-stone-900 mb-4">Life in Weeks</h3>
+          <div className="overflow-x-auto">
+            <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: 'repeat(52, minmax(4px, 1fr))' }}>
+              {Array.from({ length: life_expectancy }, (_, year) => 
+                Array.from({ length: 52 }, (_, week) => {
+                  const totalWeek = year * 52 + week
+                  const isLived = totalWeek < profile.ageInWeeks
+                  const isCurrent = totalWeek === profile.ageInWeeks
+                  
+                  return (
+                    <div
+                      key={`${year}-${week}`}
+                      className={`w-1.5 h-1.5 rounded-[1px] ${
+                        isCurrent 
+                          ? 'bg-gradient-to-br from-orange-500 to-pink-500' 
+                          : isLived 
+                            ? 'bg-stone-700' 
+                            : 'bg-stone-200'
+                      }`}
+                      title={`Year ${year + 1}, Week ${week + 1}`}
+                    />
+                  )
+                })
+              ).flat()}
+            </div>
+          </div>
+          <p className="text-xs text-stone-400 mt-2">Each dot = 1 week • {totalWeeks.toLocaleString()} total weeks</p>
+        </div>
+      )}
     </div>
   )
 }
