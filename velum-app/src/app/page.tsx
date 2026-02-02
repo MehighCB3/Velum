@@ -21,7 +21,8 @@ import {
   Wallet,
   Menu,
   Star,
-  ImageIcon
+  ImageIcon,
+  Trash2
 } from 'lucide-react'
 
 // Profile type
@@ -1002,14 +1003,84 @@ function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
   )
 }
 
-// Goals View with Life Timeline
+// Goal type
+interface Goal {
+  id: string
+  title: string
+  area: string
+  objective: string
+  keyMetric: string
+  targetValue: number
+  currentValue: number
+  unit: string
+  horizon: 'year' | '3years' | '5years' | '10years' | 'bucket'
+  createdAt: string
+  completedAt?: string
+}
+
+// Goals View with Time Horizons
 function GoalsView() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
-  const [viewMode, setViewMode] = useState<'years' | 'weeks'>('years')
+  const [viewMode, setViewMode] = useState<'timeline' | 'goals'>('goals')
+  const [timelineView, setTimelineView] = useState<'years' | 'weeks'>('years')
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
   const [formData, setFormData] = useState({ birthDate: '', country: '', lifeExpectancy: 85 })
+  
+  // Goal-related state
+  const [activeHorizon, setActiveHorizon] = useState<'year' | '3years' | '5years' | '10years' | 'bucket'>('year')
+  const [goals, setGoals] = useState<Goal[]>([])
+  const [showAddGoal, setShowAddGoal] = useState(false)
+  const [newGoal, setNewGoal] = useState({
+    title: '',
+    area: '',
+    objective: '',
+    keyMetric: '',
+    targetValue: '',
+    unit: ''
+  })
+
+  // Fetch profile and goals
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch('/api/profile')
+        if (response.ok) {
+          const data = await response.json()
+          setProfile(data.profile)
+          if (data.profile) {
+            setFormData({
+              birthDate: data.profile.birth_date.split('T')[0],
+              country: data.profile.country || '',
+              lifeExpectancy: data.profile.life_expectancy
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProfile()
+  }, [])
+  
+  // Fetch goals when horizon changes
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        const response = await fetch(`/api/goals?horizon=${activeHorizon}`)
+        if (response.ok) {
+          const data = await response.json()
+          setGoals(data.goals || [])
+        }
+      } catch (error) {
+        console.error('Error fetching goals:', error)
+      }
+    }
+    fetchGoals()
+  }, [activeHorizon])
 
   // Fetch profile
   useEffect(() => {
@@ -1050,7 +1121,6 @@ function GoalsView() {
         })
       })
       if (response.ok) {
-        // Refresh profile
         const refresh = await fetch('/api/profile')
         const data = await refresh.json()
         setProfile(data.profile)
@@ -1058,6 +1128,79 @@ function GoalsView() {
       }
     } catch (error) {
       console.error('Error saving profile:', error)
+    }
+  }
+  
+  // Add new goal
+  const addGoal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const response = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newGoal,
+          targetValue: Number(newGoal.targetValue) || 0,
+          horizon: activeHorizon
+        })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setGoals(prev => [data.goal, ...prev])
+        setNewGoal({ title: '', area: '', objective: '', keyMetric: '', targetValue: '', unit: '' })
+        setShowAddGoal(false)
+      }
+    } catch (error) {
+      console.error('Error adding goal:', error)
+    }
+  }
+  
+  // Update goal progress
+  const updateProgress = async (goalId: string, delta: number) => {
+    const goal = goals.find(g => g.id === goalId)
+    if (!goal) return
+    
+    const newValue = Math.max(0, Math.min(goal.targetValue, goal.currentValue + delta))
+    
+    try {
+      const response = await fetch('/api/goals', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: goalId, currentValue: newValue })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setGoals(prev => prev.map(g => g.id === goalId ? data.goal : g))
+      }
+    } catch (error) {
+      console.error('Error updating goal:', error)
+    }
+  }
+  
+  // Toggle bucket list item completion
+  const toggleBucketItem = async (goalId: string, completed: boolean) => {
+    try {
+      const response = await fetch('/api/goals', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: goalId, completed })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setGoals(prev => prev.map(g => g.id === goalId ? data.goal : g))
+      }
+    } catch (error) {
+      console.error('Error toggling bucket item:', error)
+    }
+  }
+  
+  // Delete goal
+  const deleteGoal = async (goalId: string) => {
+    try {
+      await fetch(`/api/goals?id=${goalId}`, { method: 'DELETE' })
+      setGoals(prev => prev.filter(g => g.id !== goalId))
+    } catch (error) {
+      console.error('Error deleting goal:', error)
     }
   }
 
@@ -1195,25 +1338,30 @@ function GoalsView() {
       {/* View Toggle */}
       <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-6 w-fit">
         <button
-          onClick={() => { setViewMode('years'); setSelectedYear(null); }}
-          className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'years' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+          onClick={() => setViewMode('goals')}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'goals' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
         >
-          Years
+          My Goals
         </button>
         <button
-          onClick={() => setViewMode('weeks')}
-          className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'weeks' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+          onClick={() => { setViewMode('timeline'); setSelectedYear(null); }}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'timeline' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
         >
-          Weeks
+          Life Timeline
         </button>
       </div>
 
       {/* Years View */}
-      {viewMode === 'years' && !selectedYear && (
+      {viewMode === 'timeline' && timelineView === 'years' && !selectedYear && (
         <div className="bg-white border border-stone-100 rounded-xl p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-medium text-stone-900">Your Timeline</h3>
-            <p className="text-xs text-stone-400">Click current year to expand</p>
+            <button
+              onClick={() => setTimelineView('weeks')}
+              className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+            >
+              View as weeks →
+            </button>
           </div>
           
           <div className="space-y-2">
@@ -1269,7 +1417,7 @@ function GoalsView() {
       )}
 
       {/* Year Detail View */}
-      {viewMode === 'years' && selectedYear !== null && (
+      {viewMode === 'timeline' && timelineView === 'years' && selectedYear !== null && (
         <div className="bg-white border border-stone-100 rounded-xl p-4">
           <button 
             onClick={() => setSelectedYear(null)}
@@ -1337,9 +1485,18 @@ function GoalsView() {
       )}
 
       {/* Weeks View - Life in Weeks */}
-      {viewMode === 'weeks' && (
+      {viewMode === 'timeline' && timelineView === 'weeks' && (
         <div className="bg-white border border-stone-100 rounded-xl p-4">
-          <h3 className="font-medium text-stone-900 mb-4 text-center">Life in Weeks</h3>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => setTimelineView('years')}
+              className="flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700"
+            >
+              <ArrowLeft size={14} />
+              Back to years
+            </button>
+            <h3 className="font-medium text-stone-900">Life in Weeks</h3>
+          </div>
           <div className="overflow-x-auto flex justify-center">
             <div className="inline-flex flex-col items-center gap-0.5">
               {Array.from({ length: life_expectancy }, (_, year) => {
@@ -1382,6 +1539,219 @@ function GoalsView() {
             </div>
           </div>
           <p className="text-xs text-stone-400 mt-2">Each dot = 1 week • {totalWeeks.toLocaleString()} total weeks</p>
+        </div>
+      )}
+      
+      {/* Goals Management View */}
+      {viewMode === 'goals' && (
+        <div className="space-y-6">
+          {/* Time Horizon Tabs */}
+          <div className="flex flex-wrap gap-1 p-1 bg-stone-100 rounded-xl">
+            {[
+              { key: 'year', label: 'This Year' },
+              { key: '3years', label: '3 Years' },
+              { key: '5years', label: '5 Years' },
+              { key: '10years', label: '10 Years' },
+              { key: 'bucket', label: 'Bucket List' },
+            ].map((h) => (
+              <button
+                key={h.key}
+                onClick={() => setActiveHorizon(h.key as any)}
+                className={`flex-1 min-w-[80px] px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeHorizon === h.key 
+                    ? 'bg-white text-stone-900 shadow-sm' 
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+          
+          {/* Add Goal Button */}
+          <button
+            onClick={() => setShowAddGoal(true)}
+            className="w-full p-4 border-2 border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-stone-50 transition-all text-sm text-stone-500 hover:text-stone-700 flex items-center justify-center gap-2"
+          >
+            <Plus size={18} />
+            Add {activeHorizon === 'bucket' ? 'Bucket List Item' : 'Goal'}
+          </button>
+          
+          {/* Add Goal Form */}
+          {showAddGoal && (
+            <div className="bg-white border border-stone-200 rounded-xl p-4">
+              <h3 className="font-semibold text-stone-900 mb-4">
+                New {activeHorizon === 'bucket' ? 'Bucket List Item' : 'Goal'}
+              </h3>
+              <form onSubmit={addGoal} className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={newGoal.title}
+                  onChange={(e) => setNewGoal({...newGoal, title: e.target.value})}
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Area/Category (e.g., Health, Career, Travel)"
+                  value={newGoal.area}
+                  onChange={(e) => setNewGoal({...newGoal, area: e.target.value})}
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                  required
+                />
+                {activeHorizon !== 'bucket' && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Key Metric (e.g., Run 1000km, Save $10k)"
+                      value={newGoal.keyMetric}
+                      onChange={(e) => setNewGoal({...newGoal, keyMetric: e.target.value})}
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="Target Value"
+                        value={newGoal.targetValue}
+                        onChange={(e) => setNewGoal({...newGoal, targetValue: e.target.value})}
+                        className="flex-1 px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Unit (km, $, lbs)"
+                        value={newGoal.unit}
+                        onChange={(e) => setNewGoal({...newGoal, unit: e.target.value})}
+                        className="w-24 px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                      />
+                    </div>
+                  </>
+                )}
+                <textarea
+                  placeholder="Objective description"
+                  value={newGoal.objective}
+                  onChange={(e) => setNewGoal({...newGoal, objective: e.target.value})}
+                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-none"
+                  rows={2}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddGoal(false)}
+                    className="flex-1 px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+          
+          {/* Goals List */}
+          <div className="space-y-3">
+            {goals.length === 0 ? (
+              <div className="text-center py-8 text-stone-400">
+                <Target size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No goals yet. Create your first one!</p>
+              </div>
+            ) : (
+              goals.map((goal) => {
+                const isBucketList = goal.horizon === 'bucket'
+                const isCompleted = goal.completedAt || (goal.currentValue >= goal.targetValue && !isBucketList)
+                const progress = isBucketList 
+                  ? (goal.completedAt ? 100 : 0) 
+                  : Math.min(100, Math.round((goal.currentValue / goal.targetValue) * 100))
+                
+                return (
+                  <div 
+                    key={goal.id} 
+                    className={`bg-white border rounded-xl p-4 transition-all ${
+                      isCompleted ? 'border-green-200 bg-green-50/30' : 'border-stone-100'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          {isBucketList ? (
+                            <button
+                              onClick={() => toggleBucketItem(goal.id, !goal.completedAt)}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                goal.completedAt 
+                                  ? 'bg-green-500 border-green-500 text-white' 
+                                  : 'border-stone-300 hover:border-green-400'
+                              }`}
+                            >
+                              {goal.completedAt && <CheckSquare size={12} />}
+                            </button>
+                          ) : null}
+                          <h4 className={`font-semibold text-stone-900 ${goal.completedAt ? 'line-through opacity-50' : ''}`}>
+                            {goal.title}
+                          </h4>
+                        </div>
+                        <p className="text-xs text-stone-500 mb-1">
+                          <span className="inline-block px-2 py-0.5 bg-stone-100 rounded text-stone-600 mr-2">
+                            {goal.area}
+                          </span>
+                          {goal.keyMetric}
+                        </p>
+                        {goal.objective && (
+                          <p className="text-sm text-stone-600 mt-2">{goal.objective}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => deleteGoal(goal.id)}
+                        className="p-1.5 text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    
+                    {/* Progress bar for non-bucket goals */}
+                    {!isBucketList && goal.targetValue > 0 && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-stone-500">{progress}% complete</span>
+                          <span className="text-stone-700 font-medium">
+                            {goal.currentValue} / {goal.targetValue} {goal.unit}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              progress >= 100 ? 'bg-green-500' : 'bg-orange-500'
+                            }`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        {/* +/- Controls */}
+                        <div className="flex items-center justify-center gap-2 mt-2">
+                          <button
+                            onClick={() => updateProgress(goal.id, -1)}
+                            className="w-8 h-8 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <span className="text-xs text-stone-400">Adjust progress</span>
+                          <button
+                            onClick={() => updateProgress(goal.id, 1)}
+                            className="w-8 h-8 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
       )}
     </div>
