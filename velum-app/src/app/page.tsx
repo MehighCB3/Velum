@@ -19,7 +19,8 @@ import {
   Brain, 
   CheckSquare,
   Flame,
-  ArrowLeft
+  ArrowLeft,
+  Wallet
 } from 'lucide-react'
 
 // Profile type
@@ -95,6 +96,28 @@ interface WeekDayData {
     protein: number
     carbs: number
     fat: number
+  }
+}
+
+// Budget Types
+interface BudgetEntry {
+  id: string
+  amount: number
+  category: 'Food' | 'Fun'
+  description: string
+  date: string
+  timestamp: string
+}
+
+interface BudgetWeek {
+  week: string
+  entries: BudgetEntry[]
+  totalSpent: number
+  remaining: number
+  budgetLimit: number
+  categories: {
+    Food: number
+    Fun: number
   }
 }
 
@@ -991,6 +1014,187 @@ function GoalsView() {
   )
 }
 
+// Budget View Component
+function BudgetView() {
+  const [budgetData, setBudgetData] = useState<BudgetWeek | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    const now = new Date()
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    const pastDays = (now.getTime() - startOfYear.getTime()) / 86400000
+    const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7)
+    return `${now.getFullYear()}-W${weekNum.toString().padStart(2, '0')}`
+  })
+
+  // Fetch budget data
+  useEffect(() => {
+    const fetchBudget = async () => {
+      try {
+        const response = await fetch(`/api/budget?week=${selectedWeek}`)
+        if (response.ok) {
+          const data = await response.json()
+          setBudgetData(data)
+        }
+      } catch (error) {
+        console.error('Error fetching budget:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchBudget()
+  }, [selectedWeek])
+
+  // Get week label
+  const getWeekLabel = (weekKey: string) => {
+    const [year, week] = weekKey.split('-W')
+    return `Week ${parseInt(week)}`
+  }
+
+  // Navigate weeks
+  const changeWeek = (delta: number) => {
+    const [year, weekStr] = selectedWeek.split('-W')
+    let weekNum = parseInt(weekStr) + delta
+    let yearNum = parseInt(year)
+    
+    if (weekNum > 52) {
+      weekNum = 1
+      yearNum++
+    } else if (weekNum < 1) {
+      weekNum = 52
+      yearNum--
+    }
+    
+    setSelectedWeek(`${yearNum}-W${weekNum.toString().padStart(2, '0')}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-stone-300 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const data = budgetData || {
+    week: selectedWeek,
+    entries: [],
+    totalSpent: 0,
+    remaining: 70,
+    budgetLimit: 70,
+    categories: { Food: 0, Fun: 0 }
+  }
+
+  const progress = Math.round((data.totalSpent / data.budgetLimit) * 100)
+  const foodPct = data.totalSpent > 0 ? Math.round((data.categories.Food / data.totalSpent) * 100) : 0
+  const funPct = data.totalSpent > 0 ? Math.round((data.categories.Fun / data.totalSpent) * 100) : 0
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Week Navigation */}
+      <div className="flex items-center justify-between mb-5">
+        <button 
+          onClick={() => changeWeek(-1)}
+          className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+        >
+          <ChevronLeft size={20} className="text-stone-500" />
+        </button>
+        <h2 className="text-lg font-semibold text-stone-900">{getWeekLabel(selectedWeek)}</h2>
+        <button 
+          onClick={() => changeWeek(1)}
+          className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+        >
+          <ChevronRight size={20} className="text-stone-500" />
+        </button>
+      </div>
+
+      {/* Hero Stats Card */}
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl" />
+        </div>
+        <div className="relative">
+          <div className="flex items-center gap-5 mb-5">
+            {/* Ring */}
+            <div className="relative w-24 h-24 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
+                <circle 
+                  cx="50" cy="50" r="42" fill="none" stroke="url(#budgetRingGrad)" strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={`${Math.min(progress, 100) * 2.64} 264`}
+                  className="transition-all duration-1000 ease-out"
+                />
+                <defs>
+                  <linearGradient id="budgetRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-bold text-white">€{data.totalSpent}</span>
+                <span className="text-[9px] text-stone-400 uppercase">spent</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-stone-400 mb-1">Remaining</p>
+              <p className="text-3xl font-bold text-white">€{data.remaining}</p>
+              <p className="text-xs text-stone-500">of €{data.budgetLimit} weekly budget</p>
+            </div>
+          </div>
+          <div className="h-px bg-stone-700 mb-4" />
+          <div className="grid grid-cols-2 gap-5">
+            <CategoryStat label="Food" amount={data.categories.Food} total={data.totalSpent} color="from-emerald-500 to-teal-500" />
+            <CategoryStat label="Fun" amount={data.categories.Fun} total={data.totalSpent} color="from-blue-500 to-indigo-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Expenditures List */}
+      <div>
+        <h2 className="text-sm font-semibold text-stone-900 mb-3">Expenditures</h2>
+        <div className="space-y-2">
+          {data.entries.length > 0 ? (
+            data.entries.map((entry) => (
+              <div key={entry.id} className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base ${
+                  entry.category === 'Food' ? 'bg-emerald-50' : 'bg-blue-50'
+                }`}>
+                  {entry.category === 'Food' ? '🍽️' : '🎉'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-stone-900 truncate">{entry.description}</p>
+                  <p className="text-[10px] text-stone-400">{entry.category} • {new Date(entry.timestamp).toLocaleDateString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-stone-900">€{entry.amount}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-stone-400 text-center py-8">No expenditures this week</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CategoryStat({ label, amount, total, color }: { label: string; amount: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((amount / total) * 100) : 0
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs text-stone-400">{label}</span>
+        <span className="text-xs font-semibold text-white">€{amount}</span>
+      </div>
+      <div className="h-1.5 bg-stone-700 rounded-full overflow-hidden">
+        <div className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 // Main Dashboard
 function Dashboard({ activeView, nutritionData }: { activeView: string; nutritionData: NutritionData }) {
   const { entries, totals, goals } = nutritionData
@@ -1002,10 +1206,10 @@ function Dashboard({ activeView, nutritionData }: { activeView: string; nutritio
       <header className="h-14 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-6 sticky top-0 z-10">
         <div>
           <h1 className="text-base font-semibold text-stone-900">
-            {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : 'Velum'}
+            {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : 'Velum'}
           </h1>
           <p className="text-xs text-stone-400">
-            {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : ''}
+            {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1024,7 +1228,10 @@ function Dashboard({ activeView, nutritionData }: { activeView: string; nutritio
         {activeView === 'goals' && (
           <GoalsView />
         )}
-        {!['nutrition-today', 'goals'].includes(activeView) && (
+        {activeView === 'budget' && (
+          <BudgetView />
+        )}
+        {!['nutrition-today', 'goals', 'budget'].includes(activeView) && (
           <div className="flex items-center justify-center h-64 text-stone-400">
             <div className="text-center">
               <p className="text-lg font-medium text-stone-500">
@@ -1105,6 +1312,12 @@ export default function Home() {
       id: 'tasks',
       name: 'Tasks',
       icon: <CheckSquare size={16} />,
+      type: 'page',
+    },
+    {
+      id: 'budget',
+      name: 'Budget',
+      icon: <Wallet size={16} />,
       type: 'page',
     },
   ]
