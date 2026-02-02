@@ -11,11 +11,13 @@
     "db:migrate": "node db/migrate.js"
   },
   "dependencies": {
-    "@vercel/postgres": "^0.9.0",
     "@upstash/redis": "^1.36.1",
+    "@vercel/postgres": "^0.9.0",
+    "crypto-js": "^4.2.0",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.263.1",
     "next": "14.2.5",
+    "oauth-1.0a": "^2.2.6",
     "react": "^18",
     "react-dom": "^18"
   },
