@@ -2531,61 +2531,89 @@ function FitnessView() {
 
 // Budget View Component
 function BudgetView() {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [weeklyData, setWeeklyData] = useState<any[]>([])
   
-  // Monthly budget data with expenditures per week
-  const weeklyData = [
-    {
-      weekNum: 1,
-      weekLabel: 'Week 1 Budget',
-      budget: 70,
-      spent: 45,
-      remaining: 25,
-      expenditures: [
-        { id: '1', description: 'Lunch with team', category: 'Food - Eating Out', amount: 25, date: '2026-02-01', reason: 'Team bonding and project discussion' },
-        { id: '2', description: 'Coffee and pastry', category: 'Food - Eating Out', amount: 12, date: '2026-02-02', reason: 'Needed energy for focus work' },
-        { id: '3', description: 'Stationery', category: 'Miscellaneous', amount: 8, date: '2026-02-03' },
-      ]
-    },
-    {
-      weekNum: 2,
-      weekLabel: 'Week 2 Budget',
-      budget: 70,
-      spent: 62,
-      remaining: 8,
-      expenditures: [
-        { id: '4', description: 'Dinner date', category: 'Food - Eating Out', amount: 45, date: '2026-02-08' },
-        { id: '5', description: 'Uber ride', category: 'Miscellaneous', amount: 17, date: '2026-02-09' },
-      ]
-    },
-    {
-      weekNum: 3,
-      weekLabel: 'Week 3 Budget',
-      budget: 70,
-      spent: 0,
-      remaining: 70,
-      expenditures: []
-    },
-    {
-      weekNum: 4,
-      weekLabel: 'Week 4 Budget',
-      budget: 70,
-      spent: 0,
-      remaining: 70,
-      expenditures: []
-    },
-    {
-      weekNum: 5,
-      weekLabel: 'Week 5 Budget',
-      budget: 70,
-      spent: 0,
-      remaining: 70,
-      expenditures: []
-    },
-  ]
-  
+  const WEEKLY_BUDGET = 70
   const totalBudget = 350 // 5 weeks × €70
-  const totalSpent = weeklyData.reduce((a, w) => a + w.spent, 0)
+  
+  // Generate week keys for current month (Week 1-5)
+  const getWeekKeys = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth()
+    
+    // Get ISO week numbers for the month
+    const weeks: string[] = []
+    for (let weekNum = 1; weekNum <= 5; weekNum++) {
+      // Approximate week key - in real app, calculate proper ISO week
+      const startOfYear = new Date(year, 0, 1)
+      const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000))
+      const currentWeek = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7)
+      // Adjust for week of month approximation
+      const targetWeek = Math.max(1, currentWeek - 2 + weekNum)
+      weeks.push(`${year}-W${String(targetWeek).padStart(2, '0')}`)
+    }
+    return weeks
+  }
+  
+  // Fetch budget data for all weeks
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const weekKeys = getWeekKeys()
+        const weeksData = await Promise.all(
+          weekKeys.map(async (weekKey, index) => {
+            try {
+              const response = await fetch(`/api/budget?week=${weekKey}`)
+              if (!response.ok) throw new Error('Failed to fetch')
+              const data = await response.json()
+              return {
+                weekNum: index + 1,
+                weekLabel: `Week ${index + 1} Budget`,
+                weekKey: weekKey,
+                budget: WEEKLY_BUDGET,
+                spent: data.totalSpent || 0,
+                remaining: data.remaining || WEEKLY_BUDGET,
+                expenditures: (data.entries || []).map((entry: any) => ({
+                  id: entry.id,
+                  description: entry.description,
+                  category: entry.category === 'Food' ? 'Food - Eating Out' : 'Miscellaneous',
+                  amount: entry.amount,
+                  date: entry.date,
+                  reason: entry.reason
+                }))
+              }
+            } catch (error) {
+              // Return empty week on error
+              return {
+                weekNum: index + 1,
+                weekLabel: `Week ${index + 1} Budget`,
+                weekKey: weekKey,
+                budget: WEEKLY_BUDGET,
+                spent: 0,
+                remaining: WEEKLY_BUDGET,
+                expenditures: []
+              }
+            }
+          })
+        )
+        setWeeklyData(weeksData)
+      } catch (error) {
+        console.error('Error fetching budget data:', error)
+      }
+      setLoading(false)
+    }
+    
+    fetchData()
+    
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(fetchData, 10000)
+    return () => clearInterval(interval)
+  }, [])
+  
+  const totalSpent = weeklyData.reduce((a, w) => a + (w.spent || 0), 0)
   const totalRemaining = totalBudget - totalSpent
   const progress = Math.round((totalSpent / totalBudget) * 100)
 
@@ -2697,7 +2725,7 @@ function BudgetView() {
             {/* Expenditures List */}
             <div className="divide-y divide-stone-50">
               {week.expenditures.length > 0 ? (
-                week.expenditures.map((entry) => (
+                week.expenditures.map((entry: any) => (
                   <div key={entry.id} className="flex items-center gap-3 p-3 hover:bg-stone-50 transition-colors">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
                       entry.category.includes('Food') ? 'bg-emerald-50' : 'bg-blue-50'
