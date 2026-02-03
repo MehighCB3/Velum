@@ -70,6 +70,38 @@ interface NutritionData {
   }
 }
 
+// Fitness types
+interface FitnessEntry {
+  id: string
+  date: string
+  timestamp: string
+  type: 'steps' | 'run' | 'swim'
+  steps?: number
+  distanceKm?: number
+  duration?: number
+  distance?: number
+  pace?: number
+  calories?: number
+  notes?: string
+}
+
+interface FitnessWeek {
+  week: string
+  entries: FitnessEntry[]
+  totals: {
+    steps: number
+    runs: number
+    swims: number
+    totalDistance: number
+    totalCalories: number
+  }
+  goals: {
+    steps: number
+    runs: number
+    swims: number
+  }
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -1758,6 +1790,429 @@ function GoalsView() {
   )
 }
 
+// Fitness View Component
+function FitnessView() {
+  const [fitnessData, setFitnessData] = useState<FitnessWeek | null>(null)
+  const [weeksData, setWeeksData] = useState<FitnessWeek[]>([])
+  const [activeWeek, setActiveWeek] = useState(0) // 0 = current, 1 = -1 week, etc.
+  const [loading, setLoading] = useState(true)
+  const [selectedEntry, setSelectedEntry] = useState<FitnessEntry | null>(null)
+  const [todaySteps, setTodaySteps] = useState(0)
+
+  // Generate week keys (current + 3 previous)
+  const getWeekKeys = () => {
+    const keys: string[] = []
+    const now = new Date()
+    for (let i = 0; i < 4; i++) {
+      const date = new Date(now)
+      date.setDate(date.getDate() - (i * 7))
+      const year = date.getFullYear()
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+      const dayNum = d.getUTCDay() || 7
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+      const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+      keys.push(`${year}-W${String(weekNumber).padStart(2, '0')}`)
+    }
+    return keys
+  }
+
+  // Get dates for the current week
+  const getWeekDates = (weekKey: string) => {
+    const match = weekKey.match(/^(\d{4})-W(\d{2})$/)
+    if (!match) return []
+    const [, year, week] = match
+    const yearNum = parseInt(year)
+    const weekNum = parseInt(week)
+    const yearStart = new Date(Date.UTC(yearNum, 0, 1))
+    const dayNum = yearStart.getUTCDay() || 7
+    const weekStart = new Date(yearStart)
+    weekStart.setUTCDate(yearStart.getUTCDate() + (weekNum - 1) * 7 - dayNum + 1)
+    
+    const dates: string[] = []
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(weekStart)
+      date.setUTCDate(weekStart.getUTCDate() + i)
+      dates.push(date.toISOString().split('T')[0])
+    }
+    return dates
+  }
+
+  // Get day name from date
+  const getDayName = (dateStr: string) => {
+    const date = new Date(dateStr + 'T00:00:00')
+    return date.toLocaleDateString('en-US', { weekday: 'short' })
+  }
+
+  // Get day number from date
+  const getDayNumber = (dateStr: string) => {
+    return parseInt(dateStr.split('-')[2])
+  }
+
+  // Fetch fitness data
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const weekKeys = getWeekKeys()
+        const weeksPromises = weekKeys.map(week => 
+          fetch(`/api/fitness?week=${week}`).then(r => r.json())
+        )
+        const weeks = await Promise.all(weeksPromises)
+        setWeeksData(weeks)
+        setFitnessData(weeks[activeWeek])
+        
+        // Calculate today's steps from current week
+        const today = new Date().toISOString().split('T')[0]
+        const todayEntry = weeks[0]?.entries.find((e: FitnessEntry) => 
+          e.type === 'steps' && e.date === today
+        )
+        setTodaySteps(todayEntry?.steps || 0)
+      } catch (error) {
+        console.error('Error fetching fitness data:', error)
+      }
+      setLoading(false)
+    }
+    fetchData()
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [activeWeek])
+
+  if (loading || !fitnessData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-stone-300 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const weekKeys = getWeekKeys()
+  const weekDates = getWeekDates(weekKeys[activeWeek])
+  const isCurrentWeek = activeWeek === 0
+  
+  // Calculate daily steps for the week
+  const dailySteps = weekDates.map(date => {
+    const entry = fitnessData.entries.find(e => e.type === 'steps' && e.date === date)
+    return {
+      date,
+      dayName: getDayName(date),
+      dayNumber: getDayNumber(date),
+      steps: entry?.steps || 0,
+      distance: entry?.distanceKm || 0,
+    }
+  })
+
+  // Get runs and swims for the week
+  const runs = fitnessData.entries.filter(e => e.type === 'run')
+  const swims = fitnessData.entries.filter(e => e.type === 'swim')
+  
+  // Steps progress
+  const stepsGoal = fitnessData.goals.steps
+  const stepsProgress = Math.min(100, Math.round((todaySteps / stepsGoal) * 100))
+  
+  // Calculate weekly averages from all weeks
+  const avgSteps = Math.round(weeksData.reduce((a, w) => a + w.totals.steps, 0) / (weeksData.length || 1))
+  const totalRuns = weeksData.reduce((a, w) => a + w.totals.runs, 0)
+  const totalSwims = weeksData.reduce((a, w) => a + w.totals.swims, 0)
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Week Tabs */}
+      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-5 w-fit">
+        {weekKeys.map((week, idx) => (
+          <button 
+            key={week}
+            onClick={() => setActiveWeek(idx)}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+              activeWeek === idx 
+                ? 'bg-white text-stone-900 shadow-sm' 
+                : 'text-stone-500 hover:text-stone-700'
+            }`}
+          >
+            {idx === 0 ? 'Current' : `${idx}w`}
+          </button>
+        ))}
+      </div>
+
+      {/* Hero Stats Card */}
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl" />
+        </div>
+        <div className="relative">
+          {/* Header with week info */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs text-stone-400 mb-0.5">
+                {isCurrentWeek ? "Today's Steps" : `Week ${weekKeys[activeWeek]}`}
+              </p>
+              <p className="text-2xl font-bold text-white">
+                {isCurrentWeek ? todaySteps.toLocaleString() : fitnessData.totals.steps.toLocaleString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-stone-400 mb-0.5">Goal</p>
+              <p className="text-lg font-semibold text-white">
+                {isCurrentWeek ? stepsGoal.toLocaleString() : (stepsGoal * 7).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          
+          {/* Steps Ring (only for current week) */}
+          {isCurrentWeek && (
+            <div className="flex items-center gap-5 mb-5">
+              <div className="relative w-20 h-20 flex-shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10" className="text-stone-700" />
+                  <circle 
+                    cx="50" cy="50" r="42" fill="none" stroke="url(#fitnessRingGrad)" strokeWidth="10" strokeLinecap="round"
+                    strokeDasharray={`${stepsProgress * 2.64} 264`}
+                    className="transition-all duration-1000 ease-out"
+                  />
+                  <defs>
+                    <linearGradient id="fitnessRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-sm font-bold text-white">{stepsProgress}%</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-stone-800/50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-emerald-400">{runs.length}</p>
+                    <p className="text-[10px] text-stone-400">runs</p>
+                  </div>
+                  <div className="bg-stone-800/50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-blue-400">{swims.length}</p>
+                    <p className="text-[10px] text-stone-400">swims</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Weekly Totals Bar */}
+          <div className="bg-stone-800/50 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-stone-400">Week Stats</p>
+              <p className="text-xs text-stone-400">
+                {fitnessData.totals.totalDistance.toFixed(1)}km total
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {weeksData.slice(0, 4).map((week, idx) => (
+                <div key={week.week} className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] text-stone-500">W{idx + 1}</span>
+                  </div>
+                  <div className="h-10 bg-stone-700 rounded-md overflow-hidden relative">
+                    <div 
+                      className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ${
+                        idx === 0 ? 'bg-gradient-to-t from-orange-500 to-emerald-500' : 'bg-stone-600'
+                      }`}
+                      style={{ 
+                        height: `${Math.min((week.totals.steps / (week.goals.steps * 7)) * 100, 100)}%` 
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 7-Day Activity Chart */}
+      <div className="bg-white border border-stone-100 rounded-xl p-4 mb-5">
+        <h3 className="text-sm font-semibold text-stone-900 mb-4">Activity This Week</h3>
+        <div className="flex items-end justify-between gap-2 h-32">
+          {dailySteps.map((day) => {
+            const isToday = day.date === new Date().toISOString().split('T')[0]
+            const barHeight = Math.min((day.steps / (stepsGoal * 1.2)) * 100, 100)
+            const hasRun = fitnessData.entries.some(e => 
+              e.type === 'run' && e.date === day.date
+            )
+            const hasSwim = fitnessData.entries.some(e => 
+              e.type === 'swim' && e.date === day.date
+            )
+            
+            return (
+              <div key={day.date} className="flex flex-col items-center flex-1">
+                <div className="relative w-full flex items-end justify-center h-20 mb-2">
+                  {/* Goal line */}
+                  <div 
+                    className="absolute w-full border-t border-dashed border-stone-300 z-10"
+                    style={{ bottom: `${(stepsGoal / (stepsGoal * 1.2)) * 100}%` }}
+                  />
+                  {/* Steps bar */}
+                  <div
+                    className={`w-full max-w-8 rounded-t-md transition-all duration-500 ${
+                      isToday ? 'bg-gradient-to-t from-orange-500 to-emerald-500' : 'bg-emerald-500'
+                    }`}
+                    style={{ height: `${Math.max(barHeight, 5)}%` }}
+                    title={`${day.steps} steps`}
+                  />
+                </div>
+                {/* Activity icons */}
+                <div className="flex gap-0.5 mb-1 h-4">
+                  {hasRun && <span className="text-[10px]">🏃</span>}
+                  {hasSwim && <span className="text-[10px]">🏊</span>}
+                </div>
+                <span className="text-[10px] text-stone-500 font-medium">{day.dayName}</span>
+                <span className="text-[9px] text-stone-400">{day.steps > 0 ? day.steps : ''}</span>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-emerald-500 rounded" />
+            <span className="text-stone-500">Steps</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs">🏃</span>
+            <span className="text-stone-500">Run</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs">🏊</span>
+            <span className="text-stone-500">Swim</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 border-t border-dashed border-stone-300" />
+            <span className="text-stone-500">Goal</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Activity List */}
+      <div className="space-y-4">
+        {/* Steps Section */}
+        <div>
+          <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center text-sm">👟</span>
+            Steps
+          </h2>
+          <div className="space-y-2">
+            {dailySteps.filter(d => d.steps > 0).map((day) => (
+              <div 
+                key={day.date}
+                className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+              >
+                <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-lg">
+                  👟
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-stone-900">{day.steps.toLocaleString()} steps</p>
+                  <p className="text-[10px] text-stone-400">{day.dayName}, {day.date} · {day.distance.toFixed(1)}km</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-stone-900">
+                    {Math.round((day.steps / stepsGoal) * 100)}%
+                  </p>
+                  <p className="text-[10px] text-stone-400">of goal</p>
+                </div>
+              </div>
+            ))}
+            {dailySteps.filter(d => d.steps > 0).length === 0 && (
+              <p className="text-stone-400 text-center py-4 text-sm border border-dashed border-stone-200 rounded-xl">
+                No steps logged this week
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Runs Section */}
+        {runs.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 bg-orange-100 rounded-lg flex items-center justify-center text-sm">🏃</span>
+              Runs ({runs.length})
+            </h2>
+            <div className="space-y-2">
+              {runs.map((run) => (
+                <div 
+                  key={run.id}
+                  className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+                >
+                  <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center text-lg">
+                    🏃
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-stone-900">{run.distance}km run</p>
+                    <p className="text-[10px] text-stone-400">
+                      {run.date} · {run.duration}min · {run.pace}min/km
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {run.calories ? (
+                      <>
+                        <p className="text-sm font-bold text-stone-900">{run.calories}</p>
+                        <p className="text-[10px] text-stone-400">cal</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-stone-400">{run.duration}min</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Swims Section */}
+        {swims.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+              <span className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center text-sm">🏊</span>
+              Swims ({swims.length})
+            </h2>
+            <div className="space-y-2">
+              {swims.map((swim) => (
+                <div 
+                  key={swim.id}
+                  className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+                >
+                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-lg">
+                    🏊
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-stone-900">{swim.distance}km swim</p>
+                    <p className="text-[10px] text-stone-400">
+                      {swim.date} · {swim.duration}min · {swim.pace}min/km
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {swim.calories ? (
+                      <>
+                        <p className="text-sm font-bold text-stone-900">{swim.calories}</p>
+                        <p className="text-[10px] text-stone-400">cal</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-stone-400">{swim.duration}min</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Add Entry Button */}
+        <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">
+          + Log activity
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Budget View Component
 function BudgetView() {
   const [loading, setLoading] = useState(false)
@@ -1993,10 +2448,10 @@ function Dashboard({
           
           <div>
             <h1 className="text-base font-semibold text-stone-900">
-              {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : 'Velum'}
+              {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : activeView === 'fitness' ? 'Fitness' : 'Velum'}
             </h1>
             <p className="text-xs text-stone-400 hidden sm:block">
-              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : ''}
+              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : activeView === 'fitness' ? 'Track your activity' : ''}
             </p>
           </div>
         </div>
@@ -2032,11 +2487,14 @@ function Dashboard({
         {activeView === 'budget' && (
           <BudgetView />
         )}
-        {!['nutrition-today', 'goals', 'budget'].includes(activeView) && (
+        {activeView === 'fitness' && (
+          <FitnessView />
+        )}
+        {!['nutrition-today', 'goals', 'budget', 'fitness'].includes(activeView) && (
           <div className="flex items-center justify-center h-64 text-stone-400">
             <div className="text-center">
               <p className="text-lg font-medium text-stone-500">
-                {activeView === 'nutrition-history' ? 'History' : activeView === 'fitness' ? 'Fitness' : 'Coming soon'}
+                {activeView === 'nutrition-history' ? 'History' : 'Coming soon'}
               </p>
               <p className="text-sm mt-1">This feature is under development</p>
             </div>
