@@ -4,11 +4,15 @@ import { FitnessEntry } from '../route'
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
 
 interface ParsedFitnessEntry {
-  type: 'steps' | 'run' | 'swim'
+  type: 'steps' | 'run' | 'swim' | 'vo2max' | 'training_load' | 'stress' | 'recovery'
   steps?: number
   distance?: number      // in km
   duration?: number      // in minutes
   calories?: number
+  vo2max?: number        // ml/kg/min
+  trainingLoad?: number  // 0-100
+  stressLevel?: number   // 0-100
+  recoveryScore?: number // 0-100
   date?: string
   notes?: string
 }
@@ -175,6 +179,102 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
       }
     }
   }
+
+  // ==================== VO2 MAX PARSING ====================
+  
+  // Pattern: "vo2max 45" or "vo2 max 42.5" or "vo2: 48"
+  const vo2maxPattern = /^(?:vo2max|vo2\s*max|vo2)[\s:]*(\d+(?:\.\d+)?)$/i
+  const vo2maxMatch = text.match(vo2maxPattern)
+  
+  if (vo2maxMatch || lowerText.includes('vo2') || lowerText.includes('vo2max')) {
+    const valuePattern = /(\d+(?:\.\d+)?)/
+    const valueMatch = text.match(valuePattern)
+    
+    if (valueMatch) {
+      const vo2max = parseFloat(valueMatch[1])
+      if (vo2max > 20 && vo2max < 100) { // Reasonable VO2 max range
+        return {
+          type: 'vo2max',
+          vo2max,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
+
+  // ==================== TRAINING LOAD PARSING ====================
+  
+  // Pattern: "training load 75" or "load 80" or "tl 65"
+  const trainingLoadPattern = /^(?:(?:training\s*)?load|tl)[\s:]*(\d+)$/i
+  const trainingLoadMatch = text.match(trainingLoadPattern)
+  
+  if (trainingLoadMatch || lowerText.includes('training load') || lowerText.includes('load') || /^tl\s+\d+/i.test(text)) {
+    const valuePattern = /(\d+)/
+    const valueMatch = text.match(valuePattern)
+    
+    if (valueMatch) {
+      const load = parseInt(valueMatch[1])
+      if (load >= 0 && load <= 200) { // Reasonable training load range
+        return {
+          type: 'training_load',
+          trainingLoad: load,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
+
+  // ==================== STRESS LEVEL PARSING ====================
+  
+  // Pattern: "stress 3" or "stress 60" or "stress level 4"
+  const stressPattern = /^(?:stress(?:\s*level)?)[\s:]*(\d+)$/i
+  const stressMatch = text.match(stressPattern)
+  
+  if (stressMatch || lowerText.includes('stress')) {
+    const valuePattern = /(\d+)/
+    const valueMatch = text.match(valuePattern)
+    
+    if (valueMatch) {
+      let stress = parseInt(valueMatch[1])
+      // Convert 1-5 scale to 0-100 if needed
+      if (stress <= 5 && stress >= 1 && !text.includes('%') && !lowerText.includes('percent')) {
+        stress = Math.round((stress / 5) * 100)
+      }
+      if (stress >= 0 && stress <= 100) {
+        return {
+          type: 'stress',
+          stressLevel: stress,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
+
+  // ==================== RECOVERY SCORE PARSING ====================
+  
+  // Pattern: "recovery 85" or "recovery score 90" or "rested 75"
+  const recoveryPattern = /^(?:(?:recovery(?:\s*score)?|rested|rest))[\s:]*(\d+)$/i
+  const recoveryMatch = text.match(recoveryPattern)
+  
+  if (recoveryMatch || lowerText.includes('recovery') || lowerText.includes('rested')) {
+    const valuePattern = /(\d+)/
+    const valueMatch = text.match(valuePattern)
+    
+    if (valueMatch) {
+      const recovery = parseInt(valueMatch[1])
+      if (recovery >= 0 && recovery <= 100) {
+        return {
+          type: 'recovery',
+          recoveryScore: recovery,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
   
   return null
 }
@@ -264,11 +364,19 @@ export async function POST(request: NextRequest) {
     if (parsed.type === 'steps') {
       entry.steps = parsed.steps
       entry.distanceKm = calculateDistanceFromSteps(parsed.steps || 0)
-    } else {
+    } else if (parsed.type === 'run' || parsed.type === 'swim') {
       entry.distance = parsed.distance
       entry.duration = parsed.duration
       entry.calories = parsed.calories
       entry.pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
+    } else if (parsed.type === 'vo2max') {
+      entry.vo2max = parsed.vo2max
+    } else if (parsed.type === 'training_load') {
+      entry.trainingLoad = parsed.trainingLoad
+    } else if (parsed.type === 'stress') {
+      entry.stressLevel = parsed.stressLevel
+    } else if (parsed.type === 'recovery') {
+      entry.recoveryScore = parsed.recoveryScore
     }
     
     // Call the fitness API to save
@@ -290,11 +398,36 @@ export async function POST(request: NextRequest) {
     if (parsed.type === 'steps') {
       const distance = calculateDistanceFromSteps(parsed.steps || 0)
       successMessage = `✅ Logged: ${parsed.steps?.toLocaleString()} steps (${distance}km) - ${entryDate}`
-    } else {
+    } else if (parsed.type === 'run' || parsed.type === 'swim') {
       const pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
       successMessage = `✅ Logged: ${parsed.type} - ${parsed.distance}km in ${parsed.duration}min`
       if (pace > 0) successMessage += ` (${pace} min/km)`
       if (parsed.calories) successMessage += ` - ${parsed.calories} cal`
+    } else if (parsed.type === 'vo2max') {
+      successMessage = `✅ Logged: VO2 Max ${parsed.vo2max} ml/kg/min - ${entryDate}`
+      // Add interpretation
+      const vo2 = parsed.vo2max || 0
+      if (vo2 >= 50) successMessage += '\n🏆 Excellent aerobic fitness!'
+      else if (vo2 >= 40) successMessage += '\n💪 Good aerobic fitness'
+      else successMessage += '\n📈 Room for improvement'
+    } else if (parsed.type === 'training_load') {
+      const load = parsed.trainingLoad || 0
+      successMessage = `✅ Logged: Training Load ${load} - ${entryDate}`
+      if (load > 100) successMessage += '\n🔴 High load - ensure adequate recovery'
+      else if (load > 60) successMessage += '\n🟡 Moderate-high load'
+      else successMessage += '\n🟢 Optimal training load'
+    } else if (parsed.type === 'stress') {
+      const stress = parsed.stressLevel || 0
+      successMessage = `✅ Logged: Stress Level ${stress}% - ${entryDate}`
+      if (stress > 70) successMessage += '\n🧘 High stress - consider rest day'
+      else if (stress > 40) successMessage += '\n⚠️ Moderate stress - monitor recovery'
+      else successMessage += '\n✨ Low stress - good time to train'
+    } else if (parsed.type === 'recovery') {
+      const recovery = parsed.recoveryScore || 0
+      successMessage = `✅ Logged: Recovery Score ${recovery}% - ${entryDate}`
+      if (recovery >= 80) successMessage += '\n🟢 Well recovered - ready to train hard'
+      else if (recovery >= 50) successMessage += '\n🟡 Fair recovery - moderate training advised'
+      else successMessage += '\n🔴 Poor recovery - prioritize rest'
     }
     if (parsed.notes) successMessage += `\n📝 ${parsed.notes}`
     
@@ -330,6 +463,11 @@ export async function GET() {
       'swim 1000m 20min',
       'swim 1.5km 30min 300cal',
       'yesterday 10000 steps',
+      'vo2max 45',
+      'training load 75',
+      'stress 3',
+      'stress 60',
+      'recovery 85',
     ]
   })
 }

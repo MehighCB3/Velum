@@ -75,13 +75,18 @@ interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim'
+  type: 'steps' | 'run' | 'swim' | 'vo2max' | 'training_load' | 'stress' | 'recovery'
   steps?: number
   distanceKm?: number
   duration?: number
   distance?: number
   pace?: number
   calories?: number
+  // Advanced metrics
+  vo2max?: number
+  trainingLoad?: number
+  stressLevel?: number
+  recoveryScore?: number
   notes?: string
 }
 
@@ -99,6 +104,13 @@ interface FitnessWeek {
     steps: number
     runs: number
     swims: number
+  }
+  advanced?: {
+    avgVo2max: number
+    totalTrainingLoad: number
+    avgStress: number
+    avgRecovery: number
+    recoveryStatus: 'good' | 'fair' | 'poor'
   }
 }
 
@@ -2091,6 +2103,157 @@ function FitnessView() {
         </div>
       </div>
 
+      {/* Advanced Metrics Section */}
+      {fitnessData.advanced && (
+        <div className="bg-white border border-stone-100 rounded-xl p-4 mb-5">
+          <h3 className="text-sm font-semibold text-stone-900 mb-4 flex items-center gap-2">
+            <Sparkles size={16} className="text-violet-500" />
+            Advanced Metrics
+          </h3>
+          
+          <div className="grid grid-cols-2 gap-3">
+            {/* VO2 Max Card */}
+            <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-3 border border-violet-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-violet-600 font-medium">VO2 Max</span>
+                <span className="text-[10px] text-violet-400">ml/kg/min</span>
+              </div>
+              <p className="text-2xl font-bold text-violet-700">
+                {fitnessData.advanced.avgVo2max > 0 ? fitnessData.advanced.avgVo2max : '--'}
+              </p>
+              {fitnessData.advanced.avgVo2max > 0 && (
+                <p className="text-[10px] text-violet-500 mt-1">
+                  {fitnessData.advanced.avgVo2max >= 50 ? '🏆 Excellent' : 
+                   fitnessData.advanced.avgVo2max >= 40 ? '💪 Good' : '📈 Building'}
+                </p>
+              )}
+            </div>
+
+            {/* Training Load Card */}
+            <div className={`rounded-xl p-3 border ${
+              fitnessData.advanced.totalTrainingLoad > 400 ? 'bg-red-50 border-red-100' :
+              fitnessData.advanced.totalTrainingLoad > 250 ? 'bg-amber-50 border-amber-100' :
+              'bg-emerald-50 border-emerald-100'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-medium ${
+                  fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-600' :
+                  fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-600' :
+                  'text-emerald-600'
+                }`}>Training Load</span>
+                <span className={`text-[10px] ${
+                  fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-400' :
+                  fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-400' :
+                  'text-emerald-400'
+                }`}>weekly</span>
+              </div>
+              <p className={`text-2xl font-bold ${
+                fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-700' :
+                fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-700' :
+                'text-emerald-700'
+              }`}>
+                {fitnessData.advanced.totalTrainingLoad > 0 ? fitnessData.advanced.totalTrainingLoad : '--'}
+              </p>
+              {fitnessData.advanced.totalTrainingLoad > 0 && (
+                <p className={`text-[10px] mt-1 ${
+                  fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-500' :
+                  fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-500' :
+                  'text-emerald-500'
+                }`}>
+                  {fitnessData.advanced.totalTrainingLoad > 400 ? '🔴 Overreaching - Rest needed' :
+                   fitnessData.advanced.totalTrainingLoad > 250 ? '🟡 High load - Monitor recovery' :
+                   '🟢 Optimal training load'}
+                </p>
+              )}
+            </div>
+
+            {/* Stress Level Card */}
+            <div className="bg-gradient-to-br from-rose-50 to-pink-50 rounded-xl p-3 border border-rose-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-rose-600 font-medium">Stress</span>
+                <span className="text-[10px] text-rose-400">avg</span>
+              </div>
+              <div className="flex items-end gap-2">
+                <p className="text-2xl font-bold text-rose-700">
+                  {fitnessData.advanced.avgStress > 0 ? `${fitnessData.advanced.avgStress}%` : '--'}
+                </p>
+              </div>
+              {fitnessData.advanced.avgStress > 0 && (
+                <div className="mt-2">
+                  <div className="h-1.5 bg-rose-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-rose-400 to-rose-600 rounded-full transition-all duration-500"
+                      style={{ width: `${fitnessData.advanced.avgStress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-rose-500 mt-1">
+                    {fitnessData.advanced.avgStress > 70 ? '🧘 High - Prioritize rest' :
+                     fitnessData.advanced.avgStress > 40 ? '⚠️ Moderate - Monitor closely' :
+                     '✨ Low - Good to train'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Recovery Score Card */}
+            <div className={`rounded-xl p-3 border ${
+              fitnessData.advanced.recoveryStatus === 'good' ? 'bg-emerald-50 border-emerald-100' :
+              fitnessData.advanced.recoveryStatus === 'fair' ? 'bg-amber-50 border-amber-100' :
+              'bg-red-50 border-red-100'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-medium ${
+                  fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-600' :
+                  fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-600' :
+                  'text-red-600'
+                }`}>Recovery</span>
+                <span className={`text-[10px] ${
+                  fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-400' :
+                  fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-400' :
+                  'text-red-400'
+                }`}>{fitnessData.advanced.avgRecovery > 0 ? `${fitnessData.advanced.avgRecovery}%` : '--'}</span>
+              </div>
+              <p className={`text-lg font-bold ${
+                fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-700' :
+                fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-700' :
+                'text-red-700'
+              }`}>
+                {fitnessData.advanced.recoveryStatus === 'good' ? '🟢 Well Recovered' :
+                 fitnessData.advanced.recoveryStatus === 'fair' ? '🟡 Fair Recovery' :
+                 '🔴 Poor Recovery'}
+              </p>
+              <p className={`text-[10px] mt-1 ${
+                fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-500' :
+                fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-500' :
+                'text-red-500'
+              }`}>
+                {fitnessData.advanced.recoveryStatus === 'good' ? 'Ready for intense training' :
+                 fitnessData.advanced.recoveryStatus === 'fair' ? 'Moderate training advised' :
+                 'Prioritize rest and recovery'}
+              </p>
+            </div>
+          </div>
+
+          {/* Rest Day Recommendation */}
+          {(fitnessData.advanced.totalTrainingLoad > 300 || fitnessData.advanced.avgStress > 60 || fitnessData.advanced.recoveryStatus === 'poor') && (
+            <div className="mt-4 p-3 bg-stone-100 rounded-xl">
+              <div className="flex items-start gap-2">
+                <span className="text-lg">💡</span>
+                <div>
+                  <p className="text-sm font-medium text-stone-800">Rest Day Recommended</p>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    {fitnessData.advanced.totalTrainingLoad > 300 ? 'High training load detected. ' : ''}
+                    {fitnessData.advanced.avgStress > 60 ? 'Elevated stress levels. ' : ''}
+                    {fitnessData.advanced.recoveryStatus === 'poor' ? 'Poor recovery score. ' : ''}
+                    Consider light activity or complete rest today.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Activity List */}
       <div className="space-y-4">
         {/* Steps Section */}
@@ -2203,6 +2366,159 @@ function FitnessView() {
             </div>
           </div>
         )}
+
+        {/* Advanced Metrics Entries */}
+        {(() => {
+          const vo2maxEntries = fitnessData.entries.filter(e => e.type === 'vo2max')
+          const trainingLoadEntries = fitnessData.entries.filter(e => e.type === 'training_load')
+          const stressEntries = fitnessData.entries.filter(e => e.type === 'stress')
+          const recoveryEntries = fitnessData.entries.filter(e => e.type === 'recovery')
+          
+          return (
+            <>
+              {/* VO2 Max Entries */}
+              {vo2maxEntries.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-violet-100 rounded-lg flex items-center justify-center text-sm">🫁</span>
+                    VO2 Max ({vo2maxEntries.length})
+                  </h2>
+                  <div className="space-y-2">
+                    {vo2maxEntries.map((entry) => (
+                      <div 
+                        key={entry.id}
+                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+                      >
+                        <div className="w-10 h-10 bg-violet-50 rounded-lg flex items-center justify-center text-lg">
+                          🫁
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-stone-900">{entry.vo2max} ml/kg/min</p>
+                          <p className="text-[10px] text-stone-400">{entry.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-violet-600">
+                            {(entry.vo2max || 0) >= 50 ? '🏆 Excellent' : (entry.vo2max || 0) >= 40 ? '💪 Good' : '📈 Building'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Training Load Entries */}
+              {trainingLoadEntries.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center text-sm">⚡</span>
+                    Training Load ({trainingLoadEntries.length})
+                  </h2>
+                  <div className="space-y-2">
+                    {trainingLoadEntries.map((entry) => (
+                      <div 
+                        key={entry.id}
+                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
+                          (entry.trainingLoad || 0) > 100 ? 'bg-red-50' : (entry.trainingLoad || 0) > 60 ? 'bg-amber-50' : 'bg-emerald-50'
+                        }`}>
+                          ⚡
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-stone-900">Load Score: {entry.trainingLoad}</p>
+                          <p className="text-[10px] text-stone-400">{entry.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            (entry.trainingLoad || 0) > 100 ? 'bg-red-100 text-red-600' : 
+                            (entry.trainingLoad || 0) > 60 ? 'bg-amber-100 text-amber-600' : 
+                            'bg-emerald-100 text-emerald-600'
+                          }`}>
+                            {(entry.trainingLoad || 0) > 100 ? 'High' : (entry.trainingLoad || 0) > 60 ? 'Moderate' : 'Optimal'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stress Entries */}
+              {stressEntries.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-rose-100 rounded-lg flex items-center justify-center text-sm">🧘</span>
+                    Stress Levels ({stressEntries.length})
+                  </h2>
+                  <div className="space-y-2">
+                    {stressEntries.map((entry) => (
+                      <div 
+                        key={entry.id}
+                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+                      >
+                        <div className="w-10 h-10 bg-rose-50 rounded-lg flex items-center justify-center text-lg">
+                          🧘
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-stone-900">Stress: {entry.stressLevel}%</p>
+                          <p className="text-[10px] text-stone-400">{entry.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            (entry.stressLevel || 0) > 70 ? 'bg-red-100 text-red-600' : 
+                            (entry.stressLevel || 0) > 40 ? 'bg-amber-100 text-amber-600' : 
+                            'bg-emerald-100 text-emerald-600'
+                          }`}>
+                            {(entry.stressLevel || 0) > 70 ? 'High' : (entry.stressLevel || 0) > 40 ? 'Moderate' : 'Low'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recovery Entries */}
+              {recoveryEntries.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center text-sm">💤</span>
+                    Recovery ({recoveryEntries.length})
+                  </h2>
+                  <div className="space-y-2">
+                    {recoveryEntries.map((entry) => (
+                      <div 
+                        key={entry.id}
+                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
+                          (entry.recoveryScore || 0) >= 80 ? 'bg-emerald-50' : 
+                          (entry.recoveryScore || 0) >= 50 ? 'bg-amber-50' : 'bg-red-50'
+                        }`}>
+                          💤
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-stone-900">Recovery: {entry.recoveryScore}%</p>
+                          <p className="text-[10px] text-stone-400">{entry.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            (entry.recoveryScore || 0) >= 80 ? 'bg-emerald-100 text-emerald-600' : 
+                            (entry.recoveryScore || 0) >= 50 ? 'bg-amber-100 text-amber-600' : 
+                            'bg-red-100 text-red-600'
+                          }`}>
+                            {(entry.recoveryScore || 0) >= 80 ? 'Good' : (entry.recoveryScore || 0) >= 50 ? 'Fair' : 'Poor'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {/* Add Entry Button */}
         <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">

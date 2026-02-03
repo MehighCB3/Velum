@@ -23,7 +23,7 @@ export interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim'
+  type: 'steps' | 'run' | 'swim' | 'vo2max' | 'training_load' | 'stress' | 'recovery'
   // For steps:
   steps?: number
   distanceKm?: number  // calculated from steps (approx 0.7m per step)
@@ -32,6 +32,11 @@ export interface FitnessEntry {
   distance?: number    // in km
   pace?: number        // min/km
   calories?: number
+  // Advanced metrics:
+  vo2max?: number          // ml/kg/min
+  trainingLoad?: number    // 0-100 score
+  stressLevel?: number     // 0-100 scale
+  recoveryScore?: number   // 0-100
   // Common:
   notes?: string
 }
@@ -50,6 +55,13 @@ export interface FitnessWeek {
     steps: number     // daily goal
     runs: number      // weekly goal
     swims: number     // weekly goal
+  }
+  advanced?: {
+    avgVo2max: number
+    totalTrainingLoad: number
+    avgStress: number
+    avgRecovery: number
+    recoveryStatus: 'good' | 'fair' | 'poor'
   }
 }
 
@@ -143,11 +155,51 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
     totalCalories: 0,
   })
 
+  // Calculate advanced metrics
+  const vo2maxEntries = weekEntries.filter(e => e.type === 'vo2max' && e.vo2max)
+  const trainingLoadEntries = weekEntries.filter(e => e.type === 'training_load' && e.trainingLoad)
+  const stressEntries = weekEntries.filter(e => e.type === 'stress' && e.stressLevel)
+  const recoveryEntries = weekEntries.filter(e => e.type === 'recovery' && e.recoveryScore)
+
+  const avgVo2max = vo2maxEntries.length > 0
+    ? Math.round(vo2maxEntries.reduce((a, e) => a + (e.vo2max || 0), 0) / vo2maxEntries.length * 10) / 10
+    : 0
+  
+  const totalTrainingLoad = trainingLoadEntries.reduce((a, e) => a + (e.trainingLoad || 0), 0)
+  
+  const avgStress = stressEntries.length > 0
+    ? Math.round(stressEntries.reduce((a, e) => a + (e.stressLevel || 0), 0) / stressEntries.length)
+    : 0
+
+  const avgRecovery = recoveryEntries.length > 0
+    ? Math.round(recoveryEntries.reduce((a, e) => a + (e.recoveryScore || 0), 0) / recoveryEntries.length)
+    : 0
+
+  // Determine recovery status based on training load and recovery score
+  let recoveryStatus: 'good' | 'fair' | 'poor' = 'good'
+  if (avgRecovery > 0) {
+    if (avgRecovery >= 70) recoveryStatus = 'good'
+    else if (avgRecovery >= 40) recoveryStatus = 'fair'
+    else recoveryStatus = 'poor'
+  } else if (totalTrainingLoad > 0) {
+    // Fallback based on training load
+    if (totalTrainingLoad > 400) recoveryStatus = 'poor'
+    else if (totalTrainingLoad > 250) recoveryStatus = 'fair'
+    else recoveryStatus = 'good'
+  }
+
   return {
     week,
     entries: weekEntries,
     totals,
-    goals: { ...DEFAULT_GOALS }
+    goals: { ...DEFAULT_GOALS },
+    advanced: {
+      avgVo2max,
+      totalTrainingLoad,
+      avgStress,
+      avgRecovery,
+      recoveryStatus
+    }
   }
 }
 
@@ -207,7 +259,14 @@ function readFromFallback(week: string): FitnessWeek {
       totalDistance: 0,
       totalCalories: 0,
     },
-    goals: { ...DEFAULT_GOALS }
+    goals: { ...DEFAULT_GOALS },
+    advanced: {
+      avgVo2max: 0,
+      totalTrainingLoad: 0,
+      avgStress: 0,
+      avgRecovery: 0,
+      recoveryStatus: 'good'
+    }
   }
 }
 
@@ -278,9 +337,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate type
-    if (!['steps', 'run', 'swim'].includes(entry.type)) {
+    if (!['steps', 'run', 'swim', 'vo2max', 'training_load', 'stress', 'recovery'].includes(entry.type)) {
       return NextResponse.json(
-        { error: 'Type must be steps, run, or swim' },
+        { error: 'Type must be steps, run, swim, vo2max, training_load, stress, or recovery' },
         { status: 400 }
       )
     }
@@ -301,12 +360,20 @@ export async function POST(request: NextRequest) {
     if (entry.type === 'steps') {
       newEntry.steps = Number(entry.steps) || 0
       newEntry.distanceKm = entry.distanceKm || calculateDistanceFromSteps(newEntry.steps)
-    } else {
+    } else if (entry.type === 'run' || entry.type === 'swim') {
       // run or swim
       newEntry.duration = Number(entry.duration) || 0
       newEntry.distance = Number(entry.distance) || 0
       newEntry.calories = Number(entry.calories) || 0
       newEntry.pace = entry.pace || calculatePace(newEntry.duration, newEntry.distance)
+    } else if (entry.type === 'vo2max') {
+      newEntry.vo2max = Number(entry.vo2max) || 0
+    } else if (entry.type === 'training_load') {
+      newEntry.trainingLoad = Number(entry.trainingLoad) || 0
+    } else if (entry.type === 'stress') {
+      newEntry.stressLevel = Number(entry.stressLevel) || 0
+    } else if (entry.type === 'recovery') {
+      newEntry.recoveryScore = Number(entry.recoveryScore) || 0
     }
 
     // Get existing data
