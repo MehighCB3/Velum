@@ -23,11 +23,12 @@ export interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim' | 'vo2max' | 'training_load' | 'stress' | 'recovery'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  name?: string        // Activity name (e.g., "Morning run", "Commute")
   // For steps:
   steps?: number
   distanceKm?: number  // calculated from steps (approx 0.7m per step)
-  // For runs/swims:
+  // For runs/swims/cycles:
   duration?: number    // in minutes
   distance?: number    // in km
   pace?: number        // min/km
@@ -37,6 +38,10 @@ export interface FitnessEntry {
   trainingLoad?: number    // 0-100 score
   stressLevel?: number     // 0-100 scale
   recoveryScore?: number   // 0-100
+  // Body metrics:
+  hrv?: number             // Heart Rate Variability in ms
+  weight?: number          // in kg
+  bodyFat?: number         // percentage
   // Common:
   notes?: string
 }
@@ -48,8 +53,12 @@ export interface FitnessWeek {
     steps: number
     runs: number
     swims: number
+    cycles: number
     totalDistance: number
     totalCalories: number
+    runDistance: number
+    swimDistance: number
+    cycleDistance: number
   }
   goals: {
     steps: number     // daily goal
@@ -62,6 +71,9 @@ export interface FitnessWeek {
     avgStress: number
     avgRecovery: number
     recoveryStatus: 'good' | 'fair' | 'poor'
+    latestHrv: number
+    latestWeight: number
+    latestBodyFat: number
   }
 }
 
@@ -140,10 +152,17 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
     } else if (entry.type === 'run') {
       acc.runs += 1
       acc.totalDistance += entry.distance || 0
+      acc.runDistance += entry.distance || 0
       acc.totalCalories += entry.calories || 0
     } else if (entry.type === 'swim') {
       acc.swims += 1
       acc.totalDistance += entry.distance || 0
+      acc.swimDistance += entry.distance || 0
+      acc.totalCalories += entry.calories || 0
+    } else if (entry.type === 'cycle') {
+      acc.cycles += 1
+      acc.totalDistance += entry.distance || 0
+      acc.cycleDistance += entry.distance || 0
       acc.totalCalories += entry.calories || 0
     }
     return acc
@@ -151,8 +170,12 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
     steps: 0,
     runs: 0,
     swims: 0,
+    cycles: 0,
     totalDistance: 0,
     totalCalories: 0,
+    runDistance: 0,
+    swimDistance: 0,
+    cycleDistance: 0,
   })
 
   // Calculate advanced metrics
@@ -188,6 +211,11 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
     else recoveryStatus = 'good'
   }
 
+  // Get latest body metrics
+  const hrvEntries = weekEntries.filter(e => e.type === 'hrv' && e.hrv).sort((a, b) => b.date.localeCompare(a.date))
+  const weightEntries = weekEntries.filter(e => e.type === 'weight' && e.weight).sort((a, b) => b.date.localeCompare(a.date))
+  const bodyFatEntries = weekEntries.filter(e => e.type === 'body_fat' && e.bodyFat).sort((a, b) => b.date.localeCompare(a.date))
+
   return {
     week,
     entries: weekEntries,
@@ -198,7 +226,10 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
       totalTrainingLoad,
       avgStress,
       avgRecovery,
-      recoveryStatus
+      recoveryStatus,
+      latestHrv: hrvEntries.length > 0 ? hrvEntries[0].hrv! : 0,
+      latestWeight: weightEntries.length > 0 ? weightEntries[0].weight! : 0,
+      latestBodyFat: bodyFatEntries.length > 0 ? bodyFatEntries[0].bodyFat! : 0,
     }
   }
 }
@@ -256,8 +287,12 @@ function readFromFallback(week: string): FitnessWeek {
       steps: 0,
       runs: 0,
       swims: 0,
+      cycles: 0,
       totalDistance: 0,
       totalCalories: 0,
+      runDistance: 0,
+      swimDistance: 0,
+      cycleDistance: 0,
     },
     goals: { ...DEFAULT_GOALS },
     advanced: {
@@ -265,7 +300,10 @@ function readFromFallback(week: string): FitnessWeek {
       totalTrainingLoad: 0,
       avgStress: 0,
       avgRecovery: 0,
-      recoveryStatus: 'good'
+      recoveryStatus: 'good',
+      latestHrv: 0,
+      latestWeight: 0,
+      latestBodyFat: 0,
     }
   }
 }
@@ -337,9 +375,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate type
-    if (!['steps', 'run', 'swim', 'vo2max', 'training_load', 'stress', 'recovery'].includes(entry.type)) {
+    if (!['steps', 'run', 'swim', 'cycle', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
       return NextResponse.json(
-        { error: 'Type must be steps, run, swim, vo2max, training_load, stress, or recovery' },
+        { error: 'Type must be steps, run, swim, cycle, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
         { status: 400 }
       )
     }
@@ -353,6 +391,7 @@ export async function POST(request: NextRequest) {
       date: entryDate,
       timestamp: entry.timestamp || new Date().toISOString(),
       type: entry.type,
+      name: entry.name,
       notes: entry.notes,
     }
 
@@ -360,8 +399,7 @@ export async function POST(request: NextRequest) {
     if (entry.type === 'steps') {
       newEntry.steps = Number(entry.steps) || 0
       newEntry.distanceKm = entry.distanceKm || calculateDistanceFromSteps(newEntry.steps)
-    } else if (entry.type === 'run' || entry.type === 'swim') {
-      // run or swim
+    } else if (entry.type === 'run' || entry.type === 'swim' || entry.type === 'cycle') {
       newEntry.duration = Number(entry.duration) || 0
       newEntry.distance = Number(entry.distance) || 0
       newEntry.calories = Number(entry.calories) || 0
@@ -374,6 +412,12 @@ export async function POST(request: NextRequest) {
       newEntry.stressLevel = Number(entry.stressLevel) || 0
     } else if (entry.type === 'recovery') {
       newEntry.recoveryScore = Number(entry.recoveryScore) || 0
+    } else if (entry.type === 'hrv') {
+      newEntry.hrv = Number(entry.hrv) || 0
+    } else if (entry.type === 'weight') {
+      newEntry.weight = Number(entry.weight) || 0
+    } else if (entry.type === 'body_fat') {
+      newEntry.bodyFat = Number(entry.bodyFat) || 0
     }
 
     // Get existing data

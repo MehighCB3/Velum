@@ -75,7 +75,8 @@ interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim' | 'vo2max' | 'training_load' | 'stress' | 'recovery'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  name?: string
   steps?: number
   distanceKm?: number
   duration?: number
@@ -87,6 +88,9 @@ interface FitnessEntry {
   trainingLoad?: number
   stressLevel?: number
   recoveryScore?: number
+  hrv?: number
+  weight?: number
+  bodyFat?: number
   notes?: string
 }
 
@@ -97,8 +101,12 @@ interface FitnessWeek {
     steps: number
     runs: number
     swims: number
+    cycles: number
     totalDistance: number
     totalCalories: number
+    runDistance: number
+    swimDistance: number
+    cycleDistance: number
   }
   goals: {
     steps: number
@@ -111,6 +119,9 @@ interface FitnessWeek {
     avgStress: number
     avgRecovery: number
     recoveryStatus: 'good' | 'fair' | 'poor'
+    latestHrv: number
+    latestWeight: number
+    latestBodyFat: number
   }
 }
 
@@ -456,7 +467,7 @@ function Sidebar({
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-60 bg-stone-100/50 border-r border-stone-200/50 flex flex-col h-screen
+        w-72 bg-stone-100/50 border-r border-stone-200/50 flex flex-col h-screen
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -1806,77 +1817,51 @@ function GoalsView() {
 function FitnessView() {
   const [fitnessData, setFitnessData] = useState<FitnessWeek | null>(null)
   const [weeksData, setWeeksData] = useState<FitnessWeek[]>([])
-  const [activeWeek, setActiveWeek] = useState(0) // 0 = current, 1 = -1 week, etc.
   const [loading, setLoading] = useState(true)
-  const [selectedEntry, setSelectedEntry] = useState<FitnessEntry | null>(null)
+  const [viewMode, setViewMode] = useState<'today' | 'week'>('week')
   const [todaySteps, setTodaySteps] = useState(0)
 
-  // Generate week keys (current + 3 previous)
-  const getWeekKeys = () => {
-    const keys: string[] = []
-    const now = new Date()
-    for (let i = 0; i < 4; i++) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - (i * 7))
-      const year = date.getFullYear()
-      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-      const dayNum = d.getUTCDay() || 7
-      d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-      const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-      keys.push(`${year}-W${String(weekNumber).padStart(2, '0')}`)
-    }
-    return keys
+  // Generate week key for a date
+  const getWeekKey = (date: Date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dayNum = d.getUTCDay() || 7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+    return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`
   }
 
-  // Get dates for the current week
-  const getWeekDates = (weekKey: string) => {
-    const match = weekKey.match(/^(\d{4})-W(\d{2})$/)
-    if (!match) return []
-    const [, year, week] = match
-    const yearNum = parseInt(year)
-    const weekNum = parseInt(week)
-    const yearStart = new Date(Date.UTC(yearNum, 0, 1))
-    const dayNum = yearStart.getUTCDay() || 7
-    const weekStart = new Date(yearStart)
-    weekStart.setUTCDate(yearStart.getUTCDate() + (weekNum - 1) * 7 - dayNum + 1)
-    
-    const dates: string[] = []
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(weekStart)
-      date.setUTCDate(weekStart.getUTCDate() + i)
-      dates.push(date.toISOString().split('T')[0])
-    }
-    return dates
+  // Format relative date label
+  const formatRelativeDate = (dateStr: string) => {
+    const today = new Date().toISOString().split('T')[0]
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    if (dateStr === today) return 'Today'
+    if (dateStr === yesterday) return 'Yesterday'
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  // Get day name from date
-  const getDayName = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00')
-    return date.toLocaleDateString('en-US', { weekday: 'short' })
+  // Format duration as mm:ss
+  const formatDuration = (mins: number) => {
+    const wholeMins = Math.floor(mins)
+    const secs = Math.round((mins - wholeMins) * 60)
+    return `${wholeMins}:${String(secs).padStart(2, '0')}`
   }
 
-  // Get day number from date
-  const getDayNumber = (dateStr: string) => {
-    return parseInt(dateStr.split('-')[2])
-  }
 
   // Fetch fitness data
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const weekKeys = getWeekKeys()
-        const weeksPromises = weekKeys.map(week => 
-          fetch(`/api/fitness?week=${week}`).then(r => r.json())
-        )
-        const weeks = await Promise.all(weeksPromises)
-        setWeeksData(weeks)
-        setFitnessData(weeks[activeWeek])
-        
-        // Calculate today's steps from current week
+        const weekKey = getWeekKey(new Date())
+        const response = await fetch(`/api/fitness?week=${weekKey}`)
+        const data = await response.json()
+        setFitnessData(data)
+        setWeeksData([data])
+
+        // Calculate today's steps
         const today = new Date().toISOString().split('T')[0]
-        const todayEntry = weeks[0]?.entries.find((e: FitnessEntry) => 
+        const todayEntry = data?.entries.find((e: FitnessEntry) =>
           e.type === 'steps' && e.date === today
         )
         setTodaySteps(todayEntry?.steps || 0)
@@ -1890,7 +1875,7 @@ function FitnessView() {
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
-  }, [activeWeek])
+  }, [])
 
   if (loading || !fitnessData) {
     return (
@@ -1900,634 +1885,202 @@ function FitnessView() {
     )
   }
 
-  const weekKeys = getWeekKeys()
-  const weekDates = getWeekDates(weekKeys[activeWeek])
-  const isCurrentWeek = activeWeek === 0
-  
-  // Calculate daily steps for the week
-  const dailySteps = weekDates.map(date => {
-    const entry = fitnessData.entries.find(e => e.type === 'steps' && e.date === date)
-    return {
-      date,
-      dayName: getDayName(date),
-      dayNumber: getDayNumber(date),
-      steps: entry?.steps || 0,
-      distance: entry?.distanceKm || 0,
+  // Get activities (runs, swims, cycles) sorted by date/time descending
+  const today = new Date().toISOString().split('T')[0]
+  const getActivities = () => {
+    const activityTypes = ['run', 'swim', 'cycle']
+    let activities = fitnessData.entries.filter(e => activityTypes.includes(e.type))
+    if (viewMode === 'today') {
+      activities = activities.filter(e => e.date === today)
     }
-  })
+    return activities.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date)
+      if (dateCompare !== 0) return dateCompare
+      return (b.timestamp || '').localeCompare(a.timestamp || '')
+    })
+  }
 
-  // Get runs and swims for the week
-  const runs = fitnessData.entries.filter(e => e.type === 'run')
-  const swims = fitnessData.entries.filter(e => e.type === 'swim')
-  
-  // Steps progress
-  const stepsGoal = fitnessData.goals.steps
-  const stepsProgress = Math.min(100, Math.round((todaySteps / stepsGoal) * 100))
-  
-  // Calculate weekly averages from all weeks
-  const avgSteps = Math.round(weeksData.reduce((a, w) => a + w.totals.steps, 0) / (weeksData.length || 1))
-  const totalRuns = weeksData.reduce((a, w) => a + w.totals.runs, 0)
-  const totalSwims = weeksData.reduce((a, w) => a + w.totals.swims, 0)
+  // Activity icon config
+  const getActivityStyle = (type: string) => {
+    switch (type) {
+      case 'run': return { bg: 'bg-emerald-50', text: 'text-emerald-600', emoji: '\u{1F3C3}', label: 'Run' }
+      case 'swim': return { bg: 'bg-blue-50', text: 'text-blue-600', emoji: '\u{1F3CA}', label: 'Pool session' }
+      case 'cycle': return { bg: 'bg-orange-50', text: 'text-orange-600', emoji: '\u{1F6B4}', label: 'Ride' }
+      default: return { bg: 'bg-stone-50', text: 'text-stone-600', emoji: '\u{1F3CB}', label: 'Activity' }
+    }
+  }
+
+  // Totals
+  const totalKm = fitnessData.totals.totalDistance
+  const runKm = fitnessData.totals.runDistance || 0
+  const swimKm = fitnessData.totals.swimDistance || 0
+  const cycleKm = fitnessData.totals.cycleDistance || 0
+
+  // Latest body metrics from advanced
+  const latestHrv = fitnessData.advanced?.latestHrv || 0
+  const latestVo2 = fitnessData.advanced?.avgVo2max || 0
+  const latestWeight = fitnessData.advanced?.latestWeight || 0
+  const latestFat = fitnessData.advanced?.latestBodyFat || 0
+
+  // Generate AI insight
+  const generateInsight = () => {
+    const parts: string[] = []
+    if (latestHrv > 0 && weeksData.length > 1) {
+      parts.push(`Your HRV is at ${latestHrv} ms.`)
+    }
+    if (fitnessData.totals.runs > 0) {
+      const remainingRuns = (fitnessData.goals.runs || 3) - fitnessData.totals.runs
+      if (remainingRuns > 0) parts.push(`${remainingRuns} more run${remainingRuns > 1 ? 's' : ''} to hit your weekly goal.`)
+      else parts.push('You hit your running goal this week!')
+    }
+    if (totalKm > 0) {
+      parts.push(`${totalKm.toFixed(1)} km total this week across all activities.`)
+    }
+    if (parts.length === 0) return 'Log some activities to get personalized insights here.'
+    return parts.join(' ')
+  }
+
+  const activities = getActivities()
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Week Tabs */}
-      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-5 w-fit">
-        {weekKeys.map((week, idx) => (
-          <button 
-            key={week}
-            onClick={() => setActiveWeek(idx)}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-              activeWeek === idx 
-                ? 'bg-white text-stone-900 shadow-sm' 
-                : 'text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            {idx === 0 ? 'Current' : `${idx}w`}
-          </button>
-        ))}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Fitness</h1>
+          <p className="text-sm text-stone-400">Track your activity</p>
+        </div>
+        <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-full shadow-sm hover:shadow-md transition-all">
+          + Log activity
+        </button>
       </div>
 
-      {/* Hero Stats Card */}
-      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl" />
-        </div>
-        <div className="relative">
-          {/* Header with week info */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs text-stone-400 mb-0.5">
-                {isCurrentWeek ? "Today's Steps" : `Week ${weekKeys[activeWeek]}`}
-              </p>
-              <p className="text-2xl font-bold text-white">
-                {isCurrentWeek ? todaySteps.toLocaleString() : fitnessData.totals.steps.toLocaleString()}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-stone-400 mb-0.5">Goal</p>
-              <p className="text-lg font-semibold text-white">
-                {isCurrentWeek ? stepsGoal.toLocaleString() : (stepsGoal * 7).toLocaleString()}
-              </p>
-            </div>
+      {/* Today / This week toggle */}
+      <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
+        <button
+          onClick={() => setViewMode('today')}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+            viewMode === 'today' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
+          }`}
+        >
+          Today
+        </button>
+        <button
+          onClick={() => setViewMode('week')}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+            viewMode === 'week' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
+          }`}
+        >
+          This week
+        </button>
+      </div>
+
+      {/* Dark Hero Card */}
+      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+        {/* Metrics pills row */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="text-center flex-1">
+            <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-0.5">HRV</p>
+            <p className="text-sm font-bold text-white">{latestHrv || '--'} <span className="text-[10px] text-stone-500 font-normal">ms</span></p>
           </div>
-          
-          {/* Steps Ring (only for current week) */}
-          {isCurrentWeek && (
-            <div className="flex items-center gap-5 mb-5">
-              <div className="relative w-20 h-20 flex-shrink-0">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="10" className="text-stone-700" />
-                  <circle 
-                    cx="50" cy="50" r="42" fill="none" stroke="url(#fitnessRingGrad)" strokeWidth="10" strokeLinecap="round"
-                    strokeDasharray={`${stepsProgress * 2.64} 264`}
-                    className="transition-all duration-1000 ease-out"
-                  />
-                  <defs>
-                    <linearGradient id="fitnessRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#f97316" />
-                      <stop offset="100%" stopColor="#10b981" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-sm font-bold text-white">{stepsProgress}%</span>
-                </div>
-              </div>
-              <div className="flex-1">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-stone-800/50 rounded-lg p-2 text-center">
-                    <p className="text-lg font-bold text-emerald-400">{runs.length}</p>
-                    <p className="text-[10px] text-stone-400">runs</p>
-                  </div>
-                  <div className="bg-stone-800/50 rounded-lg p-2 text-center">
-                    <p className="text-lg font-bold text-blue-400">{swims.length}</p>
-                    <p className="text-[10px] text-stone-400">swims</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Weekly Totals Bar */}
-          <div className="bg-stone-800/50 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-stone-400">Week Stats</p>
-              <p className="text-xs text-stone-400">
-                {fitnessData.totals.totalDistance.toFixed(1)}km total
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {weeksData.slice(0, 4).map((week, idx) => (
-                <div key={week.week} className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[9px] text-stone-500">W{idx + 1}</span>
-                  </div>
-                  <div className="h-10 bg-stone-700 rounded-md overflow-hidden relative">
-                    <div 
-                      className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ${
-                        idx === 0 ? 'bg-gradient-to-t from-orange-500 to-emerald-500' : 'bg-stone-600'
-                      }`}
-                      style={{ 
-                        height: `${Math.min((week.totals.steps / (week.goals.steps * 7)) * 100, 100)}%` 
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="text-center flex-1">
+            <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-0.5">VO&#8322;</p>
+            <p className="text-sm font-bold text-white">{latestVo2 || '--'}</p>
+          </div>
+          <div className="text-center flex-1">
+            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Weight</p>
+            <p className="text-sm font-bold text-white">{latestWeight || '--'} <span className="text-[10px] text-stone-500 font-normal">kg</span></p>
+          </div>
+          <div className="text-center flex-1">
+            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fat</p>
+            <p className="text-sm font-bold text-white">{latestFat || '--'}<span className="text-[10px] text-stone-500 font-normal">%</span></p>
+          </div>
+        </div>
+
+        {/* Big kilometer number */}
+        <div className="text-center mb-5">
+          <p className="text-6xl font-bold text-white tracking-tight">{Math.round(totalKm)}</p>
+          <p className="text-sm text-stone-400 mt-1">Kilometers</p>
+        </div>
+
+        {/* Activity type breakdown */}
+        <div className="flex items-center justify-center gap-6">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">{'\u{1F6B4}'}</span>
+            <span className="text-sm text-stone-300">{cycleKm.toFixed(1)} km</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">{'\u{1F3C3}'}</span>
+            <span className="text-sm text-stone-300">{runKm.toFixed(1)} km</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">{'\u{1F3CA}'}</span>
+            <span className="text-sm text-stone-300">{swimKm.toFixed(1)} km</span>
           </div>
         </div>
       </div>
 
-      {/* 7-Day Activity Chart */}
-      <div className="bg-white border border-stone-100 rounded-xl p-4 mb-5">
-        <h3 className="text-sm font-semibold text-stone-900 mb-4">Activity This Week</h3>
-        <div className="flex items-end justify-between gap-2 h-32">
-          {dailySteps.map((day) => {
-            const isToday = day.date === new Date().toISOString().split('T')[0]
-            const barHeight = Math.min((day.steps / (stepsGoal * 1.2)) * 100, 100)
-            const hasRun = fitnessData.entries.some(e => 
-              e.type === 'run' && e.date === day.date
-            )
-            const hasSwim = fitnessData.entries.some(e => 
-              e.type === 'swim' && e.date === day.date
-            )
-            
+      {/* Activities List */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-stone-900">Activities</h3>
+          <span className="text-xs text-stone-400">{activities.length} this {viewMode === 'today' ? 'day' : 'week'}</span>
+        </div>
+
+        <div className="space-y-2">
+          {activities.map((entry) => {
+            const style = getActivityStyle(entry.type)
             return (
-              <div key={day.date} className="flex flex-col items-center flex-1">
-                <div className="relative w-full flex items-end justify-center h-20 mb-2">
-                  {/* Goal line */}
-                  <div 
-                    className="absolute w-full border-t border-dashed border-stone-300 z-10"
-                    style={{ bottom: `${(stepsGoal / (stepsGoal * 1.2)) * 100}%` }}
-                  />
-                  {/* Steps bar */}
-                  <div
-                    className={`w-full max-w-8 rounded-t-md transition-all duration-500 ${
-                      isToday ? 'bg-gradient-to-t from-orange-500 to-emerald-500' : 'bg-emerald-500'
-                    }`}
-                    style={{ height: `${Math.max(barHeight, 5)}%` }}
-                    title={`${day.steps} steps`}
-                  />
+              <div key={entry.id} className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
+                <div className={`w-10 h-10 ${style.bg} rounded-full flex items-center justify-center text-lg`}>
+                  {style.emoji}
                 </div>
-                {/* Activity icons */}
-                <div className="flex gap-0.5 mb-1 h-4">
-                  {hasRun && <span className="text-[10px]">🏃</span>}
-                  {hasSwim && <span className="text-[10px]">🏊</span>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-stone-900">{entry.name || style.label}</p>
+                  <p className="text-xs text-stone-400">
+                    {formatRelativeDate(entry.date)}
+                    {entry.duration ? ` · ${formatDuration(entry.duration)}` : ''}
+                  </p>
                 </div>
-                <span className="text-[10px] text-stone-500 font-medium">{day.dayName}</span>
-                <span className="text-[9px] text-stone-400">{day.steps > 0 ? day.steps : ''}</span>
+                <div className="text-right">
+                  {entry.distanceKm ? (
+                    <p className="text-sm font-semibold text-stone-900">{entry.distanceKm.toFixed(1)} km</p>
+                  ) : entry.calories ? (
+                    <p className="text-sm font-semibold text-stone-900">{entry.calories} cal</p>
+                  ) : null}
+                </div>
               </div>
             )
           })}
-        </div>
-        <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-emerald-500 rounded" />
-            <span className="text-stone-500">Steps</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs">🏃</span>
-            <span className="text-stone-500">Run</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs">🏊</span>
-            <span className="text-stone-500">Swim</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 border-t border-dashed border-stone-300" />
-            <span className="text-stone-500">Goal</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Advanced Metrics Section */}
-      {fitnessData.advanced && (
-        <div className="bg-white border border-stone-100 rounded-xl p-4 mb-5">
-          <h3 className="text-sm font-semibold text-stone-900 mb-4 flex items-center gap-2">
-            <Sparkles size={16} className="text-violet-500" />
-            Advanced Metrics
-          </h3>
-          
-          <div className="grid grid-cols-2 gap-3">
-            {/* VO2 Max Card */}
-            <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-3 border border-violet-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-violet-600 font-medium">VO2 Max</span>
-                <span className="text-[10px] text-violet-400">ml/kg/min</span>
-              </div>
-              <p className="text-2xl font-bold text-violet-700">
-                {fitnessData.advanced.avgVo2max > 0 ? fitnessData.advanced.avgVo2max : '--'}
-              </p>
-              {fitnessData.advanced.avgVo2max > 0 && (
-                <p className="text-[10px] text-violet-500 mt-1">
-                  {fitnessData.advanced.avgVo2max >= 50 ? '🏆 Excellent' : 
-                   fitnessData.advanced.avgVo2max >= 40 ? '💪 Good' : '📈 Building'}
-                </p>
-              )}
-            </div>
-
-            {/* Training Load Card */}
-            <div className={`rounded-xl p-3 border ${
-              fitnessData.advanced.totalTrainingLoad > 400 ? 'bg-red-50 border-red-100' :
-              fitnessData.advanced.totalTrainingLoad > 250 ? 'bg-amber-50 border-amber-100' :
-              'bg-emerald-50 border-emerald-100'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-xs font-medium ${
-                  fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-600' :
-                  fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-600' :
-                  'text-emerald-600'
-                }`}>Training Load</span>
-                <span className={`text-[10px] ${
-                  fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-400' :
-                  fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-400' :
-                  'text-emerald-400'
-                }`}>weekly</span>
-              </div>
-              <p className={`text-2xl font-bold ${
-                fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-700' :
-                fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-700' :
-                'text-emerald-700'
-              }`}>
-                {fitnessData.advanced.totalTrainingLoad > 0 ? fitnessData.advanced.totalTrainingLoad : '--'}
-              </p>
-              {fitnessData.advanced.totalTrainingLoad > 0 && (
-                <p className={`text-[10px] mt-1 ${
-                  fitnessData.advanced.totalTrainingLoad > 400 ? 'text-red-500' :
-                  fitnessData.advanced.totalTrainingLoad > 250 ? 'text-amber-500' :
-                  'text-emerald-500'
-                }`}>
-                  {fitnessData.advanced.totalTrainingLoad > 400 ? '🔴 Overreaching - Rest needed' :
-                   fitnessData.advanced.totalTrainingLoad > 250 ? '🟡 High load - Monitor recovery' :
-                   '🟢 Optimal training load'}
-                </p>
-              )}
-            </div>
-
-            {/* Stress Level Card */}
-            <div className="bg-gradient-to-br from-rose-50 to-pink-50 rounded-xl p-3 border border-rose-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-rose-600 font-medium">Stress</span>
-                <span className="text-[10px] text-rose-400">avg</span>
-              </div>
-              <div className="flex items-end gap-2">
-                <p className="text-2xl font-bold text-rose-700">
-                  {fitnessData.advanced.avgStress > 0 ? `${fitnessData.advanced.avgStress}%` : '--'}
-                </p>
-              </div>
-              {fitnessData.advanced.avgStress > 0 && (
-                <div className="mt-2">
-                  <div className="h-1.5 bg-rose-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-rose-400 to-rose-600 rounded-full transition-all duration-500"
-                      style={{ width: `${fitnessData.advanced.avgStress}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-rose-500 mt-1">
-                    {fitnessData.advanced.avgStress > 70 ? '🧘 High - Prioritize rest' :
-                     fitnessData.advanced.avgStress > 40 ? '⚠️ Moderate - Monitor closely' :
-                     '✨ Low - Good to train'}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Recovery Score Card */}
-            <div className={`rounded-xl p-3 border ${
-              fitnessData.advanced.recoveryStatus === 'good' ? 'bg-emerald-50 border-emerald-100' :
-              fitnessData.advanced.recoveryStatus === 'fair' ? 'bg-amber-50 border-amber-100' :
-              'bg-red-50 border-red-100'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-xs font-medium ${
-                  fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-600' :
-                  fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-600' :
-                  'text-red-600'
-                }`}>Recovery</span>
-                <span className={`text-[10px] ${
-                  fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-400' :
-                  fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-400' :
-                  'text-red-400'
-                }`}>{fitnessData.advanced.avgRecovery > 0 ? `${fitnessData.advanced.avgRecovery}%` : '--'}</span>
-              </div>
-              <p className={`text-lg font-bold ${
-                fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-700' :
-                fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-700' :
-                'text-red-700'
-              }`}>
-                {fitnessData.advanced.recoveryStatus === 'good' ? '🟢 Well Recovered' :
-                 fitnessData.advanced.recoveryStatus === 'fair' ? '🟡 Fair Recovery' :
-                 '🔴 Poor Recovery'}
-              </p>
-              <p className={`text-[10px] mt-1 ${
-                fitnessData.advanced.recoveryStatus === 'good' ? 'text-emerald-500' :
-                fitnessData.advanced.recoveryStatus === 'fair' ? 'text-amber-500' :
-                'text-red-500'
-              }`}>
-                {fitnessData.advanced.recoveryStatus === 'good' ? 'Ready for intense training' :
-                 fitnessData.advanced.recoveryStatus === 'fair' ? 'Moderate training advised' :
-                 'Prioritize rest and recovery'}
-              </p>
-            </div>
-          </div>
-
-          {/* Rest Day Recommendation */}
-          {(fitnessData.advanced.totalTrainingLoad > 300 || fitnessData.advanced.avgStress > 60 || fitnessData.advanced.recoveryStatus === 'poor') && (
-            <div className="mt-4 p-3 bg-stone-100 rounded-xl">
-              <div className="flex items-start gap-2">
-                <span className="text-lg">💡</span>
-                <div>
-                  <p className="text-sm font-medium text-stone-800">Rest Day Recommended</p>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    {fitnessData.advanced.totalTrainingLoad > 300 ? 'High training load detected. ' : ''}
-                    {fitnessData.advanced.avgStress > 60 ? 'Elevated stress levels. ' : ''}
-                    {fitnessData.advanced.recoveryStatus === 'poor' ? 'Poor recovery score. ' : ''}
-                    Consider light activity or complete rest today.
-                  </p>
-                </div>
-              </div>
-            </div>
+          {activities.length === 0 && (
+            <p className="text-stone-400 text-center py-8 text-sm border border-dashed border-stone-200 rounded-xl">
+              No activities logged {viewMode === 'today' ? 'today' : 'this week'}
+            </p>
           )}
         </div>
-      )}
 
-      {/* Activity List */}
-      <div className="space-y-4">
-        {/* Steps Section */}
-        <div>
-          <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-            <span className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center text-sm">👟</span>
-            Steps
-          </h2>
-          <div className="space-y-2">
-            {dailySteps.filter(d => d.steps > 0).map((day) => (
-              <div 
-                key={day.date}
-                className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-              >
-                <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-lg">
-                  👟
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-stone-900">{day.steps.toLocaleString()} steps</p>
-                  <p className="text-[10px] text-stone-400">{day.dayName}, {day.date} · {day.distance.toFixed(1)}km</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-stone-900">
-                    {Math.round((day.steps / stepsGoal) * 100)}%
-                  </p>
-                  <p className="text-[10px] text-stone-400">of goal</p>
-                </div>
-              </div>
-            ))}
-            {dailySteps.filter(d => d.steps > 0).length === 0 && (
-              <p className="text-stone-400 text-center py-4 text-sm border border-dashed border-stone-200 rounded-xl">
-                No steps logged this week
-              </p>
-            )}
+        <button className="w-full mt-3 p-3 text-sm text-orange-500 hover:text-orange-600 font-medium transition-colors">
+          + Add activity
+        </button>
+      </div>
+
+      {/* AI Insight Card */}
+      <div className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-100 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Sparkles size={16} className="text-violet-500" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-stone-900 mb-1">AI Insight</p>
+            <p className="text-xs text-stone-600 leading-relaxed">{generateInsight()}</p>
           </div>
         </div>
-
-        {/* Runs Section */}
-        {runs.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-orange-100 rounded-lg flex items-center justify-center text-sm">🏃</span>
-              Runs ({runs.length})
-            </h2>
-            <div className="space-y-2">
-              {runs.map((run) => (
-                <div 
-                  key={run.id}
-                  className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-                >
-                  <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center text-lg">
-                    🏃
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-stone-900">{run.distance}km run</p>
-                    <p className="text-[10px] text-stone-400">
-                      {run.date} · {run.duration}min · {run.pace}min/km
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {run.calories ? (
-                      <>
-                        <p className="text-sm font-bold text-stone-900">{run.calories}</p>
-                        <p className="text-[10px] text-stone-400">cal</p>
-                      </>
-                    ) : (
-                      <p className="text-xs text-stone-400">{run.duration}min</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Swims Section */}
-        {swims.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-              <span className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center text-sm">🏊</span>
-              Swims ({swims.length})
-            </h2>
-            <div className="space-y-2">
-              {swims.map((swim) => (
-                <div 
-                  key={swim.id}
-                  className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-                >
-                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-lg">
-                    🏊
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-stone-900">{swim.distance}km swim</p>
-                    <p className="text-[10px] text-stone-400">
-                      {swim.date} · {swim.duration}min · {swim.pace}min/km
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {swim.calories ? (
-                      <>
-                        <p className="text-sm font-bold text-stone-900">{swim.calories}</p>
-                        <p className="text-[10px] text-stone-400">cal</p>
-                      </>
-                    ) : (
-                      <p className="text-xs text-stone-400">{swim.duration}min</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Advanced Metrics Entries */}
-        {(() => {
-          const vo2maxEntries = fitnessData.entries.filter(e => e.type === 'vo2max')
-          const trainingLoadEntries = fitnessData.entries.filter(e => e.type === 'training_load')
-          const stressEntries = fitnessData.entries.filter(e => e.type === 'stress')
-          const recoveryEntries = fitnessData.entries.filter(e => e.type === 'recovery')
-          
-          return (
-            <>
-              {/* VO2 Max Entries */}
-              {vo2maxEntries.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-violet-100 rounded-lg flex items-center justify-center text-sm">🫁</span>
-                    VO2 Max ({vo2maxEntries.length})
-                  </h2>
-                  <div className="space-y-2">
-                    {vo2maxEntries.map((entry) => (
-                      <div 
-                        key={entry.id}
-                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-                      >
-                        <div className="w-10 h-10 bg-violet-50 rounded-lg flex items-center justify-center text-lg">
-                          🫁
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-stone-900">{entry.vo2max} ml/kg/min</p>
-                          <p className="text-[10px] text-stone-400">{entry.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-violet-600">
-                            {(entry.vo2max || 0) >= 50 ? '🏆 Excellent' : (entry.vo2max || 0) >= 40 ? '💪 Good' : '📈 Building'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Training Load Entries */}
-              {trainingLoadEntries.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center text-sm">⚡</span>
-                    Training Load ({trainingLoadEntries.length})
-                  </h2>
-                  <div className="space-y-2">
-                    {trainingLoadEntries.map((entry) => (
-                      <div 
-                        key={entry.id}
-                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-                      >
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
-                          (entry.trainingLoad || 0) > 100 ? 'bg-red-50' : (entry.trainingLoad || 0) > 60 ? 'bg-amber-50' : 'bg-emerald-50'
-                        }`}>
-                          ⚡
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-stone-900">Load Score: {entry.trainingLoad}</p>
-                          <p className="text-[10px] text-stone-400">{entry.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            (entry.trainingLoad || 0) > 100 ? 'bg-red-100 text-red-600' : 
-                            (entry.trainingLoad || 0) > 60 ? 'bg-amber-100 text-amber-600' : 
-                            'bg-emerald-100 text-emerald-600'
-                          }`}>
-                            {(entry.trainingLoad || 0) > 100 ? 'High' : (entry.trainingLoad || 0) > 60 ? 'Moderate' : 'Optimal'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Stress Entries */}
-              {stressEntries.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-rose-100 rounded-lg flex items-center justify-center text-sm">🧘</span>
-                    Stress Levels ({stressEntries.length})
-                  </h2>
-                  <div className="space-y-2">
-                    {stressEntries.map((entry) => (
-                      <div 
-                        key={entry.id}
-                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-                      >
-                        <div className="w-10 h-10 bg-rose-50 rounded-lg flex items-center justify-center text-lg">
-                          🧘
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-stone-900">Stress: {entry.stressLevel}%</p>
-                          <p className="text-[10px] text-stone-400">{entry.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            (entry.stressLevel || 0) > 70 ? 'bg-red-100 text-red-600' : 
-                            (entry.stressLevel || 0) > 40 ? 'bg-amber-100 text-amber-600' : 
-                            'bg-emerald-100 text-emerald-600'
-                          }`}>
-                            {(entry.stressLevel || 0) > 70 ? 'High' : (entry.stressLevel || 0) > 40 ? 'Moderate' : 'Low'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Recovery Entries */}
-              {recoveryEntries.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center text-sm">💤</span>
-                    Recovery ({recoveryEntries.length})
-                  </h2>
-                  <div className="space-y-2">
-                    {recoveryEntries.map((entry) => (
-                      <div 
-                        key={entry.id}
-                        className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all"
-                      >
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
-                          (entry.recoveryScore || 0) >= 80 ? 'bg-emerald-50' : 
-                          (entry.recoveryScore || 0) >= 50 ? 'bg-amber-50' : 'bg-red-50'
-                        }`}>
-                          💤
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-stone-900">Recovery: {entry.recoveryScore}%</p>
-                          <p className="text-[10px] text-stone-400">{entry.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            (entry.recoveryScore || 0) >= 80 ? 'bg-emerald-100 text-emerald-600' : 
-                            (entry.recoveryScore || 0) >= 50 ? 'bg-amber-100 text-amber-600' : 
-                            'bg-red-100 text-red-600'
-                          }`}>
-                            {(entry.recoveryScore || 0) >= 80 ? 'Good' : (entry.recoveryScore || 0) >= 50 ? 'Fair' : 'Poor'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )
-        })()}
-
-        {/* Add Entry Button */}
-        <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">
-          + Log activity
-        </button>
       </div>
     </div>
   )
 }
+
 
 // Budget View Component
 function BudgetView() {
