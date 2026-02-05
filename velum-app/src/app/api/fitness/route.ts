@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
     // Validate type
     if (!['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
       return NextResponse.json(
-        { error: 'Type must be steps, run, swim, cycle, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
+        { error: 'Type must be steps, run, swim, cycle, jiujitsu, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
         { status: 400 }
       )
     }

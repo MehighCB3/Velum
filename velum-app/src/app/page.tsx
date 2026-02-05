@@ -107,6 +107,7 @@ interface FitnessWeek {
     runs: number
     swims: number
     cycles: number
+    jiujitsu: number
     totalDistance: number
     totalCalories: number
     runDistance: number
@@ -2017,7 +2018,7 @@ function FitnessView() {
   const runKm = fitnessData.totals.runDistance || 0
   const swimKm = fitnessData.totals.swimDistance || 0
   const cycleKm = fitnessData.totals.cycleDistance || 0
-  const jiujitsuSessions = (fitnessData.totals as any).jiujitsu || fitnessData.entries.filter(e => e.type === 'jiujitsu').length
+  const jiujitsuSessions = fitnessData.totals.jiujitsu || fitnessData.entries.filter(e => e.type === 'jiujitsu').length
 
   // Latest body metrics from advanced
   const latestHrv = fitnessData.advanced?.latestHrv || 0
@@ -2495,7 +2496,7 @@ function SpanishView() {
       await fetch('/api/spanish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'review', cardId: currentCard.id, rating }),
+        body: JSON.stringify({ action: 'review', cardId: currentCard.id, result: rating }),
       })
     } catch (err) {
       console.error('Failed to submit rating', err)
@@ -2507,7 +2508,7 @@ function SpanishView() {
       setCards([])
       setCurrentCardIndex(0)
     }
-    setProgress((prev: any) => prev ? { ...prev, reviewedToday: (prev.reviewedToday || 0) + 1, due: Math.max(0, (prev.due || 1) - 1) } : prev)
+    setProgress((prev: any) => prev ? { ...prev, reviewedToday: (prev.reviewedToday || 0) + 1 } : prev)
   }
 
   const handlePark = async () => {
@@ -2525,12 +2526,16 @@ function SpanishView() {
     setCards(remaining)
     setCurrentCardIndex(prev => Math.min(prev, remaining.length - 1))
     setFlipped(false)
-    setProgress((prev: any) => prev ? { ...prev, parked: (prev.parked || 0) + 1, due: Math.max(0, (prev.due || 1) - 1) } : prev)
+    setProgress((prev: any) => {
+      if (!prev) return prev
+      const stats = { ...prev.stats, parked_count: (prev.stats?.parked_count || 0) + 1 }
+      return { ...prev, stats }
+    })
   }
 
-  const handleExerciseSubmit = async (exerciseId: string) => {
-    const answer = exerciseAnswers[exerciseId]
-    if (!answer) return
+  const handleExerciseSubmit = async (exerciseId: string, directAnswer?: string) => {
+    const answer = directAnswer ?? exerciseAnswers[exerciseId]
+    if (answer === undefined || answer === '') return
     try {
       const res = await fetch('/api/spanish/exercises', {
         method: 'POST',
@@ -2565,7 +2570,9 @@ function SpanishView() {
     )
   }
 
-  const reviewedPct = progress ? Math.round(((progress.reviewedToday || 0) / Math.max(1, (progress.reviewedToday || 0) + (progress.due || 0))) * 100) : 0
+  const dueCount = progress?.stats ? (progress.stats.new_count + progress.stats.learning_count + progress.stats.review_count) : 0
+  const reviewedToday = progress?.reviewedToday || 0
+  const reviewedPct = progress ? Math.round((reviewedToday / Math.max(1, reviewedToday + dueCount)) * 100) : 0
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -2593,23 +2600,23 @@ function SpanishView() {
                 </defs>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-white">{progress?.reviewedToday || 0}</span>
+                <span className="text-xl font-bold text-white">{reviewedToday}</span>
                 <span className="text-[9px] text-stone-400 uppercase">reviewed</span>
               </div>
             </div>
             <div className="flex-1">
               <p className="text-xs text-stone-400 mb-1">Cards Due</p>
-              <p className="text-3xl font-bold text-white">{progress?.due || 0}</p>
-              <p className="text-xs text-stone-500">{progress?.active || 0} active &middot; {progress?.mastered || 0} mastered</p>
+              <p className="text-3xl font-bold text-white">{dueCount}</p>
+              <p className="text-xs text-stone-500">{progress?.stats?.learning_count || 0} learning &middot; {progress?.stats?.review_count || 0} review</p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-white">{progress?.total || 0}</p>
+              <p className="text-lg font-bold text-white">{progress?.stats?.total || 0}</p>
               <p className="text-[10px] text-stone-400 uppercase">Total</p>
             </div>
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-white">{progress?.parked || 0}</p>
+              <p className="text-lg font-bold text-white">{progress?.stats?.parked_count || 0}</p>
               <p className="text-[10px] text-stone-400 uppercase">Parked</p>
             </div>
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
@@ -2646,21 +2653,21 @@ function SpanishView() {
                 className="relative bg-white rounded-2xl shadow-sm border border-stone-200 p-8 min-h-[220px] flex flex-col items-center justify-center cursor-pointer select-none transition-all hover:shadow-md"
               >
                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.domain}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.difficulty}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.word_type}</span>
+                  {currentCard.tags?.[0] && <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.tags[0]}</span>}
                 </div>
                 {!flipped ? (
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-stone-900 mb-2">{currentCard.spanish}</p>
+                    <p className="text-2xl font-bold text-stone-900 mb-2">{currentCard.spanish_word}</p>
                     <p className="text-xs text-stone-400">Tap to reveal</p>
                   </div>
                 ) : (
                   <div className="text-center animate-in fade-in duration-200">
-                    <p className="text-lg font-semibold text-stone-700 mb-1">{currentCard.english}</p>
-                    {currentCard.example_es && (
+                    <p className="text-lg font-semibold text-stone-700 mb-1">{currentCard.english_translation}</p>
+                    {currentCard.example_sentence_spanish && (
                       <div className="mt-4 text-left bg-stone-50 rounded-xl p-4">
-                        <p className="text-sm text-stone-700 italic">&ldquo;{currentCard.example_es}&rdquo;</p>
-                        <p className="text-xs text-stone-400 mt-1">&ldquo;{currentCard.example_en}&rdquo;</p>
+                        <p className="text-sm text-stone-700 italic">&ldquo;{currentCard.example_sentence_spanish}&rdquo;</p>
+                        <p className="text-xs text-stone-400 mt-1">&ldquo;{currentCard.example_sentence_english}&rdquo;</p>
                       </div>
                     )}
                   </div>
@@ -2716,15 +2723,60 @@ function SpanishView() {
           ) : (
             exercises.map((ex: any) => {
               const fb = exerciseFeedback[ex.id]
+              const c = ex.content || {}
+              // Build display prompt based on exercise type
+              let prompt = ''
+              if (ex.type === 'verb_conjugation') {
+                prompt = `Conjugate "${c.verb}" (${c.hint}) in ${c.tense} for ${c.pronoun}`
+              } else if (ex.type === 'cloze') {
+                prompt = c.text || ''
+                if (c.hint) prompt += ` (${c.hint})`
+              } else if (ex.type === 'translation') {
+                prompt = `${c.direction === 'en-to-es' ? 'Translate to Spanish' : 'Translate to English'}: "${c.sourceText}"`
+                if (c.hint) prompt += ` (${c.hint})`
+              } else if (ex.type === 'grammar') {
+                prompt = c.question || ''
+              } else if (ex.type === 'writing') {
+                prompt = c.prompt || ''
+              }
               return (
                 <div key={ex.id} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium uppercase">
                       {exerciseTypeLabel(ex.type)}
                     </span>
+                    {ex.difficulty && <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{ex.difficulty}</span>}
                   </div>
-                  <p className="text-sm font-medium text-stone-800 mb-3">{ex.prompt || ex.question}</p>
-                  {ex.type === 'writing' ? (
+                  <p className="text-sm font-medium text-stone-800 mb-3">{prompt}</p>
+                  {ex.type === 'grammar' && c.options ? (
+                    <div className="grid grid-cols-2 gap-2 mb-1">
+                      {c.options.map((opt: string, i: number) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            if (!fb) {
+                              setExerciseAnswers(prev => ({ ...prev, [ex.id]: String(i) }))
+                              handleExerciseSubmit(ex.id, String(i))
+                            }
+                          }}
+                          disabled={!!fb}
+                          className={`py-2.5 px-3 rounded-xl text-sm font-medium border transition-colors ${
+                            fb
+                              ? i === ex.answer_key?.correct
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                : exerciseAnswers[ex.id] === String(i)
+                                  ? 'bg-red-50 border-red-300 text-red-700'
+                                  : 'bg-stone-50 border-stone-200 text-stone-400'
+                              : exerciseAnswers[ex.id] === String(i)
+                                ? 'bg-stone-900 border-stone-900 text-white'
+                                : 'bg-white border-stone-200 text-stone-700 hover:border-stone-300'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  ) : ex.type === 'writing' ? (
                     <textarea
                       value={exerciseAnswers[ex.id] || ''}
                       onChange={e => setExerciseAnswers(prev => ({ ...prev, [ex.id]: e.target.value }))}
@@ -2835,7 +2887,7 @@ function BooksView() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Books</h1>
-          <p className="text-sm text-stone-400">Weekly wisdom &amp; insights</p>
+          <p className="text-sm text-stone-400">Daily wisdom &amp; insights</p>
         </div>
       </div>
 
@@ -2847,7 +2899,7 @@ function BooksView() {
           </div>
           <div>
             <p className="text-white font-semibold text-lg">{data.currentDomain}</p>
-            <p className="text-stone-400 text-xs">Domain {data.domainIndex + 1}/{data.totalDomains}</p>
+            <p className="text-stone-400 text-xs">Domain {data.domainIndex}/{data.totalDomains}</p>
           </div>
         </div>
 
@@ -2857,7 +2909,7 @@ function BooksView() {
             <div
               key={i}
               className={`h-1.5 flex-1 rounded-full transition-all ${
-                i < data.domainIndex ? 'bg-amber-500' : i === data.domainIndex ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]' : 'bg-white/10'
+                i < data.domainIndex - 1 ? 'bg-amber-500' : i === data.domainIndex - 1 ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]' : 'bg-white/10'
               }`}
             />
           ))}
@@ -2965,7 +3017,7 @@ function Dashboard({
               {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : activeView === 'fitness' ? 'Fitness' : activeView === 'spanish' ? 'Spanish' : activeView === 'books' ? 'Books' : 'Velum'}
             </h1>
             <p className="text-xs text-stone-400 hidden sm:block">
-              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : activeView === 'fitness' ? 'Track your activity' : activeView === 'spanish' ? 'Flashcards & exercises' : activeView === 'books' ? 'Weekly wisdom & insights' : ''}
+              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : activeView === 'fitness' ? 'Track your activity' : activeView === 'spanish' ? 'Flashcards & exercises' : activeView === 'books' ? 'Daily wisdom & insights' : ''}
             </p>
           </div>
         </div>
