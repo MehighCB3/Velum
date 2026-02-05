@@ -4,10 +4,10 @@ A Notion-style personal assistant UI with AI-powered chat. Currently focused on 
 
 ## Features
 
-- 📊 **Nutrition Dashboard** - Track calories, protein, carbs, and fat
-- 🎯 **Daily Goals** - Set and monitor your macro targets  
-- 💬 **AI Chat** - Get meal suggestions and log food via conversation
-- 📁 **Notion-style Navigation** - Familiar folder structure
+- **Nutrition Dashboard** - Track calories, protein, carbs, and fat
+- **Daily Goals** - Set and monitor your macro targets
+- **AI Chat** - Get meal suggestions and log food via conversation
+- **Notion-style Navigation** - Familiar folder structure
 
 ## Quick Start (Local Development)
 
@@ -50,20 +50,23 @@ velum-app/
 └── next.config.js
 ```
 
-## Connecting to Moltbot (Optional)
+## Connecting to OpenClaw (Optional)
 
-The chat currently uses the Anthropic API directly. To connect to your Moltbot gateway instead:
+The chat uses the [OpenClaw](https://github.com/openclaw/openclaw) gateway for AI responses. To connect:
 
-1. Update the API endpoint in `page.tsx` to point to your gateway
-2. Use your gateway's WebSocket connection for real-time chat
+1. Install OpenClaw: `npm install -g openclaw@latest`
+2. Run onboarding: `openclaw onboard --install-daemon`
+3. Set `OPENCLAW_GATEWAY_TOKEN` and `GATEWAY_URL` in your environment
+
+See [OpenClaw docs](https://docs.openclaw.ai/start/getting-started) for full setup instructions.
 
 ## Roadmap
 
-- [ ] Persistent storage (save food logs)
-- [ ] Connect to Moltbot gateway
-- [ ] Coach dashboard
-- [ ] Assistant/tasks dashboard
-- [ ] Mobile responsive design
+- [x] Persistent storage (save food logs)
+- [x] Connect to OpenClaw gateway
+- [x] Coach dashboard
+- [x] Assistant/tasks dashboard
+- [x] Mobile responsive design
 - [ ] User authentication
 
 ## Tech Stack
@@ -71,7 +74,7 @@ The chat currently uses the Anthropic API directly. To connect to your Moltbot g
 - **Next.js 14** - React framework
 - **Tailwind CSS** - Styling
 - **Lucide React** - Icons
-- **Anthropic API** - AI chat (Claude)
+- **OpenClaw** - AI gateway (Claude)
 
 ## License
 

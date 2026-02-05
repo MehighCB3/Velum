@@ -1,6 +1,6 @@
 # Personal Assistant Kit
 
-A ready-to-use personal AI assistant built on [Moltbot](https://github.com/moltbot/moltbot). Covers coaching, nutrition, and everyday tasks.
+A ready-to-use personal AI assistant built on [OpenClaw](https://github.com/openclaw/openclaw). Covers coaching, nutrition, and everyday tasks.
 
 ## What's Included
 
@@ -8,7 +8,7 @@ A ready-to-use personal AI assistant built on [Moltbot](https://github.com/moltb
 personal-assistant-kit/
 ├── setup.sh                    # One-command installer
 ├── config/
-│   └── moltbot.json           # Base configuration
+│   └── openclaw.json           # Base configuration
 ├── workspace/
 │   ├── SOUL.md                # Assistant personality
 │   ├── AGENTS.md              # Behavioral rules
@@ -42,13 +42,13 @@ chmod +x setup.sh
 
 1. **Edit your profile:**
    ```bash
-   nano ~/clawd/USER.md
+   nano ~/.openclaw/workspace/USER.md
    ```
    Fill in your goals, preferences, and context.
 
 2. **Run onboarding:**
    ```bash
-   moltbot onboard --install-daemon
+   openclaw onboard --install-daemon
    ```
    This walks you through connecting your messaging channel.
 
@@ -74,19 +74,19 @@ chmod +x setup.sh
 ## Customization
 
 ### Adjust the personality
-Edit `~/clawd/SOUL.md` to change how the assistant communicates.
+Edit `~/.openclaw/workspace/SOUL.md` to change how the assistant communicates.
 
 ### Modify skills
-Edit files in `~/clawd/skills/` to change domain-specific behaviors.
+Edit files in `~/.openclaw/workspace/skills/` to change domain-specific behaviors.
 
 ### Add new skills
-Create a new folder in `~/clawd/skills/` with a `SKILL.md` file:
+Create a new folder in `~/.openclaw/workspace/skills/` with a `SKILL.md` file:
 ```
-~/clawd/skills/fitness/SKILL.md
+~/.openclaw/workspace/skills/fitness/SKILL.md
 ```
 
 ### Change the model
-Edit `~/.clawdbot/moltbot.json`:
+Edit `~/.openclaw/openclaw.json`:
 ```json
 {
   "agent": {
@@ -104,7 +104,7 @@ The assistant works through messaging apps you already use:
 - **Signal** — Privacy-focused option
 - **Discord/Slack** — If you live in these apps
 
-Run `moltbot channels login` to set up your preferred channel.
+Run `openclaw channels login` to set up your preferred channel.
 
 ## FAQ
 
@@ -115,23 +115,23 @@ No. Setup is copy-paste commands. Customization is editing text files.
 Yes. Everything runs locally on your machine. Messages go directly to your AI provider (Anthropic/OpenAI), not through any third party.
 
 **How much does it cost?**
-Moltbot is free. You pay for AI usage — either via API (~$0.01-0.10 per conversation) or a Claude Pro subscription ($20/month unlimited).
+OpenClaw is free. You pay for AI usage — either via API (~$0.01-0.10 per conversation) or a Claude Pro subscription ($20/month unlimited).
 
 **Can I run this on a server?**
-Yes. Works great on a Raspberry Pi or small VPS. See [Moltbot remote setup](https://docs.molt.bot/gateway/remote).
+Yes. Works great on a Raspberry Pi or small VPS. See [OpenClaw remote setup](https://docs.openclaw.ai/gateway/index).
 
 ## Troubleshooting
 
 ```bash
 # Check system health
-moltbot doctor
+openclaw doctor
 
 # View logs
-moltbot gateway --verbose
+openclaw gateway --verbose
 
 # Reset a channel connection
-moltbot channels logout whatsapp
-moltbot channels login
+openclaw channels logout whatsapp
+openclaw channels login
 ```
 
 ## Contributing
