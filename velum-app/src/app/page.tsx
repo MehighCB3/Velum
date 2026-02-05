@@ -46,6 +46,7 @@ interface FoodEntry {
   protein: number
   carbs: number
   fat: number
+  fiber?: number
   time: string
   date: string
   photoUrl?: string
@@ -711,22 +712,12 @@ function NutritionTodayView({
 }) {
   const [activeTab, setActiveTab] = useState('today')
   const [weekData, setWeekData] = useState<WeekDayData[]>([])
-  const [selectedMeal, setSelectedMeal] = useState<FoodEntry | null>(null)
-  const [mealDetailOpen, setMealDetailOpen] = useState(false)
-  const [editMealOpen, setEditMealOpen] = useState(false)
-  const [mealToEdit, setMealToEdit] = useState<FoodEntry | null>(null)
   const { entries, totals, goals } = nutritionData
   
-  const progress = Math.round((totals.calories / goals.calories) * 100)
   const remaining = goals.calories - totals.calories
-  const [animatedProgress, setAnimatedProgress] = useState(0)
+  const fiberTotal = entries.reduce((sum, e) => sum + (e.fiber || 0), 0)
   
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimatedProgress(progress), 100)
-    return () => clearTimeout(timer)
-  }, [progress])
-  
-  // Fetch 7-day data for bar chart
+  // Fetch 7-day data
   useEffect(() => {
     const fetchWeekData = async () => {
       try {
@@ -743,146 +734,183 @@ function NutritionTodayView({
     fetchWeekData()
   }, [])
   
-  const handleMealClick = (entry: FoodEntry) => {
-    setSelectedMeal(entry)
-    setMealDetailOpen(true)
+  // Meal emoji based on food name
+  const getMealEmoji = (name: string, time: string) => {
+    const lower = name.toLowerCase()
+    if (lower.includes('coffee') || lower.includes('tea') || lower.includes('latte') || lower.includes('cappuccino')) return '\u2615'
+    if (lower.includes('yogurt') || lower.includes('chia') || lower.includes('berry') || lower.includes('raspberry')) return '\uD83E\uDED0'
+    if (lower.includes('chicken')) return '\uD83C\uDF57'
+    if (lower.includes('salmon') || lower.includes('fish') || lower.includes('tuna')) return '\uD83C\uDF63'
+    if (lower.includes('apple')) return '\uD83C\uDF4E'
+    if (lower.includes('banana')) return '\uD83C\uDF4C'
+    if (lower.includes('salad') || lower.includes('veggie')) return '\uD83E\uDD57'
+    if (lower.includes('egg')) return '\uD83E\uDD5A'
+    if (lower.includes('bread') || lower.includes('toast') || lower.includes('sandwich')) return '\uD83E\uDD6A'
+    if (lower.includes('rice')) return '\uD83C\uDF5A'
+    if (lower.includes('pasta') || lower.includes('noodle')) return '\uD83C\uDF5D'
+    if (lower.includes('steak') || lower.includes('beef') || lower.includes('meat')) return '\uD83E\uDD69'
+    if (lower.includes('pizza')) return '\uD83C\uDF55'
+    if (lower.includes('soup')) return '\uD83C\uDF72'
+    if (lower.includes('smoothie') || lower.includes('shake') || lower.includes('protein')) return '\uD83E\uDD64'
+    if (lower.includes('nuts') || lower.includes('almond')) return '\uD83E\uDD5C'
+    if (lower.includes('oat') || lower.includes('cereal') || lower.includes('granola')) return '\uD83E\uDD63'
+    // Time-based fallback
+    const hour = parseInt(time.split(':')[0])
+    if (hour < 10) return '\uD83E\uDD63'
+    if (hour < 14) return '\uD83E\uDD57'
+    if (hour < 17) return '\uD83C\uDF4E'
+    return '\uD83C\uDF7D\uFE0F'
   }
   
-  const handleEditClick = (entry: FoodEntry, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setMealToEdit(entry)
-    setEditMealOpen(true)
-  }
-  
-  const handleSendEditToChat = (message: string) => {
-    onSendToChat(message)
+  // AI insight
+  const generateInsight = () => {
+    const parts: string[] = []
+    if (remaining > 0) {
+      parts.push(`You've got ${remaining} calories left today.`)
+    } else {
+      parts.push(`You're ${Math.abs(remaining)} calories over your goal today.`)
+    }
+    const proteinPct = Math.round((totals.protein / goals.protein) * 100)
+    const carbsPct = Math.round((totals.carbs / goals.carbs) * 100)
+    const fatPct = Math.round((totals.fat / goals.fat) * 100)
+    if (proteinPct < 50) {
+      parts.push('Protein is low \u2014 a chicken breast or Greek yogurt would help hit your target.')
+    } else if (fatPct > 90) {
+      parts.push('Fat intake is nearing your limit \u2014 consider lighter options for remaining meals.')
+    } else if (carbsPct < 40) {
+      parts.push('Carbs are low \u2014 some rice or whole grain bread could help balance your macros.')
+    } else {
+      parts.push('Your macros are looking balanced. Keep it up!')
+    }
+    return parts.join(' ')
   }
   
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-stone-100 rounded-lg mb-5 w-fit">
-        <button 
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Nutrition</h1>
+          <p className="text-sm text-stone-400">Track your daily intake</p>
+        </div>
+        <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-full shadow-sm hover:shadow-md transition-all">
+          + Log food
+        </button>
+      </div>
+
+      {/* Toggle */}
+      <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
+        <button
           onClick={() => setActiveTab('today')}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'today' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+            activeTab === 'today' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
+          }`}
         >
           Today
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('week')}
-          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${activeTab === 'week' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+            activeTab === 'week' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
+          }`}
         >
           Past 7 days
         </button>
       </div>
-      
-      {/* Hero Stats Card */}
-      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
-        </div>
-        <div className="relative">
-          <div className="flex items-center gap-5 mb-5">
-            {/* Ring */}
-            <div className="relative w-24 h-24 flex-shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
-                <circle 
-                  cx="50" cy="50" r="42" fill="none" stroke="url(#ringGrad)" strokeWidth="8" strokeLinecap="round"
-                  strokeDasharray={`${animatedProgress * 2.64} 264`}
-                  className="transition-all duration-1000 ease-out"
-                />
-                <defs>
-                  <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#f97316" />
-                    <stop offset="100%" stopColor="#ec4899" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-white">{totals.calories}</span>
-                <span className="text-[9px] text-stone-400 uppercase">kcal</span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-stone-400 mb-1">Remaining</p>
-              <p className="text-3xl font-bold text-white">{remaining}</p>
-              <p className="text-xs text-stone-500">of {goals.calories} kcal goal</p>
-            </div>
-          </div>
-          <div className="h-px bg-stone-700 mb-4" />
-          <div className="grid grid-cols-2 gap-5">
-            <MacroStat label="Protein" current={totals.protein} goal={goals.protein} color="from-amber-500 to-orange-500" />
-            <MacroStat label="Carbs" current={totals.carbs} goal={goals.carbs} color="from-emerald-500 to-teal-500" />
-          </div>
-        </div>
-      </div>
-      
-      {/* 7-Day Bar Chart - Only show on Today tab */}
-      {activeTab === 'today' && weekData.length > 0 && (
-        <SevenDayBarChart days={weekData} calorieGoal={goals.calories} />
-      )}
-      
-      {/* Content based on active tab */}
+
       {activeTab === 'today' ? (
         <>
-          {/* Meals */}
-          <div>
-            <h2 className="text-sm font-semibold text-stone-900 mb-3">Meals</h2>
+          {/* Dark Hero Card */}
+          <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+            {/* Top metrics row */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="text-center flex-1">
+                <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Goal</p>
+                <p className="text-sm font-bold text-orange-400">{goals.calories}</p>
+              </div>
+              <div className="text-center flex-1">
+                <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Remaining</p>
+                <p className="text-sm font-bold text-orange-400">{remaining}</p>
+              </div>
+              <div className="text-center flex-1">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fiber</p>
+                <p className="text-sm font-bold text-white">{fiberTotal > 0 ? `${fiberTotal}g` : '--'}</p>
+              </div>
+              <div className="text-center flex-1">
+                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Water</p>
+                <p className="text-sm font-bold text-white">--</p>
+              </div>
+            </div>
+
+            {/* Big calorie number */}
+            <div className="text-center mb-5">
+              <p className="text-6xl font-bold text-white tracking-tight">{totals.calories}</p>
+              <p className="text-sm text-stone-400 mt-1">Calories</p>
+            </div>
+
+            {/* Macro breakdown */}
+            <div className="flex items-center justify-center gap-6">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span className="text-sm text-stone-300">Protein <span className="font-semibold text-white">{totals.protein}</span> <span className="text-stone-500">/{goals.protein}g</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                <span className="text-sm text-stone-300">Carbs <span className="font-semibold text-white">{totals.carbs}</span> <span className="text-stone-500">/{goals.carbs}g</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                <span className="text-sm text-stone-300">Fat <span className="font-semibold text-white">{totals.fat}</span> <span className="text-stone-500">/{goals.fat}g</span></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Meals List */}
+          <div className="mb-5">
+            <h3 className="text-sm font-semibold text-stone-900 mb-3">Meals</h3>
+
             <div className="space-y-2">
               {entries.map((entry) => (
-                <div 
-                  key={entry.id} 
-                  onClick={() => handleMealClick(entry)}
-                  className="group flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all cursor-pointer"
-                >
-                  <div className="w-9 h-9 bg-stone-50 rounded-lg flex items-center justify-center text-base">
-                    🍽️
+                <div key={entry.id} className="flex items-center gap-3 p-3 bg-white border border-stone-100 rounded-xl hover:border-stone-200 transition-all">
+                  <div className="w-10 h-10 bg-stone-50 rounded-full flex items-center justify-center text-lg">
+                    {getMealEmoji(entry.name, entry.time)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-stone-900 truncate">{entry.name}</p>
-                    <p className="text-[10px] text-stone-400">{entry.time}</p>
+                    <p className="text-sm font-medium text-stone-900 truncate">{entry.name}</p>
+                    <p className="text-xs text-stone-400">{entry.time}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-stone-900">{entry.calories}</p>
-                      <p className="text-[10px] text-stone-400">kcal</p>
-                    </div>
-                    {/* Edit/Star button */}
-                    <button
-                      onClick={(e) => handleEditClick(entry, e)}
-                      className="p-1.5 text-stone-300 hover:text-amber-400 hover:bg-amber-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      title="Edit with AI"
-                    >
-                      <Star size={16} />
-                    </button>
-                  </div>
+                  <p className="text-sm font-semibold text-stone-900">{entry.calories} kcal</p>
                 </div>
               ))}
-              <button className="w-full p-3 border border-dashed border-stone-200 rounded-xl hover:border-stone-300 hover:bg-white transition-all text-sm text-stone-400 hover:text-stone-600">
-                + Add meal
-              </button>
+
+              {entries.length === 0 && (
+                <p className="text-stone-400 text-center py-8 text-sm border border-dashed border-stone-200 rounded-xl">
+                  No meals logged today
+                </p>
+              )}
+            </div>
+
+            <button className="w-full mt-3 p-3 text-sm text-orange-500 hover:text-orange-600 font-medium transition-colors">
+              + Add meal
+            </button>
+          </div>
+
+          {/* AI Insight Card */}
+          <div className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-100 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Sparkles size={16} className="text-violet-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-stone-900 mb-1">AI Insight</p>
+                <p className="text-xs text-stone-600 leading-relaxed">{generateInsight()}</p>
+              </div>
             </div>
           </div>
         </>
       ) : (
         <WeekView onDayClick={(day) => console.log('Selected:', day)} />
       )}
-      
-      {/* Modals */}
-      <MealDetailModal
-        entry={selectedMeal}
-        isOpen={mealDetailOpen}
-        onClose={() => setMealDetailOpen(false)}
-      />
-      
-      <EditMealModal
-        entry={mealToEdit}
-        isOpen={editMealOpen}
-        onClose={() => setEditMealOpen(false)}
-        onSendToChat={handleSendEditToChat}
-      />
     </div>
   )
 }
