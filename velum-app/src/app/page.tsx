@@ -2613,8 +2613,8 @@ function SpanishView() {
               <p className="text-[10px] text-stone-400 uppercase">Parked</p>
             </div>
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-white">{progress?.averageEase ? progress.averageEase.toFixed(1) : '—'}</p>
-              <p className="text-[10px] text-stone-400 uppercase">Avg Ease</p>
+              <p className="text-lg font-bold text-white">{Object.keys(exerciseFeedback).length}/{exercises.length}</p>
+              <p className="text-[10px] text-stone-400 uppercase">Exercises</p>
             </div>
           </div>
         </div>
@@ -2632,7 +2632,7 @@ function SpanishView() {
           onClick={() => setActiveTab('exercises')}
           className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === 'exercises' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
         >
-          Exercises {exercises.length > 0 && `(${exercises.length})`}
+          Exercises {exercises.length > 0 && `(${Object.keys(exerciseFeedback).length}/${exercises.length})`}
         </button>
       </div>
 
@@ -2867,11 +2867,11 @@ function BooksView() {
 
       {/* Cards Grid */}
       <div className="space-y-4">
-        {/* Weekly Principle Card */}
+        {/* Daily Principle Card */}
         <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <Star size={16} className="text-amber-500" />
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Weekly Principle</p>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Daily Principle</p>
           </div>
           <h3 className="text-lg font-bold text-stone-900 mb-2">{data.weekPrinciple.title}</h3>
           <p className="text-sm text-stone-600 leading-relaxed mb-3">{data.weekPrinciple.principle}</p>

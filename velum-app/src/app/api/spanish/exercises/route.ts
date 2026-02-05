@@ -181,6 +181,206 @@ const SEED_EXERCISES: Exercise[] = [
     },
     answer_key: { type: 'open' }, tags: ['past-tenses', 'travel']
   },
+
+  // === A2.1 Verb Conjugation (Regular -ar/-er/-ir: present, preterite, imperfect) ===
+  {
+    id: 'ex-v09', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'comprar', tense: 'preterite', pronoun: 'yo', hint: 'to buy' },
+    answer_key: { answer: 'compré' }, tags: ['preterite', 'regular']
+  },
+  {
+    id: 'ex-v10', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'comer', tense: 'present', pronoun: 'tú', hint: 'to eat' },
+    answer_key: { answer: 'comes' }, tags: ['present', 'regular']
+  },
+  {
+    id: 'ex-v11', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'vivir', tense: 'present', pronoun: 'él/ella', hint: 'to live' },
+    answer_key: { answer: 'vive' }, tags: ['present', 'regular']
+  },
+  {
+    id: 'ex-v12', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'hablar', tense: 'imperfect', pronoun: 'nosotros', hint: 'to speak' },
+    answer_key: { answer: 'hablábamos' }, tags: ['imperfect', 'regular']
+  },
+  {
+    id: 'ex-v13', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'escribir', tense: 'preterite', pronoun: 'yo', hint: 'to write' },
+    answer_key: { answer: 'escribí' }, tags: ['preterite', 'regular']
+  },
+  {
+    id: 'ex-v14', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'beber', tense: 'present', pronoun: 'ellos', hint: 'to drink' },
+    answer_key: { answer: 'beben' }, tags: ['present', 'regular']
+  },
+  {
+    id: 'ex-v15', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'estudiar', tense: 'preterite', pronoun: 'tú', hint: 'to study' },
+    answer_key: { answer: 'estudiaste' }, tags: ['preterite', 'regular']
+  },
+  {
+    id: 'ex-v16', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'cocinar', tense: 'imperfect', pronoun: 'yo', hint: 'to cook' },
+    answer_key: { answer: 'cocinaba' }, tags: ['imperfect', 'regular']
+  },
+  {
+    id: 'ex-v17', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'abrir', tense: 'preterite', pronoun: 'él/ella', hint: 'to open' },
+    answer_key: { answer: 'abrió' }, tags: ['preterite', 'regular']
+  },
+  {
+    id: 'ex-v18', type: 'verb_conjugation', difficulty: 'A2',
+    content: { verb: 'cerrar', tense: 'present', pronoun: 'nosotros', hint: 'to close' },
+    answer_key: { answer: 'cerramos' }, tags: ['present', 'stem-change']
+  },
+
+  // === A2.1 Cloze (reflexives, gustar, present progressive) ===
+  {
+    id: 'ex-c07', type: 'cloze', difficulty: 'A2',
+    content: { text: 'Yo ____ (levantarse) a las siete de la mañana.', hint: 'reflexive verb, present tense' },
+    answer_key: { answer: 'me levanto' }, tags: ['reflexive', 'present']
+  },
+  {
+    id: 'ex-c08', type: 'cloze', difficulty: 'A2',
+    content: { text: 'Ella ____ (ducharse) después de correr.', hint: 'reflexive verb, present tense' },
+    answer_key: { answer: 'se ducha' }, tags: ['reflexive', 'present']
+  },
+  {
+    id: 'ex-c09', type: 'cloze', difficulty: 'A2',
+    content: { text: 'Los niños ____ (acostarse) a las nueve.', hint: 'reflexive verb, present tense (o→ue stem change)' },
+    answer_key: { answer: 'se acuestan' }, tags: ['reflexive', 'stem-change']
+  },
+  {
+    id: 'ex-c10', type: 'cloze', difficulty: 'A2',
+    content: { text: 'A mí ____ (gustar) mucho la música.', hint: 'gustar construction, singular' },
+    answer_key: { answer: 'me gusta' }, tags: ['gustar', 'present']
+  },
+  {
+    id: 'ex-c11', type: 'cloze', difficulty: 'A2',
+    content: { text: 'A ellos ____ (gustar) los deportes.', hint: 'gustar construction, plural noun' },
+    answer_key: { answer: 'les gustan' }, tags: ['gustar', 'present']
+  },
+  {
+    id: 'ex-c12', type: 'cloze', difficulty: 'A2',
+    content: { text: 'Ella ____ (estar + leer) un libro ahora mismo.', hint: 'present progressive (estar + gerund)' },
+    answer_key: { answer: 'está leyendo' }, tags: ['progressive', 'gerund']
+  },
+
+  // === A2.1 Translation (daily life, directions, shopping, descriptions) ===
+  {
+    id: 'ex-t05', type: 'translation', difficulty: 'A2',
+    content: { direction: 'en-to-es', sourceText: 'I bought a new car yesterday.', hint: 'pretérito indefinido' },
+    answer_key: { answers: ['Compré un coche nuevo ayer.', 'Ayer compré un coche nuevo.'] }, tags: ['preterite']
+  },
+  {
+    id: 'ex-t06', type: 'translation', difficulty: 'A2',
+    content: { direction: 'en-to-es', sourceText: 'Where is the nearest pharmacy?', hint: 'question with estar' },
+    answer_key: { answers: ['¿Dónde está la farmacia más cercana?', '¿Dónde queda la farmacia más cercana?'] }, tags: ['directions', 'questions']
+  },
+  {
+    id: 'ex-t07', type: 'translation', difficulty: 'A2',
+    content: { direction: 'en-to-es', sourceText: 'How much does this shirt cost?', hint: 'costar, present tense' },
+    answer_key: { answers: ['¿Cuánto cuesta esta camisa?', '¿Cuánto vale esta camisa?'] }, tags: ['shopping', 'questions']
+  },
+  {
+    id: 'ex-t08', type: 'translation', difficulty: 'A2',
+    content: { direction: 'en-to-es', sourceText: 'My sister is tall and has brown hair.', hint: 'ser for descriptions, tener for hair' },
+    answer_key: { answers: ['Mi hermana es alta y tiene el pelo castaño.', 'Mi hermana es alta y tiene pelo marrón.'] }, tags: ['descriptions', 'ser-estar']
+  },
+  {
+    id: 'ex-t09', type: 'translation', difficulty: 'A2',
+    content: { direction: 'en-to-es', sourceText: 'I usually eat lunch at two o\'clock.', hint: 'soler or normalmente + almorzar' },
+    answer_key: { answers: ['Normalmente almuerzo a las dos.', 'Suelo almorzar a las dos.'] }, tags: ['daily-life', 'habits']
+  },
+  {
+    id: 'ex-t10', type: 'translation', difficulty: 'A2',
+    content: { direction: 'en-to-es', sourceText: 'Can you tell me how to get to the train station?', hint: 'poder + decir + cómo llegar' },
+    answer_key: { answers: ['¿Puedes decirme cómo llegar a la estación de tren?', '¿Puede decirme cómo llegar a la estación de tren?'] }, tags: ['directions', 'polite']
+  },
+
+  // === A2.1 Grammar Quiz (ser/estar, object pronouns, por/para, preterite vs imperfect) ===
+  {
+    id: 'ex-g06', type: 'grammar', difficulty: 'A2',
+    content: {
+      topic: 'ser-vs-estar',
+      question: 'Ella ____ contenta hoy.',
+      options: ['es', 'está', 'son', 'están'],
+      explanation: '"Estar" is used for temporary emotions and states. She is happy today (a temporary feeling).'
+    },
+    answer_key: { correct: 1 }, tags: ['ser-estar']
+  },
+  {
+    id: 'ex-g07', type: 'grammar', difficulty: 'A2',
+    content: {
+      topic: 'ser-vs-estar',
+      question: 'La fiesta ____ en mi casa.',
+      options: ['es', 'está', 'son', 'están'],
+      explanation: '"Ser" is used for the location of events. "Estar" is for physical location of objects/people, but events use "ser".'
+    },
+    answer_key: { correct: 0 }, tags: ['ser-estar']
+  },
+  {
+    id: 'ex-g08', type: 'grammar', difficulty: 'A2',
+    content: {
+      topic: 'object-pronouns',
+      question: 'Yo ____ doy el regalo a María.',
+      options: ['la', 'lo', 'le', 'les'],
+      explanation: '"Le" is the indirect object pronoun for "a María" (to her). Indirect object pronouns indicate to whom something is given.'
+    },
+    answer_key: { correct: 2 }, tags: ['object-pronouns']
+  },
+  {
+    id: 'ex-g09', type: 'grammar', difficulty: 'A2',
+    content: {
+      topic: 'por-vs-para',
+      question: 'Estudio español ____ mi trabajo.',
+      options: ['por', 'para', 'de', 'en'],
+      explanation: '"Para" is used to express purpose or goal. Studying Spanish for (the purpose of) my job.'
+    },
+    answer_key: { correct: 1 }, tags: ['por-para']
+  },
+  {
+    id: 'ex-g10', type: 'grammar', difficulty: 'A2',
+    content: {
+      topic: 'preterite-vs-imperfect',
+      question: 'Cuando era niño, ____ al parque todos los días.',
+      options: ['fui', 'iba', 'voy', 'iré'],
+      explanation: 'The imperfect tense "iba" is used for habitual or repeated actions in the past (used to go every day).'
+    },
+    answer_key: { correct: 1 }, tags: ['preterite-imperfect']
+  },
+
+  // === A2.1 Writing Prompts ===
+  {
+    id: 'ex-w03', type: 'writing', difficulty: 'A2',
+    content: {
+      prompt: 'Describe tu casa o apartamento. ¿Cuántas habitaciones tiene? ¿Cómo es tu habitación favorita?',
+      minWords: 20,
+      suggestedVocabulary: ['habitación', 'cocina', 'baño', 'salón', 'grande', 'pequeño', 'ventana', 'muebles'],
+      exampleAnswer: 'Vivo en un apartamento pequeño. Tiene dos habitaciones, una cocina y un baño. Mi habitación favorita es el salón porque tiene una ventana grande y mucha luz.'
+    },
+    answer_key: { type: 'open' }, tags: ['descriptions', 'house']
+  },
+  {
+    id: 'ex-w04', type: 'writing', difficulty: 'A2',
+    content: {
+      prompt: 'Describe a tu mejor amigo o amiga. ¿Cómo es físicamente? ¿Cómo es su personalidad?',
+      minWords: 20,
+      suggestedVocabulary: ['alto', 'bajo', 'pelo', 'ojos', 'simpático', 'divertido', 'amable', 'inteligente'],
+      exampleAnswer: 'Mi mejor amiga se llama Laura. Es alta y tiene el pelo largo y castaño. Tiene los ojos verdes. Es muy simpática y divertida. Siempre me hace reír.'
+    },
+    answer_key: { type: 'open' }, tags: ['descriptions', 'people']
+  },
+  {
+    id: 'ex-w05', type: 'writing', difficulty: 'A2',
+    content: {
+      prompt: '¿Qué hiciste el fin de semana pasado? Escribe sobre tus actividades usando el pretérito.',
+      minWords: 20,
+      suggestedVocabulary: ['sábado', 'domingo', 'salir', 'comer', 'ver', 'jugar', 'descansar', 'pasear'],
+      exampleAnswer: 'El sábado salí con mis amigos. Comimos en un restaurante italiano y después vimos una película. El domingo descansé en casa y paseé por el parque.'
+    },
+    answer_key: { type: 'open' }, tags: ['preterite', 'weekend']
+  },
 ]
 
 // ==================== API HANDLERS ====================

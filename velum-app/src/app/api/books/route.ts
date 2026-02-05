@@ -85,6 +85,27 @@ const SEED_CAPTURES: RawCapture[] = [
   { id: 'rc-08', domain: 'Creativity', text: '"Creativity is just connecting things. When you ask creative people how they did something, they feel a little guilty because they didn\'t really do it, they just saw something."', source: 'Steve Jobs', type: 'quote' },
   { id: 'rc-09', domain: 'Decision Making', text: '"All I want to know is where I\'m going to die, so I\'ll never go there."', source: 'Poor Charlie\'s Almanack — Charlie Munger', type: 'quote' },
   { id: 'rc-10', domain: 'Systems Thinking', text: '"Today\'s problems come from yesterday\'s \'solutions.\'"', source: 'The Fifth Discipline — Peter Senge', type: 'quote' },
+  // === Additional captures for daily variety ===
+  { id: 'rc-11', domain: 'Deep Work', text: '"To produce at your peak level you need to work for extended periods with full concentration on a single task free from distraction."', source: 'Deep Work — Cal Newport', type: 'quote' },
+  { id: 'rc-12', domain: 'Deep Work', text: '"Who you are, what you think, feel, and do, what you love — is the sum of what you focus on."', source: 'Rapt — Winifred Gallagher', type: 'quote' },
+  { id: 'rc-13', domain: 'Mastery', text: '"The future belongs to those who learn more skills and combine them in creative ways."', source: 'Mastery — Robert Greene', type: 'quote' },
+  { id: 'rc-14', domain: 'Mastery', text: '"An apprenticeship is not about learning a craft; it is about changing yourself."', source: 'Mastery — Robert Greene', type: 'quote' },
+  { id: 'rc-15', domain: 'Psychology', text: '"A reliable way to make people believe in falsehoods is frequent repetition, because familiarity is not easily distinguished from truth."', source: 'Thinking, Fast and Slow — Daniel Kahneman', type: 'quote' },
+  { id: 'rc-16', domain: 'Psychology', text: '"Between stimulus and response there is a space. In that space is our power to choose our response."', source: 'Man\'s Search for Meaning — Viktor Frankl', type: 'quote' },
+  { id: 'rc-17', domain: 'Leadership', text: '"Great leaders don\'t need to act tough. Their confidence and humility serve to underscore their toughness."', source: 'Leaders Eat Last — Simon Sinek', type: 'quote' },
+  { id: 'rc-18', domain: 'Leadership', text: '"The task of leadership is not to put greatness into people, but to elicit it, for the greatness is there already."', source: 'John Buchan', type: 'quote' },
+  { id: 'rc-19', domain: 'Mindfulness', text: '"The present moment is filled with joy and happiness. If you are attentive, you will see it."', source: 'Peace Is Every Step — Thich Nhat Hanh', type: 'quote' },
+  { id: 'rc-20', domain: 'Mindfulness', text: '"Almost everything will work again if you unplug it for a few minutes, including you."', source: 'Anne Lamott', type: 'quote' },
+  { id: 'rc-21', domain: 'Business', text: '"Your margin is my opportunity."', source: 'Jeff Bezos', type: 'quote' },
+  { id: 'rc-22', domain: 'Business', text: '"The best time to plant a tree was 20 years ago. The second best time is now."', source: 'Chinese Proverb (often cited in The Lean Startup)', type: 'quote' },
+  { id: 'rc-23', domain: 'Communication', text: '"Most people do not listen with the intent to understand; they listen with the intent to reply."', source: 'The 7 Habits of Highly Effective People — Stephen Covey', type: 'quote' },
+  { id: 'rc-24', domain: 'Communication', text: '"The art of communication is the language of leadership."', source: 'James Humes', type: 'quote' },
+  { id: 'rc-25', domain: 'Creativity', text: '"The chief enemy of creativity is good sense."', source: 'Pablo Picasso', type: 'quote' },
+  { id: 'rc-26', domain: 'Creativity', text: '"You can\'t use up creativity. The more you use, the more you have."', source: 'Maya Angelou', type: 'quote' },
+  { id: 'rc-27', domain: 'Decision Making', text: '"Whenever you see a successful business, someone once made a courageous decision."', source: 'Peter Drucker', type: 'quote' },
+  { id: 'rc-28', domain: 'Decision Making', text: '"In any moment of decision, the best thing you can do is the right thing. The worst thing you can do is nothing."', source: 'Theodore Roosevelt', type: 'quote' },
+  { id: 'rc-29', domain: 'Systems Thinking', text: '"You never change things by fighting the existing reality. To change something, build a new model that makes the existing model obsolete."', source: 'Buckminster Fuller', type: 'quote' },
+  { id: 'rc-30', domain: 'Systems Thinking', text: '"The structure of a system determines its behavior. System structure is the source of system behavior."', source: 'Thinking in Systems — Donella Meadows', type: 'quote' },
 ]
 
 // ==================== NOTION INTEGRATION ====================
@@ -217,7 +238,8 @@ export async function GET(request: NextRequest) {
         contextInsight: insight,
         rawCapture: dailyCapture,
         allDomains: KNOWLEDGE_DOMAINS,
-        source: notionData ? 'notion' : 'seed'
+        source: notionData ? 'notion' : 'seed',
+        rotationNote: 'Quotes and principles rotate daily'
       })
     }
 
