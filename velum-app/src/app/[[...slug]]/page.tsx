@@ -184,8 +184,8 @@ function SevenDayBarChart({ days, calorieGoal = 2000 }: { days: WeekDayData[], c
                   title={`${day.totals.calories} kcal`}
                 />
               </div>
-              <span className="text-[10px] text-stone-500 font-medium">{day.dayName}</span>
-              <span className="text-[9px] text-stone-400">{day.totals.calories}</span>
+              <span className="text-xs text-stone-500 font-medium">{day.dayName}</span>
+              <span className="text-[10px] sm:text-xs text-stone-400">{day.totals.calories}</span>
             </div>
           )
         })}
@@ -329,7 +329,7 @@ function Sidebar({
               onClose()
             }
           }}
-          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all group
+          className={`w-full flex items-center gap-2 px-2 py-2.5 rounded-lg text-sm transition-all group min-h-[44px]
             ${isActive ? 'bg-orange-100 text-orange-700' : 'text-stone-600 hover:bg-stone-100'}`}
           style={{ paddingLeft: `${8 + depth * 12}px` }}
         >
@@ -384,7 +384,7 @@ function Sidebar({
           <span className="font-semibold text-stone-800">Velum</span>
           <button 
             onClick={onClose}
-            className="ml-auto lg:hidden p-1.5 hover:bg-stone-200 rounded-lg"
+            className="ml-auto lg:hidden p-2.5 hover:bg-stone-200 rounded-lg"
           >
             <X size={18} className="text-stone-500" />
           </button>
@@ -392,7 +392,7 @@ function Sidebar({
         
         {/* Search */}
         <div className="px-3 py-3">
-          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-400 hover:bg-stone-200/50 rounded-lg transition-colors">
+          <button className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-stone-400 hover:bg-stone-200/50 rounded-lg transition-colors min-h-[44px]">
             <Search size={16} />
             <span>Search</span>
           </button>
@@ -400,7 +400,7 @@ function Sidebar({
         
         {/* Navigation */}
         <div className="flex-1 overflow-auto px-3 pb-4">
-          <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider px-2 mb-2">
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider px-2 mb-2">
             WORKSPACE
           </p>
           <nav className="space-y-0.5">
@@ -410,7 +410,7 @@ function Sidebar({
         
         {/* Settings */}
         <div className="p-3 border-t border-stone-200/50">
-          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-500 hover:bg-stone-200/50 rounded-lg transition-colors">
+          <button className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-stone-500 hover:bg-stone-200/50 rounded-lg transition-colors min-h-[44px]">
             <Settings size={16} />
             <span>Settings</span>
           </button>
@@ -518,7 +518,7 @@ function NutritionTodayView({
       <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
         <button
           onClick={() => setActiveTab('today')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all min-h-[44px] ${
             activeTab === 'today' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
           }`}
         >
@@ -526,7 +526,7 @@ function NutritionTodayView({
         </button>
         <button
           onClick={() => setActiveTab('week')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all min-h-[44px] ${
             activeTab === 'week' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
           }`}
         >
@@ -539,33 +539,33 @@ function NutritionTodayView({
           {/* Dark Hero Card */}
           <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
             {/* Top metrics row */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-center flex-1">
-                <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Goal</p>
+            <div className="grid grid-cols-4 gap-2 mb-6">
+              <div className="text-center">
+                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Goal</p>
                 <p className="text-sm font-bold text-orange-400">{goals.calories}</p>
               </div>
-              <div className="text-center flex-1">
-                <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Remaining</p>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Left</p>
                 <p className="text-sm font-bold text-orange-400">{remaining}</p>
               </div>
-              <div className="text-center flex-1">
-                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fiber</p>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fiber</p>
                 <p className="text-sm font-bold text-white">{fiberTotal > 0 ? `${fiberTotal}g` : '--'}</p>
               </div>
-              <div className="text-center flex-1">
-                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Water</p>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Water</p>
                 <p className="text-sm font-bold text-white">--</p>
               </div>
             </div>
 
             {/* Big calorie number */}
             <div className="text-center mb-5">
-              <p className="text-6xl font-bold text-white tracking-tight">{totals.calories}</p>
+              <p className="text-5xl sm:text-6xl font-bold text-white tracking-tight">{totals.calories}</p>
               <p className="text-sm text-stone-400 mt-1">Calories</p>
             </div>
 
             {/* Macro breakdown */}
-            <div className="flex items-center justify-center gap-6">
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                 <span className="text-sm text-stone-300">Protein <span className="font-semibold text-white">{totals.protein}</span> <span className="text-stone-500">/{goals.protein}g</span></span>
@@ -754,7 +754,7 @@ function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-[9px] font-medium">{Math.min(progress, 100)}%</span>
+                  <span className="text-[10px] font-medium">{Math.min(progress, 100)}%</span>
                 </div>
               </div>
               
@@ -1070,7 +1070,7 @@ function GoalsView() {
       <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
         <button
           onClick={() => setGoalsTab('life')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all min-h-[44px] ${
             goalsTab === 'life' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500 hover:text-stone-700'
           }`}
         >
@@ -1078,7 +1078,7 @@ function GoalsView() {
         </button>
         <button
           onClick={() => setGoalsTab('goals')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all min-h-[44px] ${
             goalsTab === 'goals' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500 hover:text-stone-700'
           }`}
         >
@@ -1104,7 +1104,7 @@ function GoalsView() {
               <div className="flex bg-stone-700/50 rounded-lg p-0.5">
                 <button
                   onClick={() => { setZoomLevel('macro'); setExpandedYear(null) }}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     zoomLevel === 'macro'
                       ? 'bg-stone-600 text-white'
                       : 'text-stone-400 hover:text-stone-300'
@@ -1114,7 +1114,7 @@ function GoalsView() {
                 </button>
                 <button
                   onClick={() => setZoomLevel('micro')}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     zoomLevel === 'micro'
                       ? 'bg-stone-600 text-white'
                       : 'text-stone-400 hover:text-stone-300'
@@ -1134,7 +1134,7 @@ function GoalsView() {
 
           {/* Big weeks remaining display */}
           <div className="text-center mb-4">
-            <p className="text-5xl font-bold text-white tracking-tight">{weeksRemaining.toLocaleString()}</p>
+            <p className="text-4xl sm:text-5xl font-bold text-white tracking-tight">{weeksRemaining.toLocaleString()}</p>
             <p className="text-xs text-stone-400 uppercase tracking-wider mt-1">weeks remaining</p>
           </div>
 
@@ -1143,7 +1143,7 @@ function GoalsView() {
             {phases.map(phase => (
               <div key={phase.name} className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: phase.color }} />
-                <span className="text-[9px] text-stone-400">{phase.name}</span>
+                <span className="text-[10px] sm:text-xs text-stone-400">{phase.name}</span>
               </div>
             ))}
           </div>
@@ -1151,7 +1151,7 @@ function GoalsView() {
           {/* Weeks visualization */}
           {zoomLevel === 'macro' ? (
             <div className="mb-4">
-              <p className="text-[10px] text-stone-500 text-center mb-2">Click any year to see its weeks</p>
+              <p className="text-xs text-stone-500 text-center mb-2">Click any year to see its weeks</p>
               <div className="max-h-[calc(100vh-360px)] overflow-y-auto space-y-px pr-1 scrollbar-thin">
                 {Array.from({ length: formData.lifeExpectancy + 1 }, (_, year) => {
                   const phase = getPhase(year)
@@ -1166,7 +1166,7 @@ function GoalsView() {
                         onClick={() => setExpandedYear(isExpanded ? null : year)}
                         className="w-full flex items-center gap-2 py-0.5 group"
                       >
-                        <span className={`text-[9px] w-5 text-right tabular-nums ${isCurrent ? 'text-white font-bold' : 'text-stone-500'}`}>
+                        <span className={`text-[10px] sm:text-xs w-6 text-right tabular-nums ${isCurrent ? 'text-white font-bold' : 'text-stone-500'}`}>
                           {year}
                         </span>
                         <div className="flex-1 h-2.5 bg-stone-700/30 rounded-full overflow-hidden relative">
@@ -1203,10 +1203,10 @@ function GoalsView() {
                       </button>
                       {isExpanded && (
                         <div className="ml-7 my-1 p-2 bg-stone-800/50 rounded-lg">
-                          <p className="text-[9px] text-stone-400 mb-1.5">
+                          <p className="text-xs text-stone-400 mb-1.5">
                             Age {year} &middot; {phase?.name || 'Life'} &middot; 52 weeks
                           </p>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(26, 1fr)', gap: '2px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(13, 1fr)', gap: '3px' }}>
                             {Array.from({ length: 52 }, (_, w) => {
                               const weekNum = w + 1
                               const isWeekLived = isLived || (isCurrent && weekNum <= currentWeekOfYear)
@@ -1244,10 +1244,10 @@ function GoalsView() {
                   <div key={phase.name} className="mb-3">
                     <div className="flex items-center gap-1.5 mb-1">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: phase.color }} />
-                      <span className="text-[10px] text-stone-300 font-medium">{phase.name}</span>
-                      <span className="text-[9px] text-stone-500">({phase.start}-{phase.end})</span>
+                      <span className="text-xs text-stone-300 font-medium">{phase.name}</span>
+                      <span className="text-[10px] sm:text-xs text-stone-500">({phase.start}-{phase.end})</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(52, 1fr)', gap: '1px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(26, 1fr)', gap: '1px' }}>
                       {Array.from({ length: totalWeeks }, (_, i) => {
                         const yearOffset = Math.floor(i / 52)
                         const weekInYear = (i % 52) + 1
@@ -1287,7 +1287,7 @@ function GoalsView() {
                 <button
                   key={h.key}
                   onClick={() => setTimelineHorizon(h.key)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  className={`px-3 py-2 rounded-full text-xs font-medium transition-all min-h-[36px] ${
                     timelineHorizon === h.key
                       ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                       : 'text-stone-400 hover:text-stone-300 border border-transparent'
@@ -1336,7 +1336,7 @@ function GoalsView() {
             <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-xs">&#9203;</span>
             </div>
-            <p className="text-[10px] text-stone-500 leading-relaxed">{text}</p>
+            <p className="text-xs text-stone-500 leading-relaxed">{text}</p>
           </div>
         )
       })()}
@@ -1346,14 +1346,14 @@ function GoalsView() {
         <div className="bg-white border border-stone-100 rounded-xl p-4 mb-6">
           <h3 className="font-medium text-stone-900 mb-4">Profile Settings</h3>
           <form onSubmit={saveProfile} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-stone-600 mb-1">Birth Date</label>
                 <input
                   type="date"
                   value={formData.birthDate}
                   onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                  className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm min-h-[44px]"
                 />
               </div>
               <div>
@@ -1362,18 +1362,18 @@ function GoalsView() {
                   type="text"
                   value={formData.country}
                   onChange={(e) => setFormData({...formData, country: e.target.value})}
-                  className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                  className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm min-h-[44px]"
                 />
               </div>
             </div>
             <div className="flex gap-2">
-              <button type="submit" className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm">
+              <button type="submit" className="px-4 py-2.5 bg-stone-900 text-white rounded-lg text-sm min-h-[44px]">
                 Save Changes
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowSettings(false)}
-                className="px-4 py-2 text-stone-600 text-sm"
+                className="px-4 py-2.5 text-stone-600 text-sm min-h-[44px]"
               >
                 Cancel
               </button>
@@ -1391,7 +1391,7 @@ function GoalsView() {
         <h2 className="text-lg font-bold text-stone-900">Goals</h2>
         <button
           onClick={() => setShowAddGoal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-full shadow-sm hover:shadow-md transition-all"
+          className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-full shadow-sm hover:shadow-md transition-all min-h-[44px]"
         >
           + Add Goal
         </button>
@@ -1559,11 +1559,11 @@ function GoalsView() {
                 {!isBucket && (goal.keyMetric || goal.targetValue > 0) && (
                   <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-stone-50 rounded-lg">
                     <div>
-                      <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold mb-0.5">Metric</p>
+                      <p className="text-xs text-stone-400 uppercase tracking-wider font-semibold mb-0.5">Metric</p>
                       <p className="text-sm font-medium text-stone-800">{goal.keyMetric || '\u2014'}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold mb-0.5">Goal</p>
+                      <p className="text-xs text-stone-400 uppercase tracking-wider font-semibold mb-0.5">Goal</p>
                       <p className="text-sm font-medium text-stone-800">
                         {goal.targetValue > 0 ? `${goal.targetValue.toLocaleString()} ${goal.unit}` : '\u2014'}
                       </p>
@@ -1594,14 +1594,14 @@ function GoalsView() {
                     <div className="flex items-center justify-center gap-3 mt-2.5">
                       <button
                         onClick={() => updateProgress(goal.id, -1)}
-                        className="w-7 h-7 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors text-sm font-medium"
+                        className="w-10 h-10 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors text-sm font-medium"
                       >
                         \u2212
                       </button>
                       <span className="text-[11px] text-stone-400">Adjust progress</span>
                       <button
                         onClick={() => updateProgress(goal.id, 1)}
-                        className="w-7 h-7 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors text-sm font-medium"
+                        className="w-10 h-10 flex items-center justify-center bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-600 transition-colors text-sm font-medium"
                       >
                         +
                       </button>
@@ -1774,7 +1774,7 @@ function FitnessView() {
       <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
         <button
           onClick={() => setViewMode('today')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all min-h-[44px] ${
             viewMode === 'today' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
           }`}
         >
@@ -1782,7 +1782,7 @@ function FitnessView() {
         </button>
         <button
           onClick={() => setViewMode('week')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all min-h-[44px] ${
             viewMode === 'week' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'
           }`}
         >
@@ -1793,33 +1793,33 @@ function FitnessView() {
       {/* Dark Hero Card */}
       <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
         {/* Metrics pills row */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="text-center flex-1">
-            <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider mb-0.5">HRV</p>
+        <div className="grid grid-cols-4 gap-2 mb-6">
+          <div className="text-center">
+            <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">HRV</p>
             <p className="text-sm font-bold text-white">{latestHrv || '--'} <span className="text-[10px] text-stone-500 font-normal">ms</span></p>
           </div>
-          <div className="text-center flex-1">
-            <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-0.5">VO&#8322;</p>
+          <div className="text-center">
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-0.5">VO&#8322;</p>
             <p className="text-sm font-bold text-white">{latestVo2 || '--'}</p>
           </div>
-          <div className="text-center flex-1">
-            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Weight</p>
+          <div className="text-center">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Weight</p>
             <p className="text-sm font-bold text-white">{latestWeight || '--'} <span className="text-[10px] text-stone-500 font-normal">kg</span></p>
           </div>
-          <div className="text-center flex-1">
-            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fat</p>
+          <div className="text-center">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fat</p>
             <p className="text-sm font-bold text-white">{latestFat || '--'}<span className="text-[10px] text-stone-500 font-normal">%</span></p>
           </div>
         </div>
 
         {/* Big kilometer number */}
         <div className="text-center mb-5">
-          <p className="text-6xl font-bold text-white tracking-tight">{Math.round(totalKm)}</p>
+          <p className="text-5xl sm:text-6xl font-bold text-white tracking-tight">{Math.round(totalKm)}</p>
           <p className="text-sm text-stone-400 mt-1">Kilometers</p>
         </div>
 
         {/* Activity type breakdown */}
-        <div className="flex items-center justify-center gap-6">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">{'\u{1F6B4}'}</span>
             <span className="text-sm text-stone-300">{cycleKm.toFixed(1)} km</span>
@@ -2055,7 +2055,7 @@ function BudgetView() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-xl font-bold text-white">€{totalSpent}</span>
-                <span className="text-[9px] text-stone-400 uppercase">spent</span>
+                <span className="text-xs text-stone-400 uppercase">spent</span>
               </div>
             </div>
             <div className="flex-1">
@@ -2072,8 +2072,8 @@ function BudgetView() {
               {weeklyData.map((week) => (
                 <div key={week.weekNum} className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-stone-500">W{week.weekNum}</span>
-                    <span className="text-[10px] text-stone-400">€{week.remaining}</span>
+                    <span className="text-xs text-stone-500">W{week.weekNum}</span>
+                    <span className="text-xs text-stone-400">€{week.remaining}</span>
                   </div>
                   <div className="h-8 bg-stone-700 rounded-md overflow-hidden relative">
                     <div 
@@ -2136,16 +2136,16 @@ function BudgetView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-stone-900 truncate">{entry.description}</p>
-                      <p className="text-[10px] text-stone-400">
+                      <p className="text-xs text-stone-400">
                         {entry.category}
                         {entry.reason && (
                           <span className="ml-1 text-stone-500 italic">— "{entry.reason}"</span>
                         )}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-stone-900">€{entry.amount}</p>
-                      <p className="text-[10px] text-stone-400">{entry.date}</p>
+                      <p className="text-xs text-stone-400">{entry.date}</p>
                     </div>
                   </div>
                 ))
@@ -2316,7 +2316,7 @@ function SpanishView() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-xl font-bold text-white">{reviewedToday}</span>
-                <span className="text-[9px] text-stone-400 uppercase">reviewed</span>
+                <span className="text-xs text-stone-400 uppercase">reviewed</span>
               </div>
             </div>
             <div className="flex-1">
@@ -2325,18 +2325,18 @@ function SpanishView() {
               <p className="text-xs text-stone-500">{progress?.stats?.learning_count || 0} learning &middot; {progress?.stats?.review_count || 0} review</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
               <p className="text-lg font-bold text-white">{progress?.stats?.total || 0}</p>
-              <p className="text-[10px] text-stone-400 uppercase">Total</p>
+              <p className="text-xs text-stone-400 uppercase">Total</p>
             </div>
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
               <p className="text-lg font-bold text-white">{progress?.stats?.parked_count || 0}</p>
-              <p className="text-[10px] text-stone-400 uppercase">Parked</p>
+              <p className="text-xs text-stone-400 uppercase">Parked</p>
             </div>
             <div className="bg-stone-800/50 rounded-xl p-3 text-center">
               <p className="text-lg font-bold text-white">{Object.keys(exerciseFeedback).length}/{exercises.length}</p>
-              <p className="text-[10px] text-stone-400 uppercase">Exercises</p>
+              <p className="text-xs text-stone-400 uppercase">Exercises</p>
             </div>
           </div>
         </div>
@@ -2346,13 +2346,13 @@ function SpanishView() {
       <div className="flex gap-2 mb-5">
         <button
           onClick={() => setActiveTab('cards')}
-          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === 'cards' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+          className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] ${activeTab === 'cards' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
         >
           Flashcards {cards.length > 0 && `(${cards.length - currentCardIndex})`}
         </button>
         <button
           onClick={() => setActiveTab('exercises')}
-          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === 'exercises' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+          className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] ${activeTab === 'exercises' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
         >
           Exercises {exercises.length > 0 && `(${Object.keys(exerciseFeedback).length}/${exercises.length})`}
         </button>
@@ -2365,11 +2365,11 @@ function SpanishView() {
             <div className="mb-4">
               <div
                 onClick={() => setFlipped(!flipped)}
-                className="relative bg-white rounded-2xl shadow-sm border border-stone-200 p-8 min-h-[220px] flex flex-col items-center justify-center cursor-pointer select-none transition-all hover:shadow-md"
+                className="relative bg-white rounded-2xl shadow-sm border border-stone-200 p-5 sm:p-8 min-h-[220px] flex flex-col items-center justify-center cursor-pointer select-none transition-all hover:shadow-md"
               >
                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.word_type}</span>
-                  {currentCard.tags?.[0] && <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.tags[0]}</span>}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.word_type}</span>
+                  {currentCard.tags?.[0] && <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.tags[0]}</span>}
                 </div>
                 {!flipped ? (
                   <div className="text-center">
@@ -2394,7 +2394,7 @@ function SpanishView() {
 
               {/* Rating Buttons */}
               {flipped && (
-                <div className="flex gap-2 mt-3">
+                <div className="grid grid-cols-2 sm:flex gap-2 mt-3">
                   {[
                     { label: 'Again', value: 'again', color: 'bg-red-500 hover:bg-red-600' },
                     { label: 'Hard', value: 'hard', color: 'bg-orange-500 hover:bg-orange-600' },
@@ -2404,14 +2404,14 @@ function SpanishView() {
                     <button
                       key={btn.value}
                       onClick={() => handleRate(btn.value)}
-                      className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition-colors ${btn.color}`}
+                      className={`sm:flex-1 py-3 rounded-xl text-white text-sm font-medium transition-colors min-h-[44px] ${btn.color}`}
                     >
                       {btn.label}
                     </button>
                   ))}
                   <button
                     onClick={handlePark}
-                    className="px-3 py-2.5 rounded-xl bg-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-300 transition-colors"
+                    className="col-span-2 sm:col-span-1 px-3 py-3 rounded-xl bg-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-300 transition-colors min-h-[44px]"
                   >
                     Park
                   </button>
@@ -2457,10 +2457,10 @@ function SpanishView() {
               return (
                 <div key={ex.id} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-5">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium uppercase">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium uppercase">
                       {exerciseTypeLabel(ex.type)}
                     </span>
-                    {ex.difficulty && <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{ex.difficulty}</span>}
+                    {ex.difficulty && <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{ex.difficulty}</span>}
                   </div>
                   <p className="text-sm font-medium text-stone-800 mb-3">{prompt}</p>
                   {ex.type === 'grammar' && c.options ? (
@@ -2475,7 +2475,7 @@ function SpanishView() {
                             }
                           }}
                           disabled={!!fb}
-                          className={`py-2.5 px-3 rounded-xl text-sm font-medium border transition-colors ${
+                          className={`py-3 px-3 rounded-xl text-sm font-medium border transition-colors min-h-[44px] ${
                             fb
                               ? i === ex.answer_key?.correct
                                 ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
@@ -2505,7 +2505,7 @@ function SpanishView() {
                       value={exerciseAnswers[ex.id] || ''}
                       onChange={e => setExerciseAnswers(prev => ({ ...prev, [ex.id]: e.target.value }))}
                       placeholder="Type your answer..."
-                      className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400"
+                      className="w-full border border-stone-200 rounded-xl px-3 py-3 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 min-h-[44px]"
                       disabled={!!fb}
                       onKeyDown={e => { if (e.key === 'Enter' && !fb) handleExerciseSubmit(ex.id) }}
                     />
@@ -2518,7 +2518,7 @@ function SpanishView() {
                     <button
                       onClick={() => handleExerciseSubmit(ex.id)}
                       disabled={!exerciseAnswers[ex.id]}
-                      className="mt-3 px-4 py-2 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="mt-3 px-4 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px]"
                     >
                       Check
                     </button>
@@ -2629,7 +2629,7 @@ function BooksView() {
             />
           ))}
         </div>
-        <p className="text-[10px] text-stone-500 mt-2 uppercase tracking-wider">10-week rotation</p>
+        <p className="text-xs text-stone-500 mt-2 uppercase tracking-wider">10-week rotation</p>
       </div>
 
       {/* Cards Grid */}
@@ -2648,7 +2648,7 @@ function BooksView() {
           <div className="bg-stone-50 rounded-xl p-3">
             <button
               onClick={() => setExpandedAction(!expandedAction)}
-              className="flex items-center justify-between w-full text-left"
+              className="flex items-center justify-between w-full text-left min-h-[44px]"
             >
               <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Action Prompt</span>
               <ChevronDown size={14} className={`text-stone-400 transition-transform ${expandedAction ? 'rotate-180' : ''}`} />
@@ -2714,7 +2714,7 @@ function Dashboard({
           {/* Mobile menu button */}
           <button 
             onClick={onMenuClick}
-            className="lg:hidden p-2 -ml-2 hover:bg-stone-100 rounded-lg"
+            className="lg:hidden p-3 -ml-3 hover:bg-stone-100 rounded-lg"
           >
             <Menu size={20} className="text-stone-600" />
           </button>
@@ -2730,7 +2730,7 @@ function Dashboard({
         </div>
         
         <div className="flex items-center gap-2">
-          <button className="h-9 px-3 sm:px-4 bg-stone-900 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-stone-800 transition-colors">
+          <button className="h-11 px-3 sm:px-4 bg-stone-900 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-stone-800 transition-colors">
             <Plus size={14} strokeWidth={2.5} className="hidden sm:block" />
             <span className="hidden sm:inline">{activeView.startsWith('nutrition') ? 'Log food' : 'Add'}</span>
             <Plus size={16} strokeWidth={2.5} className="sm:hidden" />
