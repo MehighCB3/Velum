@@ -4,7 +4,7 @@ import { FitnessEntry } from '../route'
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
 
 interface ParsedFitnessEntry {
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
   name?: string
   steps?: number
   distance?: number      // in km
@@ -382,6 +382,26 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
     }
   }
 
+  // ==================== JIU-JITSU PARSING ====================
+
+  // Pattern: "bjj", "jiu-jitsu", "jiu jitsu", "jiujitsu", "bjj 90min", "jiu-jitsu 60min"
+  if (lowerText.includes('bjj') || lowerText.includes('jiu-jitsu') || lowerText.includes('jiu jitsu') || lowerText.includes('jiujitsu')) {
+    let duration = 0
+
+    const durationPattern = /(\d+)\s*(?:min|minutes?)/i
+    const durationMatch = text.match(durationPattern)
+    if (durationMatch) {
+      duration = parseInt(durationMatch[1])
+    }
+
+    return {
+      type: 'jiujitsu',
+      duration: duration || undefined,
+      date: targetDate,
+      notes
+    }
+  }
+
   return null
 }
 
@@ -452,7 +472,8 @@ export async function POST(request: NextRequest) {
                '• cycle 20km 52min\n' +
                '• hrv 58\n' +
                '• weight 78.5\n' +
-               '• body fat 18.2',
+               '• body fat 18.2\n' +
+               '• bjj / jiu-jitsu',
         received: messageText
       }, { status: 400 })
     }
@@ -493,8 +514,11 @@ export async function POST(request: NextRequest) {
       entry.weight = parsed.weight
     } else if (parsed.type === 'body_fat') {
       entry.bodyFat = parsed.bodyFat
+    } else if (parsed.type === 'jiujitsu') {
+      entry.duration = parsed.duration
+      entry.name = 'Jiu-Jitsu'
     }
-    
+
     // Call the fitness API to save
     const fitnessApiUrl = new URL('/api/fitness', request.url)
     const response = await fetch(fitnessApiUrl.toString(), {
@@ -555,6 +579,10 @@ export async function POST(request: NextRequest) {
       successMessage = `✅ Logged: Weight ${parsed.weight} kg - ${entryDate}`
     } else if (parsed.type === 'body_fat') {
       successMessage = `✅ Logged: Body Fat ${parsed.bodyFat}% - ${entryDate}`
+    } else if (parsed.type === 'jiujitsu') {
+      successMessage = `✅ Logged: Jiu-Jitsu session - ${entryDate}`
+      if (parsed.duration) successMessage += ` (${parsed.duration} min)`
+      successMessage += '\n🥋 Oss!'
     }
     if (parsed.notes) successMessage += `\n📝 ${parsed.notes}`
     
@@ -601,6 +629,8 @@ export async function GET() {
       'hrv 58',
       'weight 78.5',
       'body fat 18.2',
+      'bjj',
+      'jiu-jitsu 90min',
     ]
   })
 }

@@ -23,7 +23,7 @@ export interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
   name?: string        // Activity name (e.g., "Morning run", "Commute")
   // For steps:
   steps?: number
@@ -54,6 +54,7 @@ export interface FitnessWeek {
     runs: number
     swims: number
     cycles: number
+    jiujitsu: number
     totalDistance: number
     totalCalories: number
     runDistance: number
@@ -164,6 +165,8 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
       acc.totalDistance += entry.distance || 0
       acc.cycleDistance += entry.distance || 0
       acc.totalCalories += entry.calories || 0
+    } else if (entry.type === 'jiujitsu') {
+      acc.jiujitsu += 1
     }
     return acc
   }, {
@@ -171,6 +174,7 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
     runs: 0,
     swims: 0,
     cycles: 0,
+    jiujitsu: 0,
     totalDistance: 0,
     totalCalories: 0,
     runDistance: 0,
@@ -288,6 +292,7 @@ function readFromFallback(week: string): FitnessWeek {
       runs: 0,
       swims: 0,
       cycles: 0,
+      jiujitsu: 0,
       totalDistance: 0,
       totalCalories: 0,
       runDistance: 0,
@@ -375,7 +380,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate type
-    if (!['steps', 'run', 'swim', 'cycle', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
+    if (!['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
       return NextResponse.json(
         { error: 'Type must be steps, run, swim, cycle, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
         { status: 400 }

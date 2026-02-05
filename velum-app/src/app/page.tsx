@@ -80,7 +80,7 @@ interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
   name?: string
   steps?: number
   distanceKm?: number
@@ -1960,7 +1960,7 @@ function FitnessView() {
   // Get activities (runs, swims, cycles) sorted by date/time descending
   const today = new Date().toISOString().split('T')[0]
   const getActivities = () => {
-    const activityTypes = ['run', 'swim', 'cycle']
+    const activityTypes = ['run', 'swim', 'cycle', 'jiujitsu']
     let activities = fitnessData.entries.filter(e => activityTypes.includes(e.type))
     if (viewMode === 'today') {
       activities = activities.filter(e => e.date === today)
@@ -1978,6 +1978,7 @@ function FitnessView() {
       case 'run': return { bg: 'bg-emerald-50', text: 'text-emerald-600', emoji: '\u{1F3C3}', label: 'Run' }
       case 'swim': return { bg: 'bg-blue-50', text: 'text-blue-600', emoji: '\u{1F3CA}', label: 'Pool session' }
       case 'cycle': return { bg: 'bg-orange-50', text: 'text-orange-600', emoji: '\u{1F6B4}', label: 'Ride' }
+      case 'jiujitsu': return { bg: 'bg-red-50', text: 'text-red-600', emoji: '\u{1F94B}', label: 'Jiu-Jitsu' }
       default: return { bg: 'bg-stone-50', text: 'text-stone-600', emoji: '\u{1F3CB}', label: 'Activity' }
     }
   }
@@ -1987,6 +1988,7 @@ function FitnessView() {
   const runKm = fitnessData.totals.runDistance || 0
   const swimKm = fitnessData.totals.swimDistance || 0
   const cycleKm = fitnessData.totals.cycleDistance || 0
+  const jiujitsuSessions = (fitnessData.totals as any).jiujitsu || fitnessData.entries.filter(e => e.type === 'jiujitsu').length
 
   // Latest body metrics from advanced
   const latestHrv = fitnessData.advanced?.latestHrv || 0
@@ -2089,6 +2091,36 @@ function FitnessView() {
             <span className="text-sm">{'\u{1F3CA}'}</span>
             <span className="text-sm text-stone-300">{swimKm.toFixed(1)} km</span>
           </div>
+        </div>
+      </div>
+
+      {/* Jiu-Jitsu Weekly Card */}
+      <div className="flex items-center gap-3 p-4 bg-white border border-stone-100 rounded-xl mb-5">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+          jiujitsuSessions > 0 ? 'bg-emerald-100' : 'bg-stone-100'
+        }`}>
+          {jiujitsuSessions > 0 ? (
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M4 10.5L8 14.5L16 6.5" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          ) : (
+            <span className="text-stone-400 text-sm">{'\u{1F94B}'}</span>
+          )}
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-stone-900">Jiu-Jitsu</p>
+          <p className="text-xs text-stone-400">
+            {jiujitsuSessions > 0
+              ? `${jiujitsuSessions} session${jiujitsuSessions > 1 ? 's' : ''} this week`
+              : 'No sessions this week'}
+          </p>
+        </div>
+        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+          jiujitsuSessions > 0
+            ? 'bg-emerald-50 text-emerald-600'
+            : 'bg-stone-50 text-stone-400'
+        }`}>
+          {jiujitsuSessions > 0 ? 'Done' : 'Pending'}
         </div>
       </div>
 
