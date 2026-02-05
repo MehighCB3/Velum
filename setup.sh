@@ -5,25 +5,25 @@
 
 set -e
 
-echo "🤖 Personal Assistant Setup"
+echo "Personal Assistant Setup"
 echo "=========================="
 echo ""
 
 # Check Node version
 NODE_VERSION=$(node -v 2>/dev/null | cut -d'v' -f2 | cut -d'.' -f1)
 if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 22 ]; then
-    echo "❌ Node.js 22+ required. Install from https://nodejs.org"
+    echo "Node.js 22+ required. Install from https://nodejs.org"
     exit 1
 fi
-echo "✓ Node.js version OK"
+echo "Node.js version OK"
 
-# Install Moltbot
+# Install OpenClaw
 echo ""
-echo "Installing Moltbot..."
-npm install -g moltbot@latest
+echo "Installing OpenClaw..."
+npm install -g openclaw@latest
 
 # Create workspace directory
-WORKSPACE="$HOME/clawd"
+WORKSPACE="$HOME/.openclaw/workspace"
 mkdir -p "$WORKSPACE/skills"
 
 # Copy configuration files
@@ -39,25 +39,25 @@ echo "Installing skills..."
 cp -r "$SCRIPT_DIR/skills/"* "$WORKSPACE/skills/"
 
 # Create config directory
-mkdir -p "$HOME/.clawdbot"
+mkdir -p "$HOME/.openclaw"
 
 # Copy base config if none exists
-if [ ! -f "$HOME/.clawdbot/moltbot.json" ]; then
-    cp "$SCRIPT_DIR/config/moltbot.json" "$HOME/.clawdbot/"
-    echo "✓ Created base configuration"
+if [ ! -f "$HOME/.openclaw/openclaw.json" ]; then
+    cp "$SCRIPT_DIR/config/openclaw.json" "$HOME/.openclaw/"
+    echo "Created base configuration"
 else
-    echo "⚠ Config exists, skipping (check config/moltbot.json for reference)"
+    echo "Config exists, skipping (check config/openclaw.json for reference)"
 fi
 
 echo ""
 echo "=========================="
-echo "✓ Setup complete!"
+echo "Setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Edit ~/clawd/USER.md with your personal details"
-echo "2. Run: moltbot onboard --install-daemon"
+echo "1. Edit ~/.openclaw/workspace/USER.md with your personal details"
+echo "2. Run: openclaw onboard --install-daemon"
 echo "3. Connect your preferred channel (WhatsApp/Telegram)"
 echo ""
 echo "Quick start:"
-echo "  moltbot gateway --port 18789 --verbose"
+echo "  openclaw gateway --port 18789 --verbose"
 echo ""

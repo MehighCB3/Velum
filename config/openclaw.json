@@ -1,0 +1,38 @@
+{
+  "agent": {
+    "model": "anthropic/claude-opus-4-5",
+    "thinkingLevel": "medium"
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "~/.openclaw/workspace"
+    },
+    "list": [
+      {
+        "id": "main",
+        "default": true
+      }
+    ]
+  },
+  "session": {
+    "scope": "per-sender",
+    "dmScope": "main",
+    "mainKey": "main",
+    "reset": {
+      "mode": "daily",
+      "atHour": 4
+    },
+    "resetTriggers": ["/new", "/reset"]
+  },
+  "gateway": {
+    "port": 18789
+  },
+  "channels": {
+    "whatsapp": {
+      "enabled": false
+    },
+    "telegram": {
+      "enabled": false
+    }
+  }
+}

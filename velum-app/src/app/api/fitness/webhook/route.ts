@@ -4,7 +4,8 @@ import { FitnessEntry } from '../route'
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
 
 interface ParsedFitnessEntry {
-  type: 'steps' | 'run' | 'swim' | 'vo2max' | 'training_load' | 'stress' | 'recovery'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  name?: string
   steps?: number
   distance?: number      // in km
   duration?: number      // in minutes
@@ -13,6 +14,9 @@ interface ParsedFitnessEntry {
   trainingLoad?: number  // 0-100
   stressLevel?: number   // 0-100
   recoveryScore?: number // 0-100
+  hrv?: number           // ms
+  weight?: number        // kg
+  bodyFat?: number       // percentage
   date?: string
   notes?: string
 }
@@ -254,15 +258,15 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
   }
 
   // ==================== RECOVERY SCORE PARSING ====================
-  
+
   // Pattern: "recovery 85" or "recovery score 90" or "rested 75"
   const recoveryPattern = /^(?:(?:recovery(?:\s*score)?|rested|rest))[\s:]*(\d+)$/i
   const recoveryMatch = text.match(recoveryPattern)
-  
+
   if (recoveryMatch || lowerText.includes('recovery') || lowerText.includes('rested')) {
     const valuePattern = /(\d+)/
     const valueMatch = text.match(valuePattern)
-    
+
     if (valueMatch) {
       const recovery = parseInt(valueMatch[1])
       if (recovery >= 0 && recovery <= 100) {
@@ -275,7 +279,129 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
       }
     }
   }
-  
+
+  // ==================== CYCLING PARSING ====================
+
+  // Pattern: "cycle 12km 28min" or "bike 20km 52min" or "rode 15km" or "commute 12km 28min"
+  if (lowerText.includes('cycle') || lowerText.includes('bike') || lowerText.includes('rode') ||
+      lowerText.includes('cycling') || lowerText.includes('biking') || lowerText.includes('ride') ||
+      lowerText.includes('commute')) {
+    let distance = 0
+    let duration = 0
+    let calories: number | undefined
+    let name: string | undefined
+
+    // Detect activity name from keywords
+    if (lowerText.includes('commute')) name = 'Commute'
+
+    const distancePattern = /(\d+(?:\.\d+)?)\s*(?:km|kilometers?|k\b)/i
+    const distanceMatch = text.match(distancePattern)
+    if (distanceMatch) distance = parseFloat(distanceMatch[1])
+
+    const durationPattern = /(\d+)\s*(?:min|minutes?)/i
+    const durationMatch = text.match(durationPattern)
+    if (durationMatch) duration = parseInt(durationMatch[1])
+
+    const caloriesPattern = /(\d+)\s*(?:cal|calories?|kcal)/i
+    const caloriesMatch = text.match(caloriesPattern)
+    if (caloriesMatch) calories = parseInt(caloriesMatch[1])
+
+    if (distance > 0 || duration > 0) {
+      return {
+        type: 'cycle',
+        name,
+        distance,
+        duration,
+        calories,
+        date: targetDate,
+        notes
+      }
+    }
+  }
+
+  // ==================== HRV PARSING ====================
+
+  // Pattern: "hrv 58" or "hrv: 62" or "heart rate variability 55"
+  if (lowerText.includes('hrv') || lowerText.includes('heart rate variability')) {
+    const valuePattern = /(\d+)/
+    const valueMatch = text.match(valuePattern)
+
+    if (valueMatch) {
+      const hrv = parseInt(valueMatch[1])
+      if (hrv > 0 && hrv < 300) {
+        return {
+          type: 'hrv',
+          hrv,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
+
+  // ==================== WEIGHT PARSING ====================
+
+  // Pattern: "weight 78.5" or "weight: 80kg" or "weigh 75.2"
+  if (lowerText.includes('weight') || lowerText.includes('weigh')) {
+    const valuePattern = /(\d+(?:\.\d+)?)\s*(?:kg|kilos?|lbs?)?/i
+    const valueMatch = text.match(valuePattern)
+
+    if (valueMatch) {
+      let weight = parseFloat(valueMatch[1])
+      // Convert lbs to kg if specified
+      if (lowerText.includes('lb')) weight = Math.round(weight * 0.453592 * 10) / 10
+      if (weight > 20 && weight < 300) {
+        return {
+          type: 'weight',
+          weight,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
+
+  // ==================== BODY FAT PARSING ====================
+
+  // Pattern: "body fat 18.2" or "bf 18%" or "fat 17.5"
+  if (lowerText.includes('body fat') || lowerText.includes('bodyfat') || /^bf\s+\d/i.test(text) ||
+      (lowerText.includes('fat') && !lowerText.includes('run') && !lowerText.includes('swim'))) {
+    const valuePattern = /(\d+(?:\.\d+)?)\s*%?/
+    const valueMatch = text.match(valuePattern)
+
+    if (valueMatch) {
+      const bodyFat = parseFloat(valueMatch[1])
+      if (bodyFat > 2 && bodyFat < 60) {
+        return {
+          type: 'body_fat',
+          bodyFat,
+          date: targetDate,
+          notes
+        }
+      }
+    }
+  }
+
+  // ==================== JIU-JITSU PARSING ====================
+
+  // Pattern: "bjj", "jiu-jitsu", "jiu jitsu", "jiujitsu", "bjj 90min", "jiu-jitsu 60min"
+  if (lowerText.includes('bjj') || lowerText.includes('jiu-jitsu') || lowerText.includes('jiu jitsu') || lowerText.includes('jiujitsu')) {
+    let duration = 0
+
+    const durationPattern = /(\d+)\s*(?:min|minutes?)/i
+    const durationMatch = text.match(durationPattern)
+    if (durationMatch) {
+      duration = parseInt(durationMatch[1])
+    }
+
+    return {
+      type: 'jiujitsu',
+      duration: duration || undefined,
+      date: targetDate,
+      notes
+    }
+  }
+
   return null
 }
 
@@ -343,7 +469,11 @@ export async function POST(request: NextRequest) {
                '• 8000 steps\n' +
                '• 5k run 30min\n' +
                '• swim 1000m 20min\n' +
-               '• run 10km 45min 450cal',
+               '• cycle 20km 52min\n' +
+               '• hrv 58\n' +
+               '• weight 78.5\n' +
+               '• body fat 18.2\n' +
+               '• bjj / jiu-jitsu',
         received: messageText
       }, { status: 400 })
     }
@@ -357,14 +487,15 @@ export async function POST(request: NextRequest) {
       date: entryDate,
       timestamp: new Date().toISOString(),
       type: parsed.type,
+      name: parsed.name,
       notes: parsed.notes,
     }
-    
+
     // Add type-specific fields
     if (parsed.type === 'steps') {
       entry.steps = parsed.steps
       entry.distanceKm = calculateDistanceFromSteps(parsed.steps || 0)
-    } else if (parsed.type === 'run' || parsed.type === 'swim') {
+    } else if (parsed.type === 'run' || parsed.type === 'swim' || parsed.type === 'cycle') {
       entry.distance = parsed.distance
       entry.duration = parsed.duration
       entry.calories = parsed.calories
@@ -377,8 +508,17 @@ export async function POST(request: NextRequest) {
       entry.stressLevel = parsed.stressLevel
     } else if (parsed.type === 'recovery') {
       entry.recoveryScore = parsed.recoveryScore
+    } else if (parsed.type === 'hrv') {
+      entry.hrv = parsed.hrv
+    } else if (parsed.type === 'weight') {
+      entry.weight = parsed.weight
+    } else if (parsed.type === 'body_fat') {
+      entry.bodyFat = parsed.bodyFat
+    } else if (parsed.type === 'jiujitsu') {
+      entry.duration = parsed.duration
+      entry.name = 'Jiu-Jitsu'
     }
-    
+
     // Call the fitness API to save
     const fitnessApiUrl = new URL('/api/fitness', request.url)
     const response = await fetch(fitnessApiUrl.toString(), {
@@ -428,6 +568,21 @@ export async function POST(request: NextRequest) {
       if (recovery >= 80) successMessage += '\n🟢 Well recovered - ready to train hard'
       else if (recovery >= 50) successMessage += '\n🟡 Fair recovery - moderate training advised'
       else successMessage += '\n🔴 Poor recovery - prioritize rest'
+    } else if (parsed.type === 'cycle') {
+      const pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
+      successMessage = `✅ Logged: ${parsed.name || 'Ride'} - ${parsed.distance}km in ${parsed.duration}min`
+      if (pace > 0) successMessage += ` (${pace} min/km)`
+      if (parsed.calories) successMessage += ` - ${parsed.calories} cal`
+    } else if (parsed.type === 'hrv') {
+      successMessage = `✅ Logged: HRV ${parsed.hrv} ms - ${entryDate}`
+    } else if (parsed.type === 'weight') {
+      successMessage = `✅ Logged: Weight ${parsed.weight} kg - ${entryDate}`
+    } else if (parsed.type === 'body_fat') {
+      successMessage = `✅ Logged: Body Fat ${parsed.bodyFat}% - ${entryDate}`
+    } else if (parsed.type === 'jiujitsu') {
+      successMessage = `✅ Logged: Jiu-Jitsu session - ${entryDate}`
+      if (parsed.duration) successMessage += ` (${parsed.duration} min)`
+      successMessage += '\n🥋 Oss!'
     }
     if (parsed.notes) successMessage += `\n📝 ${parsed.notes}`
     
@@ -462,12 +617,20 @@ export async function GET() {
       'run 10km 45min 450cal',
       'swim 1000m 20min',
       'swim 1.5km 30min 300cal',
+      'cycle 20km 52min',
+      'commute 12km 28min',
+      'bike 15km 40min',
       'yesterday 10000 steps',
       'vo2max 45',
       'training load 75',
       'stress 3',
       'stress 60',
       'recovery 85',
+      'hrv 58',
+      'weight 78.5',
+      'body fat 18.2',
+      'bjj',
+      'jiu-jitsu 90min',
     ]
   })
 }
