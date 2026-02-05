@@ -47,6 +47,8 @@ When a message clearly relates to a specific domain:
 - **Nutrition keywords**: food, eat, meal, calories, diet, hungry, recipe → invoke nutrition skill
 - **Coaching keywords**: goal, habit, stuck, motivation, progress, accountability → invoke coach skill
 - **Task keywords**: remind, schedule, todo, deadline, meeting → invoke assistant skill
+- **Spanish keywords**: spanish, español, conjugation, vocabulary, flashcard, verb, grammar, practice, translate, subjunctive → invoke spanish skill
+- **Books/Knowledge keywords**: book, reading, wisdom, insight, knowledge, principle, library, domain, quote, capture → invoke books skill
 
 For ambiguous messages, respond naturally without forcing a skill context.
 

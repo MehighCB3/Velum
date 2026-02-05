@@ -22,7 +22,11 @@ import {
   Menu,
   Star,
   ImageIcon,
-  Trash2
+  Trash2,
+  BookOpen,
+  Copy,
+  Check,
+  Languages
 } from 'lucide-react'
 
 // Profile type
@@ -2189,8 +2193,492 @@ function BudgetView() {
   )
 }
 
+// Spanish Flashcards & Exercises View
+function SpanishView() {
+  const [cards, setCards] = useState<any[]>([])
+  const [currentCardIndex, setCurrentCardIndex] = useState(0)
+  const [flipped, setFlipped] = useState(false)
+  const [progress, setProgress] = useState<any>(null)
+  const [exercises, setExercises] = useState<any[]>([])
+  const [exerciseAnswers, setExerciseAnswers] = useState<Record<string, string>>({})
+  const [exerciseFeedback, setExerciseFeedback] = useState<Record<string, { correct: boolean; feedback: string }>>({})
+  const [activeTab, setActiveTab] = useState<'cards' | 'exercises'>('cards')
+  const [loading, setLoading] = useState(true)
+
+  // Fetch due cards, progress, and exercises on mount
+  useEffect(() => {
+    const fetchAll = async () => {
+      setLoading(true)
+      try {
+        const [cardsRes, progressRes, exercisesRes] = await Promise.all([
+          fetch('/api/spanish?action=due'),
+          fetch('/api/spanish?action=progress'),
+          fetch('/api/spanish/exercises?type=daily'),
+        ])
+        if (cardsRes.ok) {
+          const data = await cardsRes.json()
+          setCards(data.cards || [])
+        }
+        if (progressRes.ok) {
+          const data = await progressRes.json()
+          setProgress(data)
+        }
+        if (exercisesRes.ok) {
+          const data = await exercisesRes.json()
+          setExercises(data.exercises || [])
+        }
+      } catch (err) {
+        console.error('Failed to fetch spanish data', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchAll()
+  }, [])
+
+  const currentCard = cards[currentCardIndex] || null
+
+  const handleRate = async (rating: string) => {
+    if (!currentCard) return
+    try {
+      await fetch('/api/spanish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'review', cardId: currentCard.id, rating }),
+      })
+    } catch (err) {
+      console.error('Failed to submit rating', err)
+    }
+    setFlipped(false)
+    if (currentCardIndex < cards.length - 1) {
+      setCurrentCardIndex(prev => prev + 1)
+    } else {
+      setCards([])
+      setCurrentCardIndex(0)
+    }
+    setProgress((prev: any) => prev ? { ...prev, reviewedToday: (prev.reviewedToday || 0) + 1, due: Math.max(0, (prev.due || 1) - 1) } : prev)
+  }
+
+  const handlePark = async () => {
+    if (!currentCard) return
+    try {
+      await fetch('/api/spanish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'park', cardId: currentCard.id }),
+      })
+    } catch (err) {
+      console.error('Failed to park card', err)
+    }
+    const remaining = cards.filter((_, i) => i !== currentCardIndex)
+    setCards(remaining)
+    setCurrentCardIndex(prev => Math.min(prev, remaining.length - 1))
+    setFlipped(false)
+    setProgress((prev: any) => prev ? { ...prev, parked: (prev.parked || 0) + 1, due: Math.max(0, (prev.due || 1) - 1) } : prev)
+  }
+
+  const handleExerciseSubmit = async (exerciseId: string) => {
+    const answer = exerciseAnswers[exerciseId]
+    if (!answer) return
+    try {
+      const res = await fetch('/api/spanish/exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exerciseId, answer }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setExerciseFeedback(prev => ({ ...prev, [exerciseId]: { correct: data.correct, feedback: data.feedback } }))
+      }
+    } catch (err) {
+      console.error('Failed to check exercise', err)
+    }
+  }
+
+  const exerciseTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      verb_conjugation: 'Verb Conjugation',
+      cloze: 'Fill in the Blank',
+      translation: 'Translation',
+      grammar: 'Grammar Quiz',
+      writing: 'Writing Prompt',
+    }
+    return labels[type] || type
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-stone-300 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const reviewedPct = progress ? Math.round(((progress.reviewedToday || 0) / Math.max(1, (progress.reviewedToday || 0) + (progress.due || 0))) * 100) : 0
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Hero Progress Card */}
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -right-20 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl" />
+        </div>
+        <div className="relative">
+          <div className="flex items-center gap-5 mb-4">
+            <div className="relative w-24 h-24 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
+                <circle
+                  cx="50" cy="50" r="42" fill="none" stroke="url(#spanishRingGrad)" strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={`${Math.min(reviewedPct, 100) * 2.64} 264`}
+                  className="transition-all duration-1000 ease-out"
+                />
+                <defs>
+                  <linearGradient id="spanishRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#f59e0b" />
+                    <stop offset="100%" stopColor="#ef4444" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-bold text-white">{progress?.reviewedToday || 0}</span>
+                <span className="text-[9px] text-stone-400 uppercase">reviewed</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-stone-400 mb-1">Cards Due</p>
+              <p className="text-3xl font-bold text-white">{progress?.due || 0}</p>
+              <p className="text-xs text-stone-500">{progress?.active || 0} active &middot; {progress?.mastered || 0} mastered</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-stone-800/50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-white">{progress?.total || 0}</p>
+              <p className="text-[10px] text-stone-400 uppercase">Total</p>
+            </div>
+            <div className="bg-stone-800/50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-white">{progress?.parked || 0}</p>
+              <p className="text-[10px] text-stone-400 uppercase">Parked</p>
+            </div>
+            <div className="bg-stone-800/50 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-white">{progress?.averageEase ? progress.averageEase.toFixed(1) : '—'}</p>
+              <p className="text-[10px] text-stone-400 uppercase">Avg Ease</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-2 mb-5">
+        <button
+          onClick={() => setActiveTab('cards')}
+          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === 'cards' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+        >
+          Flashcards {cards.length > 0 && `(${cards.length - currentCardIndex})`}
+        </button>
+        <button
+          onClick={() => setActiveTab('exercises')}
+          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${activeTab === 'exercises' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+        >
+          Exercises {exercises.length > 0 && `(${exercises.length})`}
+        </button>
+      </div>
+
+      {/* Flashcard Review */}
+      {activeTab === 'cards' && (
+        <div>
+          {currentCard ? (
+            <div className="mb-4">
+              <div
+                onClick={() => setFlipped(!flipped)}
+                className="relative bg-white rounded-2xl shadow-sm border border-stone-200 p-8 min-h-[220px] flex flex-col items-center justify-center cursor-pointer select-none transition-all hover:shadow-md"
+              >
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.domain}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-400">{currentCard.difficulty}</span>
+                </div>
+                {!flipped ? (
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-stone-900 mb-2">{currentCard.spanish}</p>
+                    <p className="text-xs text-stone-400">Tap to reveal</p>
+                  </div>
+                ) : (
+                  <div className="text-center animate-in fade-in duration-200">
+                    <p className="text-lg font-semibold text-stone-700 mb-1">{currentCard.english}</p>
+                    {currentCard.example_es && (
+                      <div className="mt-4 text-left bg-stone-50 rounded-xl p-4">
+                        <p className="text-sm text-stone-700 italic">&ldquo;{currentCard.example_es}&rdquo;</p>
+                        <p className="text-xs text-stone-400 mt-1">&ldquo;{currentCard.example_en}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="absolute bottom-3 left-3 text-[10px] text-stone-300">
+                  {currentCardIndex + 1} / {cards.length}
+                </div>
+              </div>
+
+              {/* Rating Buttons */}
+              {flipped && (
+                <div className="flex gap-2 mt-3">
+                  {[
+                    { label: 'Again', value: 'again', color: 'bg-red-500 hover:bg-red-600' },
+                    { label: 'Hard', value: 'hard', color: 'bg-orange-500 hover:bg-orange-600' },
+                    { label: 'Good', value: 'good', color: 'bg-emerald-500 hover:bg-emerald-600' },
+                    { label: 'Easy', value: 'easy', color: 'bg-blue-500 hover:bg-blue-600' },
+                  ].map(btn => (
+                    <button
+                      key={btn.value}
+                      onClick={() => handleRate(btn.value)}
+                      className={`flex-1 py-2.5 rounded-xl text-white text-sm font-medium transition-colors ${btn.color}`}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={handlePark}
+                    className="px-3 py-2.5 rounded-xl bg-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-300 transition-colors"
+                  >
+                    Park
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 text-center">
+              <p className="text-lg font-semibold text-stone-700 mb-1">All caught up!</p>
+              <p className="text-sm text-stone-400">No cards due for review right now.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Exercises Section */}
+      {activeTab === 'exercises' && (
+        <div className="space-y-4">
+          {exercises.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 text-center">
+              <p className="text-lg font-semibold text-stone-700 mb-1">No exercises today</p>
+              <p className="text-sm text-stone-400">Check back later for new exercises.</p>
+            </div>
+          ) : (
+            exercises.map((ex: any) => {
+              const fb = exerciseFeedback[ex.id]
+              return (
+                <div key={ex.id} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium uppercase">
+                      {exerciseTypeLabel(ex.type)}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-stone-800 mb-3">{ex.prompt || ex.question}</p>
+                  {ex.type === 'writing' ? (
+                    <textarea
+                      value={exerciseAnswers[ex.id] || ''}
+                      onChange={e => setExerciseAnswers(prev => ({ ...prev, [ex.id]: e.target.value }))}
+                      placeholder="Write your answer..."
+                      className="w-full border border-stone-200 rounded-xl p-3 text-sm text-stone-700 resize-none h-24 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400"
+                      disabled={!!fb}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={exerciseAnswers[ex.id] || ''}
+                      onChange={e => setExerciseAnswers(prev => ({ ...prev, [ex.id]: e.target.value }))}
+                      placeholder="Type your answer..."
+                      className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400"
+                      disabled={!!fb}
+                      onKeyDown={e => { if (e.key === 'Enter' && !fb) handleExerciseSubmit(ex.id) }}
+                    />
+                  )}
+                  {fb ? (
+                    <div className={`mt-3 p-3 rounded-xl text-sm ${fb.correct ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      <span className="font-medium">{fb.correct ? 'Correct!' : 'Incorrect.'}</span> {fb.feedback}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleExerciseSubmit(ex.id)}
+                      disabled={!exerciseAnswers[ex.id]}
+                      className="mt-3 px-4 py-2 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Check
+                    </button>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Books View - Weekly wisdom & domain rotation
+function BooksView() {
+  const [data, setData] = useState<{
+    currentDomain: string
+    domainIndex: number
+    totalDomains: number
+    weekPrinciple: {
+      id: string
+      domain: string
+      title: string
+      principle: string
+      source: string
+      actionPrompt: string
+    }
+    contextInsight: string
+    rawCapture: {
+      id: string
+      domain: string
+      text: string
+      source: string
+      type: string
+    }
+    allDomains: string[]
+    source: string
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [expandedAction, setExpandedAction] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch('/api/books?action=daily')
+        const result = await response.json()
+        setData(result)
+      } catch (error) {
+        console.error('Error fetching books data:', error)
+      }
+      setLoading(false)
+    }
+    fetchData()
+  }, [])
+
+  const handleCopyPrompt = async () => {
+    if (!data) return
+    try {
+      await navigator.clipboard.writeText(data.weekPrinciple.actionPrompt)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      console.error('Failed to copy')
+    }
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Books</h1>
+          <p className="text-sm text-stone-400">Weekly wisdom &amp; insights</p>
+        </div>
+      </div>
+
+      {/* Dark Hero Card */}
+      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
+            <BookOpen size={20} className="text-amber-400" />
+          </div>
+          <div>
+            <p className="text-white font-semibold text-lg">{data.currentDomain}</p>
+            <p className="text-stone-400 text-xs">Domain {data.domainIndex + 1}/{data.totalDomains}</p>
+          </div>
+        </div>
+
+        {/* Domain rotation progress */}
+        <div className="flex items-center gap-1.5">
+          {Array.from({ length: data.totalDomains }).map((_, i) => (
+            <div
+              key={i}
+              className={`h-1.5 flex-1 rounded-full transition-all ${
+                i < data.domainIndex ? 'bg-amber-500' : i === data.domainIndex ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]' : 'bg-white/10'
+              }`}
+            />
+          ))}
+        </div>
+        <p className="text-[10px] text-stone-500 mt-2 uppercase tracking-wider">10-week rotation</p>
+      </div>
+
+      {/* Cards Grid */}
+      <div className="space-y-4">
+        {/* Weekly Principle Card */}
+        <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Star size={16} className="text-amber-500" />
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Weekly Principle</p>
+          </div>
+          <h3 className="text-lg font-bold text-stone-900 mb-2">{data.weekPrinciple.title}</h3>
+          <p className="text-sm text-stone-600 leading-relaxed mb-3">{data.weekPrinciple.principle}</p>
+          <p className="text-xs text-stone-400 mb-4">{data.weekPrinciple.source}</p>
+
+          {/* Action Prompt */}
+          <div className="bg-stone-50 rounded-xl p-3">
+            <button
+              onClick={() => setExpandedAction(!expandedAction)}
+              className="flex items-center justify-between w-full text-left"
+            >
+              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Action Prompt</span>
+              <ChevronDown size={14} className={`text-stone-400 transition-transform ${expandedAction ? 'rotate-180' : ''}`} />
+            </button>
+            {expandedAction && (
+              <div className="mt-2">
+                <p className="text-sm text-stone-700 leading-relaxed">{data.weekPrinciple.actionPrompt}</p>
+                <button
+                  onClick={handleCopyPrompt}
+                  className="mt-2 flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors"
+                >
+                  {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                  {copied ? 'Copied' : 'Copy prompt'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Context Insight Card */}
+        <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain size={16} className="text-violet-500" />
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Context Insight</p>
+          </div>
+          <p className="text-sm text-stone-700 leading-relaxed">{data.contextInsight}</p>
+        </div>
+
+        {/* Raw Capture Card */}
+        <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen size={16} className="text-stone-500" />
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
+              {data.rawCapture.type === 'quote' ? 'Quote' : 'Passage'}
+            </p>
+          </div>
+          <blockquote className="text-sm text-stone-700 leading-relaxed italic border-l-2 border-amber-300 pl-3 mb-3">
+            {data.rawCapture.text}
+          </blockquote>
+          <p className="text-xs text-stone-400">{data.rawCapture.source}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Main Dashboard
-function Dashboard({ 
+function Dashboard({
   activeView, 
   nutritionData,
   onMenuClick,
@@ -2223,10 +2711,10 @@ function Dashboard({
           
           <div>
             <h1 className="text-base font-semibold text-stone-900">
-              {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : activeView === 'fitness' ? 'Fitness' : 'Velum'}
+              {activeView === 'nutrition-today' ? 'Today' : activeView === 'goals' ? 'Goals' : activeView === 'budget' ? 'Budget' : activeView === 'fitness' ? 'Fitness' : activeView === 'spanish' ? 'Spanish' : activeView === 'books' ? 'Books' : 'Velum'}
             </h1>
             <p className="text-xs text-stone-400 hidden sm:block">
-              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : activeView === 'fitness' ? 'Track your activity' : ''}
+              {activeView === 'nutrition-today' ? 'Track your daily nutrition' : activeView === 'goals' ? 'Life planning' : activeView === 'budget' ? 'Weekly spending tracker' : activeView === 'fitness' ? 'Track your activity' : activeView === 'spanish' ? 'Flashcards & exercises' : activeView === 'books' ? 'Weekly wisdom & insights' : ''}
             </p>
           </div>
         </div>
@@ -2265,7 +2753,13 @@ function Dashboard({
         {activeView === 'fitness' && (
           <FitnessView />
         )}
-        {!['nutrition-today', 'goals', 'budget', 'fitness'].includes(activeView) && (
+        {activeView === 'spanish' && (
+          <SpanishView />
+        )}
+        {activeView === 'books' && (
+          <BooksView />
+        )}
+        {!['nutrition-today', 'goals', 'budget', 'fitness', 'spanish', 'books'].includes(activeView) && (
           <div className="flex items-center justify-center h-64 text-stone-400">
             <div className="text-center">
               <p className="text-lg font-medium text-stone-500">
@@ -2362,7 +2856,11 @@ export default function Home() {
       id: 'knowledge',
       name: 'Knowledge',
       icon: <Brain size={16} />,
-      type: 'page',
+      type: 'folder',
+      children: [
+        { id: 'spanish', name: 'Spanish', type: 'page' },
+        { id: 'books', name: 'Books', type: 'page' },
+      ]
     },
     {
       id: 'tasks',

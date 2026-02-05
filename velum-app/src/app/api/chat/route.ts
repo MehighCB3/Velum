@@ -28,7 +28,15 @@ function generateLocalResponse(message: string, context?: string): string {
       : "Keep logging your meals and I'll spot patterns to help you optimize."
   }
 
-  return "I'm here to help with your nutrition! Ask me to log food, review your day, or suggest meals based on your macros."
+  if (lowerMsg.includes('spanish') || lowerMsg.includes('español') || lowerMsg.includes('conjugat') || lowerMsg.includes('vocabulary') || lowerMsg.includes('flashcard') || lowerMsg.includes('verb') || lowerMsg.includes('grammar')) {
+    return "I can help with your Spanish practice! Check the Spanish section under Knowledge for flashcard reviews with spaced repetition, verb conjugation drills, cloze exercises, and writing prompts. What would you like to work on?"
+  }
+
+  if (lowerMsg.includes('book') || lowerMsg.includes('reading') || lowerMsg.includes('wisdom') || lowerMsg.includes('principle') || lowerMsg.includes('knowledge') || lowerMsg.includes('quote')) {
+    return "Check the Books section under Knowledge for your weekly wisdom widget! It rotates through 10 knowledge domains with principles from great books, context-aware insights, and memorable quotes. This week's domain awaits!"
+  }
+
+  return "I'm here to help! Ask me about nutrition, Spanish practice, book wisdom, goals, or anything else you're working on."
 }
 
 export async function POST(request: NextRequest) {
