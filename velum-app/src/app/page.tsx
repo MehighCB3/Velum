@@ -1112,6 +1112,7 @@ function GoalsView() {
   const [showSettings, setShowSettings] = useState(false)
   const [expandedYear, setExpandedYear] = useState<number | null>(null)
   const [zoomLevel, setZoomLevel] = useState<'macro' | 'micro'>('macro')
+  const [goalsTab, setGoalsTab] = useState<'life' | 'goals'>('life')
   const [formData, setFormData] = useState({ birthDate: '', country: '', lifeExpectancy: 85 })
   
   // Goal-related state
@@ -1353,7 +1354,29 @@ function GoalsView() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Life Timeline Widget */}
+      {/* Tab Switcher */}
+      <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
+        <button
+          onClick={() => setGoalsTab('life')}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+            goalsTab === 'life' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          Life Timeline
+        </button>
+        <button
+          onClick={() => setGoalsTab('goals')}
+          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+            goalsTab === 'goals' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          Goals
+        </button>
+      </div>
+
+      {goalsTab === 'life' && (
+        <>
+          {/* Life Timeline Widget */}
       <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
@@ -1417,7 +1440,7 @@ function GoalsView() {
           {zoomLevel === 'macro' ? (
             <div className="mb-4">
               <p className="text-[10px] text-stone-500 text-center mb-2">Click any year to see its weeks</p>
-              <div className="max-h-64 overflow-y-auto space-y-px pr-1 scrollbar-thin">
+              <div className="max-h-[calc(100vh-360px)] overflow-y-auto space-y-px pr-1 scrollbar-thin">
                 {Array.from({ length: formData.lifeExpectancy + 1 }, (_, year) => {
                   const phase = getPhase(year)
                   const isLived = year < currentAge
@@ -1502,7 +1525,7 @@ function GoalsView() {
               </div>
             </div>
           ) : (
-            <div className="mb-4 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
+            <div className="mb-4 max-h-[calc(100vh-360px)] overflow-y-auto pr-1 scrollbar-thin">
               {phases.map(phase => {
                 const totalWeeks = (phase.end - phase.start + 1) * 52
                 return (
@@ -1646,8 +1669,12 @@ function GoalsView() {
           </form>
         </div>
       )}
+        </>
+      )}
 
-      {/* Goals Section Header */}
+      {goalsTab === 'goals' && (
+        <>
+          {/* Goals Section Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-stone-900">Goals</h2>
         <button
@@ -1881,6 +1908,8 @@ function GoalsView() {
           })
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }
