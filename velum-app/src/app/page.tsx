@@ -1110,6 +1110,8 @@ function GoalsView() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [expandedYear, setExpandedYear] = useState<number | null>(null)
+  const [zoomLevel, setZoomLevel] = useState<'macro' | 'micro'>('macro')
   const [formData, setFormData] = useState({ birthDate: '', country: '', lifeExpectancy: 85 })
   
   // Goal-related state
@@ -1133,6 +1135,18 @@ function GoalsView() {
     { key: '10years', label: '10 Year' },
     { key: 'bucket', label: 'Bucket List' },
   ]
+
+  const phases = [
+    { name: 'Childhood', start: 0, end: 5, color: '#fbbf24' },
+    { name: 'School', start: 6, end: 17, color: '#f97316' },
+    { name: 'University', start: 18, end: 22, color: '#ef4444' },
+    { name: 'Early Career', start: 23, end: 35, color: '#8b5cf6' },
+    { name: 'Growth', start: 36, end: 50, color: '#3b82f6' },
+    { name: 'Prime', start: 51, end: 65, color: '#06b6d4' },
+    { name: 'Freedom', start: 66, end: 85, color: '#10b981' },
+  ]
+
+  const getPhase = (year: number) => phases.find(p => year >= p.start && year <= p.end)
 
   // Fetch profile
   useEffect(() => {
@@ -1345,38 +1359,191 @@ function GoalsView() {
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
         </div>
         <div className="relative">
+          {/* Header with title, toggle, settings */}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-bold text-white">Life Timeline</h2>
               <p className="text-xs text-stone-400">Week {Math.floor(profile.ageInWeeks % 52) + 1} of {new Date().getFullYear()}</p>
             </div>
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 bg-stone-700/50 rounded-lg text-stone-400 hover:text-white transition-colors"
-            >
-              <Settings size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-stone-700/50 rounded-lg p-0.5">
+                <button
+                  onClick={() => { setZoomLevel('macro'); setExpandedYear(null) }}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                    zoomLevel === 'macro'
+                      ? 'bg-stone-600 text-white'
+                      : 'text-stone-400 hover:text-stone-300'
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => setZoomLevel('micro')}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                    zoomLevel === 'micro'
+                      ? 'bg-stone-600 text-white'
+                      : 'text-stone-400 hover:text-stone-300'
+                  }`}
+                >
+                  All Weeks
+                </button>
+              </div>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 bg-stone-700/50 rounded-lg text-stone-400 hover:text-white transition-colors"
+              >
+                <Settings size={16} />
+              </button>
+            </div>
           </div>
-          
-          {/* Life stats row */}
-          <div className="flex items-center justify-between mb-5">
-            <div className="text-center flex-1">
-              <p className="text-2xl font-bold text-white">{currentAge}</p>
-              <p className="text-[10px] text-stone-400 uppercase tracking-wider">years old</p>
-            </div>
-            <div className="text-center flex-1">
-              <p className="text-2xl font-bold text-white">{weeksRemaining.toLocaleString()}</p>
-              <p className="text-[10px] text-stone-400 uppercase tracking-wider">weeks left</p>
-            </div>
-            <div className="text-center flex-1">
-              <p className="text-2xl font-bold text-white">{yearsRemaining}</p>
-              <p className="text-[10px] text-stone-400 uppercase tracking-wider">years left</p>
-            </div>
-            <div className="text-center flex-1">
-              <p className="text-2xl font-bold text-white">{percentLived}%</p>
-              <p className="text-[10px] text-stone-400 uppercase tracking-wider">lived</p>
-            </div>
+
+          {/* Big weeks remaining display */}
+          <div className="text-center mb-4">
+            <p className="text-5xl font-bold text-white tracking-tight">{weeksRemaining.toLocaleString()}</p>
+            <p className="text-xs text-stone-400 uppercase tracking-wider mt-1">weeks remaining</p>
           </div>
+
+          {/* Phase legend */}
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mb-4">
+            {phases.map(phase => (
+              <div key={phase.name} className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: phase.color }} />
+                <span className="text-[9px] text-stone-400">{phase.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Weeks visualization */}
+          {zoomLevel === 'macro' ? (
+            <div className="mb-4">
+              <p className="text-[10px] text-stone-500 text-center mb-2">Click any year to see its weeks</p>
+              <div className="max-h-64 overflow-y-auto space-y-px pr-1 scrollbar-thin">
+                {Array.from({ length: formData.lifeExpectancy + 1 }, (_, year) => {
+                  const phase = getPhase(year)
+                  const isLived = year < currentAge
+                  const isCurrent = year === currentAge
+                  const currentWeekOfYear = Math.floor(profile.ageInWeeks % 52) + 1
+                  const isExpanded = expandedYear === year
+
+                  return (
+                    <div key={year}>
+                      <button
+                        onClick={() => setExpandedYear(isExpanded ? null : year)}
+                        className="w-full flex items-center gap-2 py-0.5 group"
+                      >
+                        <span className={`text-[9px] w-5 text-right tabular-nums ${isCurrent ? 'text-white font-bold' : 'text-stone-500'}`}>
+                          {year}
+                        </span>
+                        <div className="flex-1 h-2.5 bg-stone-700/30 rounded-full overflow-hidden relative">
+                          {isCurrent ? (
+                            <>
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${(currentWeekOfYear / 52) * 100}%`,
+                                  backgroundColor: phase?.color || '#6b7280',
+                                  opacity: 0.7,
+                                }}
+                              />
+                              <div
+                                className="absolute top-0 w-0.5 h-full bg-white rounded-full"
+                                style={{ left: `${(currentWeekOfYear / 52) * 100}%` }}
+                              />
+                            </>
+                          ) : isLived ? (
+                            <div
+                              className="h-full w-full rounded-full"
+                              style={{
+                                backgroundColor: phase?.color || '#6b7280',
+                                opacity: 0.3,
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className="h-full w-full rounded-full opacity-0 group-hover:opacity-20 transition-opacity"
+                              style={{ backgroundColor: phase?.color || '#6b7280' }}
+                            />
+                          )}
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="ml-7 my-1 p-2 bg-stone-800/50 rounded-lg">
+                          <p className="text-[9px] text-stone-400 mb-1.5">
+                            Age {year} &middot; {phase?.name || 'Life'} &middot; 52 weeks
+                          </p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(26, 1fr)', gap: '2px' }}>
+                            {Array.from({ length: 52 }, (_, w) => {
+                              const weekNum = w + 1
+                              const isWeekLived = isLived || (isCurrent && weekNum <= currentWeekOfYear)
+                              const isCurrentWeek = isCurrent && weekNum === currentWeekOfYear
+
+                              return (
+                                <div
+                                  key={w}
+                                  className="aspect-square rounded-[2px]"
+                                  style={{
+                                    backgroundColor: isCurrentWeek
+                                      ? '#ffffff'
+                                      : isWeekLived
+                                      ? phase?.color || '#6b7280'
+                                      : 'rgba(120, 113, 108, 0.15)',
+                                    opacity: isCurrentWeek ? 1 : isWeekLived ? (isLived ? 0.4 : 0.7) : 1,
+                                  }}
+                                  title={`Week ${weekNum}${isCurrentWeek ? ' (now)' : ''}`}
+                                />
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
+              {phases.map(phase => {
+                const totalWeeks = (phase.end - phase.start + 1) * 52
+                return (
+                  <div key={phase.name} className="mb-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: phase.color }} />
+                      <span className="text-[10px] text-stone-300 font-medium">{phase.name}</span>
+                      <span className="text-[9px] text-stone-500">({phase.start}-{phase.end})</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(52, 1fr)', gap: '1px' }}>
+                      {Array.from({ length: totalWeeks }, (_, i) => {
+                        const yearOffset = Math.floor(i / 52)
+                        const weekInYear = (i % 52) + 1
+                        const age = phase.start + yearOffset
+                        const totalWeekIndex = age * 52 + weekInYear
+                        const currentTotalWeek = currentAge * 52 + Math.floor(profile.ageInWeeks % 52) + 1
+                        const isLived = totalWeekIndex < currentTotalWeek
+                        const isCurrent = totalWeekIndex === currentTotalWeek
+
+                        return (
+                          <div
+                            key={i}
+                            className="aspect-square rounded-[1px]"
+                            style={{
+                              backgroundColor: isCurrent
+                                ? '#ffffff'
+                                : isLived
+                                ? phase.color
+                                : 'rgba(120, 113, 108, 0.12)',
+                              opacity: isCurrent ? 1 : isLived ? 0.4 : 1,
+                            }}
+                            title={`Age ${age}, Week ${weekInYear}${isCurrent ? ' (now)' : ''}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Accomplishment Stats */}
           <div className="border-t border-stone-700/50 pt-4">
@@ -1415,6 +1582,29 @@ function GoalsView() {
           </div>
         </div>
       </div>
+
+      {/* Motivational insight card */}
+      {(() => {
+        const currentPhase = getPhase(currentAge)
+        const insightTexts: Record<string, string> = {
+          'Childhood': `You're in the magical years of childhood. Every week is full of wonder and new discoveries. ${weeksRemaining.toLocaleString()} weeks stretch ahead of you like an endless adventure.`,
+          'School': `Your school years are shaping who you'll become. With ${weeksRemaining.toLocaleString()} weeks ahead, every lesson and friendship matters. Make each week count.`,
+          'University': `These university years are a launchpad. You have ${weeksRemaining.toLocaleString()} weeks remaining to build the foundation for everything that follows.`,
+          'Early Career': `You're building momentum in your early career. With ${weeksRemaining.toLocaleString()} weeks left, you have incredible runway to grow, pivot, and create impact.`,
+          'Growth': `You're in your growth era -- experience meets ambition. ${weeksRemaining.toLocaleString()} weeks remain to deepen mastery and pursue what truly matters to you.`,
+          'Prime': `These are your prime years. With ${weeksRemaining.toLocaleString()} weeks ahead, you bring wisdom and energy together. This is your time to lead and inspire.`,
+          'Freedom': `You've entered the freedom years. ${weeksRemaining.toLocaleString()} weeks to savor the life you've built, explore new passions, and share your wisdom.`,
+        }
+        const text = currentPhase ? insightTexts[currentPhase.name] : `You have ${weeksRemaining.toLocaleString()} weeks remaining. Make each one intentional.`
+        return (
+          <div className="bg-white rounded-xl p-3 mb-6 flex gap-2.5 border border-stone-100">
+            <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-xs">&#9203;</span>
+            </div>
+            <p className="text-[10px] text-stone-500 leading-relaxed">{text}</p>
+          </div>
+        )
+      })()}
 
       {/* Settings Panel */}
       {showSettings && (
