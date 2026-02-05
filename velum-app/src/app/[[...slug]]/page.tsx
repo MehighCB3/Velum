@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { 
   Search, 
   ChevronRight, 
@@ -2774,10 +2775,61 @@ function Dashboard({
   )
 }
 
+// Route mappings
+const pathToActiveItem: Record<string, string> = {
+  '/': 'nutrition-today',
+  '/nutrition': 'nutrition-today',
+  '/nutrition/today': 'nutrition-today',
+  '/nutrition/history': 'nutrition-history',
+  '/goals': 'goals',
+  '/fitness': 'fitness',
+  '/spanish': 'spanish',
+  '/books': 'books',
+  '/budget': 'budget',
+  '/tasks': 'tasks',
+}
+
+const activeItemToPath: Record<string, string> = {
+  'nutrition-today': '/nutrition',
+  'nutrition-history': '/nutrition/history',
+  'goals': '/goals',
+  'fitness': '/fitness',
+  'spanish': '/spanish',
+  'books': '/books',
+  'budget': '/budget',
+  'tasks': '/tasks',
+}
+
+function getExpandedFoldersForItem(itemId: string): Set<string> {
+  const folders = new Set<string>()
+  if (itemId.startsWith('nutrition')) folders.add('nutrition')
+  if (['spanish', 'books'].includes(itemId)) folders.add('knowledge')
+  return folders
+}
+
 // Main Page
 export default function Home() {
-  const [activeItem, setActiveItem] = useState('nutrition-today')
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['nutrition']))
+  const pathname = usePathname()
+  const router = useRouter()
+
+  const activeItem = pathToActiveItem[pathname] || 'nutrition-today'
+
+  const navigateTo = useCallback((itemId: string) => {
+    const path = activeItemToPath[itemId] || '/'
+    router.push(path)
+  }, [router])
+
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => getExpandedFoldersForItem(activeItem))
+  // Auto-expand folders when navigating to a child item
+  useEffect(() => {
+    const needed = getExpandedFoldersForItem(activeItem)
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      needed.forEach(f => next.add(f))
+      return next
+    })
+  }, [activeItem])
+
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     date: new Date().toISOString().split('T')[0],
@@ -2871,7 +2923,7 @@ export default function Home() {
       <Sidebar 
         navigation={navigation}
         activeItem={activeItem}
-        setActiveItem={setActiveItem}
+        setActiveItem={navigateTo}
         expandedFolders={expandedFolders}
         toggleFolder={toggleFolder}
         isOpen={sidebarOpen}
