@@ -25,6 +25,8 @@ import {
   Copy,
   Check
 } from 'lucide-react'
+import AgentInsight from '../components/AgentInsight'
+import { useInsights } from '../hooks/useInsights'
 
 // Profile type
 interface Profile {
@@ -505,6 +507,7 @@ function NutritionTodayView({
 }) {
   const [activeTab, setActiveTab] = useState('today')
   const [weekData, setWeekData] = useState<WeekDayData[]>([])
+  const { insights: nutritionInsights } = useInsights('nutrition')
   const { entries, totals, goals } = nutritionData
   
   const remaining = goals.calories - totals.calories
@@ -704,6 +707,9 @@ function NutritionTodayView({
       ) : (
         <WeekView onDayClick={(day) => console.log('Selected:', day)} />
       )}
+      {nutritionInsights.map((ni) => (
+        <AgentInsight key={ni.agentId} agent={ni.agent} emoji={ni.emoji} insight={ni.insight} updatedAt={ni.updatedAt} type={ni.type} />
+      ))}
     </div>
   )
 }
@@ -1710,6 +1716,7 @@ function FitnessView() {
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'today' | 'week'>('week')
   const [todaySteps, setTodaySteps] = useState(0)
+  const { insights: fitnessInsights } = useInsights('fitness')
 
   // Generate week key for a date
   const getWeekKey = (date: Date) => {
@@ -2003,6 +2010,9 @@ function FitnessView() {
           </div>
         </div>
       </div>
+      {fitnessInsights.map((fi) => (
+        <AgentInsight key={fi.agentId} agent={fi.agent} emoji={fi.emoji} insight={fi.insight} updatedAt={fi.updatedAt} type={fi.type} />
+      ))}
     </div>
   )
 }
@@ -2012,7 +2022,8 @@ function FitnessView() {
 function BudgetView() {
   const [loading, setLoading] = useState(true)
   const [weeklyData, setWeeklyData] = useState<BudgetWeekDisplay[]>([])
-  
+  const { insights: budgetInsights } = useInsights('budget')
+
   const WEEKLY_BUDGET = 70
   const totalBudget = 350 // 5 weeks × €70
   
@@ -2236,6 +2247,9 @@ function BudgetView() {
           </div>
         ))}
       </div>
+      {budgetInsights.map((bi) => (
+        <AgentInsight key={bi.agentId} agent={bi.agent} emoji={bi.emoji} insight={bi.insight} updatedAt={bi.updatedAt} type={bi.type} />
+      ))}
     </div>
   )
 }
@@ -2641,6 +2655,7 @@ function BooksView() {
   const [loading, setLoading] = useState(true)
   const [expandedAction, setExpandedAction] = useState(false)
   const [copied, setCopied] = useState(false)
+  const { insights: knowledgeInsights } = useInsights('knowledge')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2771,6 +2786,9 @@ function BooksView() {
           <p className="text-xs text-stone-400">{data.rawCapture.source}</p>
         </div>
       </div>
+      {knowledgeInsights.map((ki) => (
+        <AgentInsight key={ki.agentId} agent={ki.agent} emoji={ki.emoji} insight={ki.insight} updatedAt={ki.updatedAt} type={ki.type} />
+      ))}
     </div>
   )
 }
