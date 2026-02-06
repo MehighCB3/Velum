@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
 
+export const dynamic = 'force-dynamic'
+
 const usePostgres = !!process.env.POSTGRES_URL
 
 // Get date range for last 7 days

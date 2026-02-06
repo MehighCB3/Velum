@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { FitnessEntry } from '../route'
 
+export const dynamic = 'force-dynamic'
+
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
 
 interface ParsedFitnessEntry {

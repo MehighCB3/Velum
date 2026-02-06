@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Redis } from '@upstash/redis'
 
+export const dynamic = 'force-dynamic'
+
 // Redis client setup
 const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
   ? new Redis({
@@ -55,7 +57,7 @@ function getWeekRange(endWeek?: string): string[] {
   if (endWeek) {
     const match = endWeek.match(/^(\d{4})-W(\d{2})$/)
     if (match) {
-      const [_, year, week] = match
+      const [, year, week] = match
       // Approximate date from week number
       const startOfYear = new Date(Number(year), 0, 1)
       currentDate = new Date(startOfYear.getTime() + (Number(week) - 1) * 7 * 24 * 60 * 60 * 1000)

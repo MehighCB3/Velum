@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // Budget webhook handler for Telegram "Budgy" topic
 // Parses messages like: "15€ lunch food week 2" or "20€ drinks fun"
 
@@ -68,18 +70,24 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
   return { amount, description, category, week, reason }
 }
 
+// Helper to get ISO week number
+function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
 function getWeekKey(weekNum: number | null): string {
   const now = new Date()
   const year = now.getFullYear()
-  
+
   if (weekNum) {
     return `${year}-W${String(weekNum).padStart(2, '0')}`
   }
-  
-  // Current week
-  const startOfYear = new Date(year, 0, 1)
-  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000))
-  const weekNumber = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7)
+
+  const weekNumber = getISOWeek(now)
   return `${year}-W${String(weekNumber).padStart(2, '0')}`
 }
 
