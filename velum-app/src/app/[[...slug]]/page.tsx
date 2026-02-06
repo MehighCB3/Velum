@@ -435,17 +435,21 @@ function Sidebar({
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-      
+      <div
+        className={`fixed inset-0 z-40 lg:hidden transition-opacity duration-300 ease-in-out ${
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={onClose}
+      >
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      </div>
+
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-72 bg-stone-100/50 border-r border-stone-200/50 flex flex-col h-screen
+        w-72 border-r border-stone-200/50 flex flex-col h-screen
+        bg-stone-50 lg:bg-stone-100/50
+        shadow-xl lg:shadow-none
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
