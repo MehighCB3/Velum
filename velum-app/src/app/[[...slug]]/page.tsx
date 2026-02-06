@@ -338,7 +338,7 @@ function MealDetailModal({
           </div>
           
           {/* Nutrient Grid */}
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div className="bg-orange-50 rounded-xl p-3 text-center">
               <p className="text-lg font-bold text-orange-600">{entry.calories}</p>
               <p className="text-xs text-orange-500">kcal</p>
@@ -582,7 +582,7 @@ function NutritionTodayView({
   }
   
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -617,31 +617,31 @@ function NutritionTodayView({
       {activeTab === 'today' ? (
         <>
           {/* Dark Hero Card */}
-          <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+          <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden">
             {/* Top metrics row */}
-            <div className="grid grid-cols-4 gap-2 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
               <div className="text-center">
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Goal</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Goal</p>
                 <p className="text-sm font-bold text-orange-400">{goals.calories}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Left</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">Left</p>
                 <p className="text-sm font-bold text-orange-400">{remaining}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fiber</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fiber</p>
                 <p className="text-sm font-bold text-white">{fiberTotal > 0 ? `${fiberTotal}g` : '--'}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Water</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Water</p>
                 <p className="text-sm font-bold text-white">--</p>
               </div>
             </div>
 
             {/* Big calorie number */}
             <div className="text-center mb-5">
-              <p className="text-5xl sm:text-6xl font-bold text-white tracking-tight">{totals.calories}</p>
-              <p className="text-sm text-stone-400 mt-1">Calories</p>
+              <p className="text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight">{totals.calories}</p>
+              <p className="text-xs sm:text-sm text-stone-400 mt-1">Calories</p>
             </div>
 
             {/* Macro breakdown */}
@@ -763,7 +763,7 @@ function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
   
   if (selectedDay) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl lg:max-w-3xl mx-auto">
         <button 
           onClick={() => setSelectedDay(null)}
           className="flex items-center gap-2 text-sm text-stone-500 hover:text-stone-700 mb-4"
@@ -805,43 +805,43 @@ function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
   }
   
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       <h2 className="text-lg font-semibold text-stone-900 mb-4">Past 7 Days</h2>
       
-      <div className="grid grid-cols-7 gap-2 mb-6">
+      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-6">
         {weekData.map((day) => {
           const progress = Math.round((day.totals.calories / day.goals.calories) * 100)
           const isToday = day.date === new Date().toISOString().split('T')[0]
-          
+
           return (
             <button
               key={day.date}
               onClick={() => setSelectedDay(day)}
-              className={`flex flex-col items-center p-3 rounded-xl transition-all ${
+              className={`flex flex-col items-center p-2 sm:p-3 rounded-xl transition-all ${
                 isToday ? 'bg-orange-100 border-2 border-orange-300' : 'bg-white border border-stone-100 hover:border-stone-300'
               }`}
             >
-              <span className="text-xs text-stone-500 mb-1">{day.dayName}</span>
-              <span className="text-lg font-bold text-stone-900 mb-2">{day.dayNumber}</span>
-              
+              <span className="text-[10px] sm:text-xs text-stone-500 mb-1">{day.dayName}</span>
+              <span className="text-base sm:text-lg font-bold text-stone-900 mb-1 sm:mb-2">{day.dayNumber}</span>
+
               {/* Mini ring */}
-              <div className="relative w-10 h-10">
+              <div className="relative w-8 h-8 sm:w-10 sm:h-10">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e5e5" strokeWidth="12" />
-                  <circle 
-                    cx="50" cy="50" r="42" fill="none" 
-                    stroke={progress > 100 ? '#ef4444' : '#f97316'} 
+                  <circle
+                    cx="50" cy="50" r="42" fill="none"
+                    stroke={progress > 100 ? '#ef4444' : '#f97316'}
                     strokeWidth="12" strokeLinecap="round"
                     strokeDasharray={`${Math.min(progress, 100) * 2.64} 264`}
                     className="transition-all duration-500"
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-[10px] font-medium">{Math.min(progress, 100)}%</span>
+                  <span className="text-[8px] sm:text-[10px] font-medium">{Math.min(progress, 100)}%</span>
                 </div>
               </div>
-              
-              <span className={`text-xs mt-1 ${progress > day.goals.calories ? 'text-red-500' : 'text-stone-500'}`}>
+
+              <span className={`text-[10px] sm:text-xs mt-1 ${progress > day.goals.calories ? 'text-red-500' : 'text-stone-500'}`}>
                 {day.totals.calories}
               </span>
             </button>
@@ -853,7 +853,7 @@ function WeekView({ onDayClick }: { onDayClick: (day: WeekDayData) => void }) {
       <div className="bg-stone-100 rounded-xl p-4">
         <h3 className="text-sm font-medium text-stone-700 mb-3">Weekly Average</h3>
         {weekData.length > 0 && (
-          <div className="grid grid-cols-4 gap-4 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-lg font-bold text-stone-900">
                 {Math.round(weekData.reduce((a, d) => a + d.totals.calories, 0) / 7)}
@@ -1107,8 +1107,8 @@ function GoalsView() {
   // Show profile setup form if no profile
   if (!profile) {
     return (
-      <div className="max-w-md mx-auto p-6">
-        <div className="bg-white border border-stone-100 rounded-2xl p-6">
+      <div className="max-w-md mx-auto px-4 sm:px-6">
+        <div className="bg-white border border-stone-100 rounded-2xl p-5 sm:p-6">
           <h2 className="text-xl font-semibold text-stone-900 mb-2">Welcome to Goals</h2>
           <p className="text-sm text-stone-500 mb-6">Set up your profile to see your life timeline</p>
           
@@ -1148,7 +1148,7 @@ function GoalsView() {
   const { currentAge, weeksRemaining, percentLived, yearsRemaining } = profile
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       {/* Tab Switcher */}
       <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
         <button
@@ -1172,13 +1172,13 @@ function GoalsView() {
       {goalsTab === 'life' && (
         <>
           {/* Life Timeline Widget */}
-      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
         </div>
         <div className="relative">
           {/* Header with title, toggle, settings */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="text-lg font-bold text-white">Life Timeline</h2>
               <p className="text-xs text-stone-400">Week {Math.floor(profile.ageInWeeks % 52) + 1} of {new Date().getFullYear()}</p>
@@ -1187,7 +1187,7 @@ function GoalsView() {
               <div className="flex bg-stone-700/50 rounded-lg p-0.5">
                 <button
                   onClick={() => { setZoomLevel('macro'); setExpandedYear(null) }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     zoomLevel === 'macro'
                       ? 'bg-stone-600 text-white'
                       : 'text-stone-400 hover:text-stone-300'
@@ -1197,7 +1197,7 @@ function GoalsView() {
                 </button>
                 <button
                   onClick={() => setZoomLevel('micro')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     zoomLevel === 'micro'
                       ? 'bg-stone-600 text-white'
                       : 'text-stone-400 hover:text-stone-300'
@@ -1217,7 +1217,7 @@ function GoalsView() {
 
           {/* Big weeks remaining display */}
           <div className="text-center mb-4">
-            <p className="text-4xl sm:text-5xl font-bold text-white tracking-tight">{weeksRemaining.toLocaleString()}</p>
+            <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">{weeksRemaining.toLocaleString()}</p>
             <p className="text-xs text-stone-400 uppercase tracking-wider mt-1">weeks remaining</p>
           </div>
 
@@ -1481,12 +1481,12 @@ function GoalsView() {
       </div>
 
       {/* Horizon Tabs */}
-      <div className="flex p-1 bg-stone-100 rounded-lg mb-5">
+      <div className="flex p-1 bg-stone-100 rounded-lg mb-5 overflow-x-auto">
         {horizons.map(h => (
           <button
             key={h.key}
             onClick={() => setActiveHorizon(h.key)}
-            className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
+            className={`flex-1 min-w-[4rem] py-2 text-[11px] sm:text-xs font-medium rounded-md transition-all whitespace-nowrap ${
               activeHorizon === h.key
                 ? 'bg-white shadow-sm text-stone-900'
                 : 'text-stone-500 hover:text-stone-700'
@@ -1640,7 +1640,7 @@ function GoalsView() {
 
                 {/* Metric + Goal display for non-bucket */}
                 {!isBucket && (goal.keyMetric || goal.targetValue > 0) && (
-                  <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-stone-50 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 p-3 bg-stone-50 rounded-lg">
                     <div>
                       <p className="text-xs text-stone-400 uppercase tracking-wider font-semibold mb-0.5">Metric</p>
                       <p className="text-sm font-medium text-stone-800">{goal.keyMetric || '\u2014'}</p>
@@ -1842,7 +1842,7 @@ function FitnessView() {
   const activities = getActivities()
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -1875,31 +1875,31 @@ function FitnessView() {
       </div>
 
       {/* Dark Hero Card */}
-      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden">
         {/* Metrics pills row */}
-        <div className="grid grid-cols-4 gap-2 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
           <div className="text-center">
-            <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">HRV</p>
+            <p className="text-[10px] sm:text-xs font-semibold text-orange-400 uppercase tracking-wider mb-0.5">HRV</p>
             <p className="text-sm font-bold text-white">{latestHrv || '--'} <span className="text-[10px] text-stone-500 font-normal">ms</span></p>
           </div>
           <div className="text-center">
-            <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-0.5">VO&#8322;</p>
+            <p className="text-[10px] sm:text-xs font-semibold text-blue-400 uppercase tracking-wider mb-0.5">VO&#8322;</p>
             <p className="text-sm font-bold text-white">{latestVo2 || '--'}</p>
           </div>
           <div className="text-center">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Weight</p>
+            <p className="text-[10px] sm:text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Weight</p>
             <p className="text-sm font-bold text-white">{latestWeight || '--'} <span className="text-[10px] text-stone-500 font-normal">kg</span></p>
           </div>
           <div className="text-center">
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fat</p>
+            <p className="text-[10px] sm:text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">Fat</p>
             <p className="text-sm font-bold text-white">{latestFat || '--'}<span className="text-[10px] text-stone-500 font-normal">%</span></p>
           </div>
         </div>
 
         {/* Big kilometer number */}
         <div className="text-center mb-5">
-          <p className="text-5xl sm:text-6xl font-bold text-white tracking-tight">{Math.round(totalKm)}</p>
-          <p className="text-sm text-stone-400 mt-1">Kilometers</p>
+          <p className="text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight">{Math.round(totalKm)}</p>
+          <p className="text-xs sm:text-sm text-stone-400 mt-1">Kilometers</p>
         </div>
 
         {/* Activity type breakdown */}
@@ -2119,17 +2119,17 @@ function BudgetView() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       {/* Hero Stats Card with Weekly Budget Widget */}
-      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-4 sm:p-5 mb-5 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl" />
         </div>
         <div className="relative">
-          <div className="flex items-center gap-5 mb-5">
+          <div className="flex items-center gap-4 sm:gap-5 mb-5">
             {/* Ring */}
-            <div className="relative w-24 h-24 flex-shrink-0">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
                 <circle 
@@ -2149,24 +2149,24 @@ function BudgetView() {
                 <span className="text-xs text-stone-400 uppercase">spent</span>
               </div>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-stone-400 mb-1">Remaining</p>
-              <p className="text-3xl font-bold text-white">€{totalRemaining}</p>
-              <p className="text-xs text-stone-500">of €{totalBudget} monthly budget</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">€{totalRemaining}</p>
+              <p className="text-[10px] sm:text-xs text-stone-500">of €{totalBudget} monthly budget</p>
             </div>
           </div>
           
           {/* Weekly Budget Widget */}
           <div className="bg-stone-800/50 rounded-xl p-3 mb-4">
             <p className="text-xs text-stone-400 mb-2">Weekly Budgets</p>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               {weeklyData.map((week) => (
-                <div key={week.weekNum} className="flex-1">
+                <div key={week.weekNum} className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-stone-500">W{week.weekNum}</span>
-                    <span className="text-xs text-stone-400">€{week.remaining}</span>
+                    <span className="text-[10px] sm:text-xs text-stone-500">W{week.weekNum}</span>
+                    <span className="text-[10px] sm:text-xs text-stone-400">€{week.remaining}</span>
                   </div>
-                  <div className="h-8 bg-stone-700 rounded-md overflow-hidden relative">
+                  <div className="h-6 sm:h-8 bg-stone-700 rounded-md overflow-hidden relative">
                     <div 
                       className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ${
                         week.spent > week.budget * 0.8 ? 'bg-red-500' : week.spent > 0 ? 'bg-emerald-500' : 'bg-stone-600'
@@ -2186,20 +2186,20 @@ function BudgetView() {
         {weeklyData.map((week) => (
           <div key={week.weekNum} className="bg-white border border-stone-100 rounded-xl overflow-hidden">
             {/* Week Header */}
-            <div className="flex items-center justify-between p-3 bg-stone-50 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-stone-900">{week.weekLabel}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  week.spent > week.budget * 0.9 ? 'bg-red-100 text-red-600' : 
-                  week.spent > week.budget * 0.7 ? 'bg-amber-100 text-amber-600' : 
+            <div className="flex items-center justify-between p-3 bg-stone-50 border-b border-stone-100 gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
+                <span className="text-xs sm:text-sm font-semibold text-stone-900 whitespace-nowrap">{week.weekLabel}</span>
+                <span className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap ${
+                  week.spent > week.budget * 0.9 ? 'bg-red-100 text-red-600' :
+                  week.spent > week.budget * 0.7 ? 'bg-amber-100 text-amber-600' :
                   'bg-emerald-100 text-emerald-600'
                 }`}>
                   €{week.remaining} left
                 </span>
               </div>
-              <div className="text-right">
-                <span className="text-sm font-bold text-stone-900">€{week.spent}</span>
-                <span className="text-xs text-stone-400"> / €{week.budget}</span>
+              <div className="text-right flex-shrink-0">
+                <span className="text-xs sm:text-sm font-bold text-stone-900">€{week.spent}</span>
+                <span className="text-[10px] sm:text-xs text-stone-400"> / €{week.budget}</span>
               </div>
             </div>
             
@@ -2384,16 +2384,16 @@ function SpanishView() {
   const reviewedPct = progress ? Math.round((reviewedToday / Math.max(1, reviewedToday + dueCount)) * 100) : 0
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       {/* Hero Progress Card */}
-      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-5 mb-5 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-stone-900 to-stone-800 rounded-2xl p-4 sm:p-5 mb-5 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl" />
         </div>
         <div className="relative">
-          <div className="flex items-center gap-5 mb-4">
-            <div className="relative w-24 h-24 flex-shrink-0">
+          <div className="flex items-center gap-4 sm:gap-5 mb-4">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-stone-700" />
                 <circle
@@ -2413,10 +2413,10 @@ function SpanishView() {
                 <span className="text-xs text-stone-400 uppercase">reviewed</span>
               </div>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-stone-400 mb-1">Cards Due</p>
-              <p className="text-3xl font-bold text-white">{dueCount}</p>
-              <p className="text-xs text-stone-500">{progress?.stats?.learning_count || 0} learning &middot; {progress?.stats?.review_count || 0} review</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{dueCount}</p>
+              <p className="text-[10px] sm:text-xs text-stone-500">{progress?.stats?.learning_count || 0} learning &middot; {progress?.stats?.review_count || 0} review</p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -2692,7 +2692,7 @@ function BooksView() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl lg:max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -2702,7 +2702,7 @@ function BooksView() {
       </div>
 
       {/* Dark Hero Card */}
-      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-5 mb-6 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
             <BookOpen size={20} className="text-amber-400" />
@@ -2807,7 +2807,7 @@ function Dashboard({
   return (
     <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
-      <header className="h-14 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-10">
+      <header className="h-14 bg-white/80 backdrop-blur-xl border-b border-stone-100 flex items-center justify-between px-4 sm:px-6 md:px-8 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           {/* Mobile menu button */}
           <button 
@@ -2837,7 +2837,7 @@ function Dashboard({
       </header>
       
       {/* Content */}
-      <div className="flex-1 p-4 sm:p-6 overflow-auto">
+      <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
         {activeView === 'nutrition-today' && (
           <NutritionTodayView
             nutritionData={nutritionData}
