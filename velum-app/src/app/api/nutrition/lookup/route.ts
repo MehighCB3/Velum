@@ -2,12 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import OAuth from 'oauth-1.0a'
 import CryptoJS from 'crypto-js'
 
+export const dynamic = 'force-dynamic'
+
 const FATSECRET_URL = 'https://platform.fatsecret.com/rest/server.api'
 const CONSUMER_KEY = process.env.FATSECRET_CONSUMER_KEY
 const CONSUMER_SECRET = process.env.FATSECRET_CONSUMER_SECRET
 
+// Food lookup result type
+interface FoodResult {
+  name: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  serving: string
+  brand?: string
+  source?: string
+  note?: string
+}
+
 // Local fallback database
-const LOCAL_DB: Record<string, any> = {
+const LOCAL_DB: Record<string, Omit<FoodResult, 'name'>> = {
   'banana': { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3, serving: '100g' },
   'apple': { calories: 52, protein: 0.3, carbs: 14, fat: 0.2, serving: '100g' },
   'egg': { calories: 155, protein: 13, carbs: 1.1, fat: 11, serving: '100g' },
@@ -31,7 +46,7 @@ const LOCAL_DB: Record<string, any> = {
 }
 
 // Try FatSecret API first
-async function searchFatSecret(query: string): Promise<any[] | null> {
+async function searchFatSecret(query: string): Promise<FoodResult[] | null> {
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
     console.log('FatSecret credentials not configured')
     return null
@@ -81,16 +96,16 @@ async function searchFatSecret(query: string): Promise<any[] | null> {
     
     const foods = Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]
     
-    return foods.map((f: any) => {
+    return foods.map((f: { food_name?: string; food_description?: string; serving?: { serving_description?: string }; brand_name?: string }) => {
       // Parse nutrition from description
       const desc = f.food_description || ''
       const calories = parseInt(desc.match(/Calories:\s*(\d+)/)?.[1] || '0')
       const fat = parseFloat(desc.match(/Fat:\s*([\d.]+)g/)?.[1] || '0')
       const carbs = parseFloat(desc.match(/Carbs:\s*([\d.]+)g/)?.[1] || '0')
       const protein = parseFloat(desc.match(/Protein:\s*([\d.]+)g/)?.[1] || '0')
-      
+
       return {
-        name: f.food_name,
+        name: f.food_name || 'Unknown',
         calories,
         protein,
         carbs,
@@ -108,7 +123,7 @@ async function searchFatSecret(query: string): Promise<any[] | null> {
 }
 
 // Search local database
-function searchLocal(query: string): any | null {
+function searchLocal(query: string): FoodResult | null {
   const searchTerm = query.toLowerCase()
   const match = Object.entries(LOCAL_DB).find(([key]) => 
     key.includes(searchTerm) || searchTerm.includes(key)

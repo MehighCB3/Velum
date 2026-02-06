@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
 
+export const dynamic = 'force-dynamic'
+
 const usePostgres = !!process.env.POSTGRES_URL
 
 // ==================== SM-2 SPACED REPETITION ALGORITHM ====================
@@ -523,7 +525,7 @@ export async function POST(request: NextRequest) {
           await initTables()
           await sql`
             INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-            VALUES (${id}, ${spanish_word}, ${english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${card.tags as any}, ${card.source})
+            VALUES (${id}, ${spanish_word}, ${english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${JSON.stringify(card.tags)}, ${card.source})
           `
           await sql`INSERT INTO spanish_progress (card_id) VALUES (${id})`
           return NextResponse.json({ success: true, card })
@@ -549,7 +551,7 @@ export async function POST(request: NextRequest) {
           for (const card of SEED_CARDS) {
             await sql`
               INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-              VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${card.tags as any}, ${card.source})
+              VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${JSON.stringify(card.tags)}, ${card.source})
               ON CONFLICT (id) DO NOTHING
             `
             await sql`INSERT INTO spanish_progress (card_id) VALUES (${card.id}) ON CONFLICT (card_id) DO NOTHING`

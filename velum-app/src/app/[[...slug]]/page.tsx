@@ -155,6 +155,79 @@ interface WeekDayData {
   }
 }
 
+// Budget display types
+interface BudgetExpenditure {
+  id: string
+  description: string
+  category: string
+  amount: number
+  date: string
+  reason?: string
+}
+
+interface BudgetWeekDisplay {
+  weekNum: number
+  weekLabel: string
+  weekKey: string
+  budget: number
+  spent: number
+  remaining: number
+  expenditures: BudgetExpenditure[]
+}
+
+// Spanish learning types
+interface SpanishCard {
+  id: string
+  spanish_word: string
+  english_translation: string
+  word_type?: string
+  tags?: string[]
+  example_sentence_spanish?: string
+  example_sentence_english?: string
+}
+
+interface SpanishProgress {
+  reviewedToday: number
+  stats?: {
+    total: number
+    new_count: number
+    learning_count: number
+    review_count: number
+    parked_count: number
+  }
+}
+
+interface SpanishExerciseContent {
+  // Verb conjugation
+  verb?: string
+  tense?: string
+  pronoun?: string
+  hint?: string
+  // Cloze
+  text?: string
+  // Translation
+  direction?: string
+  sourceText?: string
+  // Grammar
+  question?: string
+  topic?: string
+  options?: string[]
+  explanation?: string
+  // Writing
+  prompt?: string
+  minWords?: number
+  suggestedVocabulary?: string[]
+  exampleAnswer?: string
+}
+
+interface SpanishExercise {
+  id: string
+  type: 'verb_conjugation' | 'cloze' | 'translation' | 'grammar' | 'writing'
+  difficulty?: string
+  content: SpanishExerciseContent
+  answer_key?: { answer?: string; answers?: string[]; correct?: number; type?: string }
+}
+
 // 7-Day Bar Chart Component
 function SevenDayBarChart({ days, calorieGoal = 2000 }: { days: WeekDayData[], calorieGoal?: number }) {
   const maxCalories = Math.max(...days.map(d => d.totals.calories), calorieGoal)
@@ -819,7 +892,7 @@ interface Goal {
 
 // Goals View with Life Timeline
 function GoalsView() {
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [expandedYear, setExpandedYear] = useState<number | null>(null)
@@ -912,7 +985,7 @@ function GoalsView() {
         body: JSON.stringify({
           birthDate: formData.birthDate,
           country: formData.country,
-          lifeExpectancy: parseInt(formData.lifeExpectancy as any)
+          lifeExpectancy: Number(formData.lifeExpectancy)
         })
       })
       if (response.ok) {
@@ -1934,25 +2007,28 @@ function FitnessView() {
 // Budget View Component
 function BudgetView() {
   const [loading, setLoading] = useState(true)
-  const [weeklyData, setWeeklyData] = useState<any[]>([])
+  const [weeklyData, setWeeklyData] = useState<BudgetWeekDisplay[]>([])
   
   const WEEKLY_BUDGET = 70
   const totalBudget = 350 // 5 weeks × €70
   
+  // Helper to get ISO week number
+  const getISOWeek = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dayNum = d.getUTCDay() || 7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  }
+
   // Generate week keys for current month (Week 1-5)
   const getWeekKeys = () => {
     const now = new Date()
     const year = now.getFullYear()
-    const month = now.getMonth()
-    
-    // Get ISO week numbers for the month
+    const currentWeek = getISOWeek(now)
+
     const weeks: string[] = []
     for (let weekNum = 1; weekNum <= 5; weekNum++) {
-      // Approximate week key - in real app, calculate proper ISO week
-      const startOfYear = new Date(year, 0, 1)
-      const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000))
-      const currentWeek = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7)
-      // Adjust for week of month approximation
       const targetWeek = Math.max(1, currentWeek - 2 + weekNum)
       weeks.push(`${year}-W${String(targetWeek).padStart(2, '0')}`)
     }
@@ -1978,7 +2054,7 @@ function BudgetView() {
                 budget: WEEKLY_BUDGET,
                 spent: data.totalSpent || 0,
                 remaining: data.remaining || WEEKLY_BUDGET,
-                expenditures: (data.entries || []).map((entry: any) => ({
+                expenditures: (data.entries || []).map((entry: { id: string; description: string; category: string; amount: number; date: string; reason?: string }) => ({
                   id: entry.id,
                   description: entry.description,
                   category: entry.category === 'Food' ? 'Food - Eating Out' : 'Miscellaneous',
@@ -2127,7 +2203,7 @@ function BudgetView() {
             {/* Expenditures List */}
             <div className="divide-y divide-stone-50">
               {week.expenditures.length > 0 ? (
-                week.expenditures.map((entry: any) => (
+                week.expenditures.map((entry: BudgetExpenditure) => (
                   <div key={entry.id} className="flex items-center gap-3 p-3 hover:bg-stone-50 transition-colors">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
                       entry.category.includes('Food') ? 'bg-emerald-50' : 'bg-blue-50'
@@ -2162,11 +2238,11 @@ function BudgetView() {
 
 // Spanish Flashcards & Exercises View
 function SpanishView() {
-  const [cards, setCards] = useState<any[]>([])
+  const [cards, setCards] = useState<SpanishCard[]>([])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
-  const [progress, setProgress] = useState<any>(null)
-  const [exercises, setExercises] = useState<any[]>([])
+  const [progress, setProgress] = useState<SpanishProgress | null>(null)
+  const [exercises, setExercises] = useState<SpanishExercise[]>([])
   const [exerciseAnswers, setExerciseAnswers] = useState<Record<string, string>>({})
   const [exerciseFeedback, setExerciseFeedback] = useState<Record<string, { correct: boolean; feedback: string }>>({})
   const [activeTab, setActiveTab] = useState<'cards' | 'exercises'>('cards')
@@ -2223,7 +2299,7 @@ function SpanishView() {
       setCards([])
       setCurrentCardIndex(0)
     }
-    setProgress((prev: any) => prev ? { ...prev, reviewedToday: (prev.reviewedToday || 0) + 1 } : prev)
+    setProgress((prev) => prev ? { ...prev, reviewedToday: (prev.reviewedToday || 0) + 1 } : prev)
   }
 
   const handlePark = async () => {
@@ -2241,10 +2317,10 @@ function SpanishView() {
     setCards(remaining)
     setCurrentCardIndex(prev => Math.min(prev, remaining.length - 1))
     setFlipped(false)
-    setProgress((prev: any) => {
+    setProgress((prev) => {
       if (!prev) return prev
-      const stats = { ...prev.stats, parked_count: (prev.stats?.parked_count || 0) + 1 }
-      return { ...prev, stats }
+      const currentStats = prev.stats || { total: 0, new_count: 0, learning_count: 0, review_count: 0, parked_count: 0 }
+      return { ...prev, stats: { ...currentStats, parked_count: currentStats.parked_count + 1 } }
     })
   }
 
@@ -2436,7 +2512,7 @@ function SpanishView() {
               <p className="text-sm text-stone-400">Check back later for new exercises.</p>
             </div>
           ) : (
-            exercises.map((ex: any) => {
+            exercises.map((ex: SpanishExercise) => {
               const fb = exerciseFeedback[ex.id]
               const c = ex.content || {}
               // Build display prompt based on exercise type

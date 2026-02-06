@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Redis } from '@upstash/redis'
 
+export const dynamic = 'force-dynamic'
+
 // Redis client setup
 const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
   ? new Redis({
@@ -41,25 +43,20 @@ interface WeekData {
 // In-memory fallback storage
 const fallbackStorage: Record<string, WeekData> = {}
 
+// Helper to get ISO week number
+function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
 // Helper to generate week key (e.g., "2026-W05")
 function getWeekKey(date: Date): string {
   const year = date.getFullYear()
-  // Calculate ISO week number
-  const startOfYear = new Date(year, 0, 1)
-  const dayOfYear = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000))
-  const weekNumber = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7)
-  return `${year}-W${String(weekNumber).padStart(2, '0')}`
-}
-
-function parseWeekKey(weekKey: string): Date {
-  const match = weekKey.match(/^(\d{4})-W(\d{2})$/)
-  if (!match) return new Date()
-  const [_, year, week] = match
-  // Calculate the first day of the week
-  const startOfYear = new Date(Number(year), 0, 1)
-  const dayOffset = (Number(week) - 1) * 7 - startOfYear.getDay()
-  startOfYear.setDate(startOfYear.getDate() + dayOffset + 1) // +1 for Monday
-  return startOfYear
+  const week = getISOWeek(date)
+  return `${year}-W${String(week).padStart(2, '0')}`
 }
 
 // Redis operations

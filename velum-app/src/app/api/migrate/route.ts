@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
 
+export const dynamic = 'force-dynamic'
+
 const SEED_DATA = {
   "2026-02-01": {
     "date": "2026-02-01",

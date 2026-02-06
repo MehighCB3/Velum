@@ -1,11 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
 
+export const dynamic = 'force-dynamic'
+
 // Storage mode detection
 const usePostgres = !!process.env.POSTGRES_URL
 
+// Nutrition types
+interface NutritionEntry {
+  id: string
+  name: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  time: string
+  date: string
+}
+
+interface NutritionGoals {
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+interface NutritionDay {
+  date: string
+  entries: NutritionEntry[]
+  totals: NutritionGoals
+  goals: NutritionGoals
+}
+
 // Seed data fallback
-const SEED_DATA: Record<string, any> = {
+const SEED_DATA: Record<string, NutritionDay> = {
   "2026-02-01": {
     "date": "2026-02-01",
     "entries": [
@@ -67,7 +95,7 @@ async function initializePostgresTables(): Promise<void> {
   }
 }
 
-async function readFromPostgres(date: string): Promise<any> {
+async function readFromPostgres(date: string): Promise<NutritionDay> {
   const entriesResult = await sql`
     SELECT entry_id as id, name, calories, protein, carbs, fat, 
            TO_CHAR(entry_time, 'HH24:MI') as time
@@ -82,8 +110,8 @@ async function readFromPostgres(date: string): Promise<any> {
     WHERE date = ${date}
   `
   
-  const goals = goalsResult.rows[0] || SEED_DATA["2026-02-01"].goals
-  const entries = entriesResult.rows
+  const goals = (goalsResult.rows[0] as NutritionGoals) || SEED_DATA["2026-02-01"].goals
+  const entries = entriesResult.rows as NutritionEntry[]
   
   const totals = entries.reduce(
     (acc, entry) => ({
@@ -98,7 +126,7 @@ async function readFromPostgres(date: string): Promise<any> {
   return { date, entries, totals, goals }
 }
 
-async function writeToPostgres(date: string, entries: any[], goals?: any) {
+async function writeToPostgres(date: string, entries: NutritionEntry[], goals?: NutritionGoals) {
   await initializePostgresTables()
   
   if (goals) {

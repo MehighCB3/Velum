@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
 
+export const dynamic = 'force-dynamic'
+
 // Create user profile table
 async function initializeProfileTable() {
   try {
