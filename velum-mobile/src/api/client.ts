@@ -20,7 +20,7 @@ import {
 // For local development, point to localhost:3000.
 const API_BASE = __DEV__
   ? 'http://localhost:3000'
-  : 'https://velum-app.vercel.app';
+  : 'https://velum-five.vercel.app';
 
 // ==================== HTTP HELPERS ====================
 

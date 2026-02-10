@@ -22,7 +22,7 @@ import { SyncStatus } from '../types';
 
 const API_BASE = __DEV__
   ? 'http://localhost:3000'
-  : 'https://velum-app.vercel.app';
+  : 'https://velum-five.vercel.app';
 
 export async function isOnline(): Promise<boolean> {
   try {
