@@ -12,6 +12,7 @@ import {
   normalizeGoal,
   SpanishCard,
   UserProfile,
+  AgentInsight,
 } from '../types';
 
 // Base URL of the Velum web app API.
@@ -245,5 +246,14 @@ export const profileApi = {
       method: 'POST',
       body: JSON.stringify(profile),
     });
+  },
+};
+
+// ==================== INSIGHTS ====================
+
+export const insightsApi = {
+  async getAll(section?: string): Promise<AgentInsight[]> {
+    const data = await request<AgentInsight[]>('/insights');
+    return section ? data.filter((i) => i.section === section) : data;
   },
 };

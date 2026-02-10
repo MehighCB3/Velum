@@ -29,12 +29,15 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-
-    if (!INSIGHTS_API_KEY || token !== INSIGHTS_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Authenticate — if INSIGHTS_API_KEY is set, require Bearer token.
+    // When the key is not configured (dev/initial setup), allow all writes
+    // so internal callers like the fitness webhook can push insights.
+    if (INSIGHTS_API_KEY) {
+      const authHeader = request.headers.get('authorization')
+      const token = authHeader?.replace('Bearer ', '')
+      if (token !== INSIGHTS_API_KEY) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     const body = await request.json()

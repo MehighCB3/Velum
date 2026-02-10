@@ -11,7 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useFitness } from '../../src/hooks/useFitness';
+import { useInsights } from '../../src/hooks/useInsights';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
+import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
@@ -58,6 +60,7 @@ const fitnessFields: FormField[] = [
 export default function FitnessScreen() {
   const [weekDate, setWeekDate] = useState(new Date());
   const { data, loading, refresh, addEntry, deleteEntry } = useFitness(weekDate);
+  const { insights: fitnessInsights } = useInsights('fitness');
   const [showAddModal, setShowAddModal] = useState(false);
 
   const handleAddEntry = useCallback(
@@ -259,6 +262,15 @@ export default function FitnessScreen() {
           })
         )}
 
+        {/* Agent Insights */}
+        {fitnessInsights.length > 0 && (
+          <View style={styles.insightsContainer}>
+            {fitnessInsights.map((fi) => (
+              <AgentInsightCard key={fi.agentId} insight={fi} />
+            ))}
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -315,6 +327,7 @@ const styles = StyleSheet.create({
   activityName: { fontSize: 15, fontWeight: '600', color: colors.text },
   activityMeta: { fontSize: 12, color: colors.textLight, marginTop: 2 },
   activityDate: { fontSize: 12, color: colors.textLight },
+  insightsContainer: { marginTop: 12 },
   fab: {
     position: 'absolute',
     bottom: 24,

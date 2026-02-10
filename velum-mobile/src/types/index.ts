@@ -200,6 +200,18 @@ export interface UserProfile {
   yearsRemaining?: number;
 }
 
+// ==================== INSIGHTS ====================
+
+export interface AgentInsight {
+  agent: string;
+  agentId: string;
+  emoji: string;
+  insight: string;
+  type: 'nudge' | 'alert' | 'celebration';
+  updatedAt: string;
+  section: 'nutrition' | 'fitness' | 'budget' | 'tasks' | 'knowledge';
+}
+
 // ==================== SYNC ====================
 
 export interface SyncStatus {
