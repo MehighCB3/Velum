@@ -1,25 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAllInsights, saveInsight, type Insight } from '../../lib/insightsStore'
 
 export const dynamic = 'force-dynamic'
 
-interface Insight {
-  agent: string
-  agentId: string
-  emoji: string
-  insight: string
-  type: 'nudge' | 'alert' | 'celebration'
-  updatedAt: string
-  section: 'nutrition' | 'fitness' | 'budget' | 'tasks' | 'knowledge'
-}
-
 const INSIGHTS_API_KEY = process.env.INSIGHTS_API_KEY || ''
-
-// In-memory store
-const insightsStore = new Map<string, Insight>()
 
 export async function GET() {
   try {
-    const insights = Array.from(insightsStore.values())
+    const insights = await getAllInsights()
     return NextResponse.json(insights)
   } catch (error) {
     console.error('GET insights error:', error)
@@ -60,8 +48,7 @@ export async function POST(request: NextRequest) {
       section,
     }
 
-    // Store by section (one insight per section, latest wins)
-    insightsStore.set(section, entry)
+    await saveInsight(entry)
 
     return NextResponse.json({ success: true, insight: entry })
   } catch (error) {

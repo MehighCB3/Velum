@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { FitnessEntry } from '../route'
+import { saveInsight } from '../../../lib/insightsStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -649,29 +650,20 @@ export async function POST(request: NextRequest) {
     const savedData = await response.json()
 
     // ==================== PUSH INSIGHT TO FITY AGENT ====================
-    // Generate a contextual insight based on the saved week data and push it
-    // to /api/insights so it appears on the dashboard and mobile app.
+    // Generate a contextual insight and save directly to the shared store
+    // (Redis-backed) so it persists across serverless invocations.
     try {
       const insightText = generateFitnessInsight(parsed, savedData)
       if (insightText) {
         const insightType = classifyInsightType(parsed, savedData)
-        const insightsUrl = new URL('/api/insights', request.url)
-        const insightsApiKey = process.env.INSIGHTS_API_KEY
-        const insightHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (insightsApiKey) {
-          insightHeaders['Authorization'] = `Bearer ${insightsApiKey}`
-        }
-        await fetch(insightsUrl.toString(), {
-          method: 'POST',
-          headers: insightHeaders,
-          body: JSON.stringify({
-            agent: 'Fity',
-            agentId: 'fitness-agent',
-            emoji: '🏋️',
-            insight: insightText,
-            type: insightType,
-            section: 'fitness',
-          }),
+        await saveInsight({
+          agent: 'Fity',
+          agentId: 'fitness-agent',
+          emoji: '🏋️',
+          insight: insightText,
+          type: insightType,
+          updatedAt: new Date().toISOString(),
+          section: 'fitness',
         })
       }
     } catch (insightErr) {
