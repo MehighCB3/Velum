@@ -216,7 +216,7 @@ export default function NutritionScreen() {
 
       {/* FAB */}
       <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color="#ffffff" />
+        <Ionicons name="add" size={28} color={colors.darkText} />
       </Pressable>
 
       {/* Add Meal Modal */}
@@ -270,18 +270,18 @@ const styles = StyleSheet.create({
   },
   heroLabel: {
     fontSize: 13,
-    color: '#a8a29e',
+    color: colors.darkTextSecondary,
     fontWeight: '500',
   },
   heroValue: {
     fontSize: 36,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.darkText,
     marginTop: 2,
   },
   heroSub: {
     fontSize: 13,
-    color: '#a8a29e',
+    color: colors.darkTextSecondary,
     marginTop: 2,
   },
   heroRemaining: {

@@ -15,6 +15,8 @@ export const colors = {
   dark: '#1c1917',
   darkSecondary: '#292524',
   darkTertiary: '#44403c',
+  darkText: '#ffffff',
+  darkTextSecondary: '#a8a29e',
 
   // Semantic colors
   success: '#10b981',

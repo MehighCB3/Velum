@@ -263,7 +263,7 @@ export default function FitnessScreen() {
       </ScrollView>
 
       <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color="#ffffff" />
+        <Ionicons name="add" size={28} color={colors.darkText} />
       </Pressable>
 
       <AddEntryModal

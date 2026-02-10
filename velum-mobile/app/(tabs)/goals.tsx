@@ -7,6 +7,10 @@ import {
   RefreshControl,
   Pressable,
   Alert,
+  Modal,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
@@ -46,6 +50,10 @@ export default function GoalsScreen() {
   const [activeHorizon, setActiveHorizon] = useState<GoalHorizon>('year');
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Cross-platform progress input modal (replaces iOS-only Alert.prompt)
+  const [progressGoal, setProgressGoal] = useState<Goal | null>(null);
+  const [progressValue, setProgressValue] = useState('');
+
   const filteredGoals = goals.filter((g) => g.horizon === activeHorizon);
 
   const handleAddGoal = useCallback(
@@ -75,16 +83,8 @@ export default function GoalsScreen() {
               {
                 text: 'Update Progress',
                 onPress: () => {
-                  Alert.prompt(
-                    'Update Progress',
-                    `Current: ${goal.currentValue} / ${goal.targetValue} ${goal.unit}`,
-                    (value) => {
-                      const num = Number(value);
-                      if (!isNaN(num)) updateProgress(goal.id, num);
-                    },
-                    'plain-text',
-                    String(goal.currentValue),
-                  );
+                  setProgressGoal(goal);
+                  setProgressValue(String(goal.currentValue));
                 },
               },
               {
@@ -99,8 +99,18 @@ export default function GoalsScreen() {
         },
       ]);
     },
-    [updateProgress, markComplete, removeGoal],
+    [markComplete, removeGoal],
   );
+
+  const handleProgressSubmit = useCallback(() => {
+    if (!progressGoal) return;
+    const num = Number(progressValue);
+    if (!isNaN(num)) {
+      updateProgress(progressGoal.id, num);
+    }
+    setProgressGoal(null);
+    setProgressValue('');
+  }, [progressGoal, progressValue, updateProgress]);
 
   return (
     <View style={styles.container}>
@@ -208,9 +218,7 @@ export default function GoalsScreen() {
                           styles.progressBarFill,
                           {
                             width: `${Math.min(progress * 100, 100)}%`,
-                            backgroundColor: isComplete
-                              ? colors.success
-                              : colors.accent,
+                            backgroundColor: isComplete ? colors.success : colors.accent,
                           },
                         ]}
                       />
@@ -226,7 +234,7 @@ export default function GoalsScreen() {
       </ScrollView>
 
       <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color="#ffffff" />
+        <Ionicons name="add" size={28} color={colors.darkText} />
       </Pressable>
 
       <AddEntryModal
@@ -236,6 +244,41 @@ export default function GoalsScreen() {
         onSubmit={handleAddGoal}
         onClose={() => setShowAddModal(false)}
       />
+
+      {/* Cross-platform progress update modal */}
+      <Modal visible={!!progressGoal} animationType="fade" transparent>
+        <KeyboardAvoidingView
+          style={styles.progressOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.progressSheet}>
+            <Text style={styles.progressTitle}>Update Progress</Text>
+            <Text style={styles.progressSub}>
+              {progressGoal?.title} — {progressGoal?.currentValue} / {progressGoal?.targetValue} {progressGoal?.unit}
+            </Text>
+            <TextInput
+              style={styles.progressInput}
+              value={progressValue}
+              onChangeText={setProgressValue}
+              keyboardType="decimal-pad"
+              placeholder="New value"
+              placeholderTextColor={colors.textLight}
+              autoFocus
+            />
+            <View style={styles.progressButtons}>
+              <Pressable
+                style={styles.progressCancel}
+                onPress={() => { setProgressGoal(null); setProgressValue(''); }}
+              >
+                <Text style={styles.progressCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.progressSubmit} onPress={handleProgressSubmit}>
+                <Text style={styles.progressSubmitText}>Update</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -257,13 +300,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: 6,
   },
-  tabActive: {
-    backgroundColor: colors.dark,
-    borderColor: colors.dark,
-  },
+  tabActive: { backgroundColor: colors.dark, borderColor: colors.dark },
   tabIcon: { fontSize: 14 },
   tabLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
-  tabLabelActive: { color: '#ffffff' },
+  tabLabelActive: { color: colors.darkText },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -317,4 +357,51 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
+  // Progress update modal
+  progressOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    padding: 24,
+  },
+  progressSheet: {
+    backgroundColor: colors.bg,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+  },
+  progressTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  progressSub: { fontSize: 13, color: colors.textLight, marginBottom: 16 },
+  progressInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 18,
+    color: colors.text,
+    backgroundColor: colors.sidebar,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  progressButtons: { flexDirection: 'row', gap: 10 },
+  progressCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  progressCancelText: { fontSize: 15, fontWeight: '600', color: colors.textLight },
+  progressSubmit: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: colors.dark,
+    alignItems: 'center',
+  },
+  progressSubmitText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
 });

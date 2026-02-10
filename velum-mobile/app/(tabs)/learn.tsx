@@ -6,7 +6,6 @@ import {
   ScrollView,
   RefreshControl,
   Pressable,
-  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
@@ -154,7 +153,7 @@ export default function LearnScreen() {
 
           {/* Start Review Button */}
           <Pressable style={styles.startButton} onPress={startReview}>
-            <Ionicons name="flash" size={20} color="#ffffff" />
+            <Ionicons name="flash" size={20} color={colors.darkText} />
             <Text style={styles.startButtonText}>Start Review Session</Text>
           </Pressable>
 
@@ -307,12 +306,12 @@ const styles = StyleSheet.create({
   // Deck mode
   deckHero: { marginBottom: 12, alignItems: 'center', paddingVertical: 24 },
   deckFlag: { fontSize: 40, marginBottom: 8 },
-  deckTitle: { fontSize: 22, fontWeight: '800', color: '#ffffff' },
-  deckLevel: { fontSize: 14, color: '#a8a29e', marginTop: 4 },
+  deckTitle: { fontSize: 22, fontWeight: '800', color: colors.darkText },
+  deckLevel: { fontSize: 14, color: colors.darkTextSecondary, marginTop: 4 },
   deckStatsRow: { flexDirection: 'row', marginTop: 20, gap: 24 },
   deckStat: { alignItems: 'center' },
-  deckStatValue: { fontSize: 22, fontWeight: '700', color: '#ffffff' },
-  deckStatLabel: { fontSize: 11, color: '#a8a29e', marginTop: 2 },
+  deckStatValue: { fontSize: 22, fontWeight: '700', color: colors.darkText },
+  deckStatLabel: { fontSize: 11, color: colors.darkTextSecondary, marginTop: 2 },
   todayCard: { marginBottom: 12 },
   todayRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   todayTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
@@ -334,7 +333,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     gap: 8,
   },
-  startButtonText: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
+  startButtonText: { fontSize: 16, fontWeight: '700', color: colors.darkText },
   previewTitle: {
     fontSize: 16,
     fontWeight: '700',

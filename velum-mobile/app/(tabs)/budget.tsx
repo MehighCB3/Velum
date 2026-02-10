@@ -212,7 +212,7 @@ export default function BudgetScreen() {
       </ScrollView>
 
       <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color="#ffffff" />
+        <Ionicons name="add" size={28} color={colors.darkText} />
       </Pressable>
 
       <AddEntryModal
@@ -233,17 +233,17 @@ const styles = StyleSheet.create({
   heroCard: { marginBottom: 12 },
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeft: {},
-  heroLabel: { fontSize: 13, color: '#a8a29e', fontWeight: '500' },
+  heroLabel: { fontSize: 13, color: colors.darkTextSecondary, fontWeight: '500' },
   heroAmountRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 4 },
-  heroCurrency: { fontSize: 20, fontWeight: '600', color: '#a8a29e', marginRight: 2 },
-  heroValue: { fontSize: 40, fontWeight: '800', color: '#ffffff' },
+  heroCurrency: { fontSize: 20, fontWeight: '600', color: colors.darkTextSecondary, marginRight: 2 },
+  heroValue: { fontSize: 40, fontWeight: '800', color: colors.darkText },
   heroSub: { fontSize: 13, color: colors.success, fontWeight: '500', marginTop: 2 },
   heroRight: { alignItems: 'flex-end', marginTop: 4 },
-  heroSpent: { fontSize: 15, fontWeight: '600', color: '#ffffff' },
-  heroTotal: { fontSize: 13, color: '#a8a29e', marginTop: 2 },
+  heroSpent: { fontSize: 15, fontWeight: '600', color: colors.darkText },
+  heroTotal: { fontSize: 13, color: colors.darkTextSecondary, marginTop: 2 },
   budgetBar: {
     height: 6,
-    backgroundColor: '#44403c',
+    backgroundColor: colors.darkTertiary,
     borderRadius: 3,
     marginTop: 16,
     overflow: 'hidden',

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Goal, GoalHorizon } from '../types';
 import { goalsApi } from '../api/client';
-import { cacheGoals } from '../db/database';
+import { cacheGoals, getCachedGoals } from '../db/database';
 import { isOnline } from '../db/sync';
 
 export function useGoals(horizon?: GoalHorizon) {
@@ -17,10 +17,19 @@ export function useGoals(horizon?: GoalHorizon) {
       if (online) {
         const result = await goalsApi.getAll(horizon);
         setGoals(result);
-        await cacheGoals(result as unknown as Record<string, unknown>[]);
+        await cacheGoals(result);
+      } else {
+        const cached = await getCachedGoals();
+        const filtered = horizon ? cached.filter((g) => g.horizon === horizon) : cached;
+        setGoals(filtered);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
+      try {
+        const cached = await getCachedGoals();
+        const filtered = horizon ? cached.filter((g) => g.horizon === horizon) : cached;
+        setGoals(filtered);
+      } catch { /* ignore cache errors */ }
     } finally {
       setLoading(false);
     }
@@ -67,13 +76,7 @@ export function useGoals(horizon?: GoalHorizon) {
   }, []);
 
   return {
-    goals,
-    loading,
-    error,
-    refresh: fetchData,
-    createGoal,
-    updateProgress,
-    markComplete,
-    removeGoal,
+    goals, loading, error, refresh: fetchData,
+    createGoal, updateProgress, markComplete, removeGoal,
   };
 }

@@ -23,7 +23,6 @@ export interface NutritionDay {
   entries: NutritionEntry[];
   totals: NutritionGoals;
   goals: NutritionGoals;
-  storage?: string;
 }
 
 // ==================== FITNESS ====================
@@ -98,7 +97,6 @@ export interface FitnessWeek {
     swims: number;
   };
   advanced?: FitnessAdvanced;
-  storage?: string;
 }
 
 // ==================== BUDGET ====================
@@ -121,46 +119,43 @@ export interface BudgetWeek {
   totalSpent: number;
   remaining: number;
   categories: Record<BudgetCategory, number>;
-  storage?: string;
 }
 
 // ==================== GOALS ====================
 
 export type GoalHorizon = 'year' | '3years' | '5years' | '10years' | 'bucket';
 
+// Clean camelCase interface — normalizeGoal handles API translation
 export interface Goal {
   id: string;
   title: string;
   area: string;
   objective: string;
   keyMetric: string;
-  key_metric?: string;
   targetValue: number;
-  target_value?: number;
   currentValue: number;
-  current_value?: number;
   unit: string;
   horizon: GoalHorizon;
   createdAt?: string;
-  created_at?: string;
   completedAt?: string;
-  completed_at?: string;
 }
 
-// Normalize Postgres snake_case to camelCase
+// Normalize API response (Postgres returns snake_case) to clean camelCase
 export function normalizeGoal(raw: Record<string, unknown>): Goal {
   return {
-    id: (raw.id as string) || '',
-    title: (raw.title as string) || '',
-    area: (raw.area as string) || '',
-    objective: (raw.objective as string) || '',
-    keyMetric: (raw.keyMetric as string) || (raw.key_metric as string) || '',
+    id: String(raw.id ?? ''),
+    title: String(raw.title ?? ''),
+    area: String(raw.area ?? ''),
+    objective: String(raw.objective ?? ''),
+    keyMetric: String(raw.keyMetric ?? raw.key_metric ?? ''),
     targetValue: Number(raw.targetValue ?? raw.target_value ?? 0),
     currentValue: Number(raw.currentValue ?? raw.current_value ?? 0),
-    unit: (raw.unit as string) || '',
+    unit: String(raw.unit ?? ''),
     horizon: (raw.horizon as GoalHorizon) || 'year',
-    createdAt: (raw.createdAt as string) || (raw.created_at as string) || '',
-    completedAt: (raw.completedAt as string) || (raw.completed_at as string) || undefined,
+    createdAt: String(raw.createdAt ?? raw.created_at ?? ''),
+    completedAt: raw.completedAt || raw.completed_at
+      ? String(raw.completedAt ?? raw.completed_at)
+      : undefined,
   };
 }
 
