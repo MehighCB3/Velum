@@ -82,8 +82,9 @@ export const nutritionApi = {
     );
   },
 
-  async getWeek(): Promise<NutritionDay[]> {
-    return request<NutritionDay[]>('/nutrition/week');
+  async getWeek(date?: string): Promise<NutritionDay[]> {
+    const res = await request<{ days?: NutritionDay[] }>(`/nutrition/week${qs({ date })}`);
+    return res.days || [];
   },
 };
 

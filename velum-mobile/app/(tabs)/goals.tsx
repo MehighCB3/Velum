@@ -74,7 +74,7 @@ export default function GoalsScreen() {
 
   const handleGoalAction = useCallback(
     (goal: Goal) => {
-      const isComplete = goal.completedAt || goal.currentValue >= goal.targetValue;
+      const isComplete = goal.completedAt || (goal.targetValue > 0 && goal.currentValue >= goal.targetValue);
       Alert.alert(goal.title, goal.objective || 'Choose an action', [
         { text: 'Cancel', style: 'cancel' },
         ...(isComplete
@@ -166,7 +166,7 @@ export default function GoalsScreen() {
             const progress =
               goal.targetValue > 0 ? goal.currentValue / goal.targetValue : 0;
             const isComplete =
-              !!goal.completedAt || goal.currentValue >= goal.targetValue;
+              !!goal.completedAt || (goal.targetValue > 0 && goal.currentValue >= goal.targetValue);
 
             return (
               <Card
