@@ -25,7 +25,7 @@ export interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'gym' | 'other' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
   name?: string        // Activity name (e.g., "Morning run", "Commute")
   // For steps:
   steps?: number
@@ -324,19 +324,81 @@ function writeToFallback(week: string, data: FitnessWeek): void {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const week = searchParams.get('week') || getWeekKey(new Date())
+    const dateParam = searchParams.get('date')
+    const rangeParam = searchParams.get('range')
+    const weekParam = searchParams.get('week')
 
-    // Try Redis first
-    if (useRedis) {
-      const data = await readFromRedis(week)
-      if (data) {
-        return NextResponse.json(data)
+    // Helper to load a week's data from Redis or fallback
+    const loadWeek = async (weekKey: string): Promise<FitnessWeek> => {
+      if (useRedis) {
+        const data = await readFromRedis(weekKey)
+        if (data) return data
       }
+      return readFromFallback(weekKey)
     }
 
-    // Fallback to in-memory storage
-    const fallbackData = readFromFallback(week)
-    return NextResponse.json(fallbackData)
+    // If range is specified, return multiple weeks of data
+    if (rangeParam) {
+      const days = parseInt(rangeParam) || 7
+      const allEntries: FitnessEntry[] = []
+      const now = new Date()
+
+      const seenWeeks = new Set<string>()
+      for (let i = 0; i < days; i++) {
+        const d = new Date(now)
+        d.setDate(now.getDate() - i)
+        const wk = getWeekKey(d)
+        if (!seenWeeks.has(wk)) {
+          seenWeeks.add(wk)
+          const weekData = await loadWeek(wk)
+          allEntries.push(...weekData.entries)
+        }
+      }
+
+      // Filter to only the last N days
+      const cutoff = new Date(now)
+      cutoff.setDate(now.getDate() - days)
+      const cutoffStr = cutoff.toISOString().split('T')[0]
+      const filtered = allEntries.filter(e => e.date >= cutoffStr)
+
+      return NextResponse.json({
+        range: days,
+        activities: filtered,
+        count: filtered.length,
+      })
+    }
+
+    // If date is specified, return that date's entries plus weekly summary
+    if (dateParam) {
+      const targetDate = new Date(dateParam + 'T00:00:00Z')
+      const weekKey = getWeekKey(targetDate)
+      const weekData = await loadWeek(weekKey)
+
+      const dayEntries = weekData.entries.filter(e => e.date === dateParam)
+
+      return NextResponse.json({
+        date: dateParam,
+        activities: dayEntries,
+        weekly_summary: {
+          runs: weekData.totals.runs,
+          swims: weekData.totals.swims,
+          cycles: weekData.totals.cycles,
+          bjj: weekData.totals.jiujitsu,
+          total_calories_burned: weekData.totals.totalCalories,
+        },
+        weekly_targets: {
+          runs: weekData.goals.runs,
+          swims: weekData.goals.swims,
+          cycles: 1,
+          bjj: 2,
+        },
+      })
+    }
+
+    // Default: return week data (existing behavior)
+    const week = weekParam || getWeekKey(new Date())
+    const weekData = await loadWeek(week)
+    return NextResponse.json(weekData)
 
   } catch (error) {
     console.error('GET error:', error)
@@ -382,9 +444,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate type
-    if (!['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
+    if (!['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'gym', 'other', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
       return NextResponse.json(
-        { error: 'Type must be steps, run, swim, cycle, jiujitsu, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
+        { error: 'Type must be steps, run, swim, cycle, jiujitsu, gym, other, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
         { status: 400 }
       )
     }
@@ -425,8 +487,9 @@ export async function POST(request: NextRequest) {
       newEntry.weight = Number(entry.weight) || 0
     } else if (entry.type === 'body_fat') {
       newEntry.bodyFat = Number(entry.bodyFat) || 0
-    } else if (entry.type === 'jiujitsu') {
+    } else if (entry.type === 'jiujitsu' || entry.type === 'gym' || entry.type === 'other') {
       if (entry.duration) newEntry.duration = Number(entry.duration)
+      if (entry.calories) newEntry.calories = Number(entry.calories)
     }
 
     // Get existing data
@@ -470,10 +533,10 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const week = searchParams.get('week') || getWeekKey(new Date())
-    const entryId = searchParams.get('entryId')
+    const entryId = searchParams.get('entryId') || searchParams.get('id')
 
     if (!entryId) {
-      return NextResponse.json({ error: 'entryId required' }, { status: 400 })
+      return NextResponse.json({ error: 'entryId or id required' }, { status: 400 })
     }
 
     // Get existing data

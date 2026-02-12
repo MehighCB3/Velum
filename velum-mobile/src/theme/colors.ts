@@ -33,6 +33,12 @@ export const colors = {
   // Category colors (budget)
   food: '#f97316',
   fun: '#8b5cf6',
+  transport: '#3b82f6',
+  subscriptions: '#06b6d4',
+  other: '#6b7280',
+
+  // Fitness extra
+  gym: '#a855f7',
 
   // Fitness colors
   steps: '#10b981',

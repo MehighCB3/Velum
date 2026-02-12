@@ -10,7 +10,7 @@ const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
 interface ParsedExpense {
   amount: number
   description: string
-  category: 'Food' | 'Fun'
+  category: 'Food' | 'Fun' | 'Transport' | 'Subscriptions' | 'Other'
   week: number | null // null = current week
   reason?: string
 }
@@ -47,24 +47,30 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
   }
   
   // Determine category
-  let category: 'Food' | 'Fun'
-  if (/\b(?:food|eat|lunch|dinner|breakfast|meal|restaurant|groceries|mercadona|carrefour)\b/i.test(remaining)) {
+  let category: ParsedExpense['category']
+  if (/\b(?:transport|uber|taxi|metro|bus|train|fuel|gas|parking)\b/i.test(remaining)) {
+    category = 'Transport'
+  } else if (/\b(?:sub|subscription|netflix|spotify|gym\s*membership|monthly|annual)\b/i.test(remaining)) {
+    category = 'Subscriptions'
+  } else if (/\b(?:food|eat|lunch|dinner|breakfast|meal|restaurant|groceries|mercadona|carrefour)\b/i.test(remaining)) {
     category = 'Food'
-  } else if (/\b(?:fun|drink|bar|movie|game|entertainment|uber|taxi|transport)\b/i.test(remaining)) {
+  } else if (/\b(?:fun|drink|bar|movie|game|entertainment|concert|party)\b/i.test(remaining)) {
     category = 'Fun'
+  } else if (/\b(?:other)\b/i.test(remaining)) {
+    category = 'Other'
   } else {
-    // Default to Food if contains eating keywords, otherwise Fun
-    category = /\b(?:lunch|dinner|breakfast|coffee|snack)\b/i.test(remaining) ? 'Food' : 'Fun'
+    // Default to Food if contains eating keywords, otherwise Other
+    category = /\b(?:lunch|dinner|breakfast|coffee|snack)\b/i.test(remaining) ? 'Food' : 'Other'
   }
   
   // Clean up description (remove category words for cleaner description)
   let description = remaining
-    .replace(/\b(?:food|fun)\b/gi, '')
+    .replace(/\b(?:food|fun|transport|subscriptions|other)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-  
+
   if (!description) {
-    description = category === 'Food' ? 'Food expense' : 'Fun expense'
+    description = `${category} expense`
   }
   
   return { amount, description, category, week, reason }

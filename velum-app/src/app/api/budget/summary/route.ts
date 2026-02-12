@@ -19,7 +19,7 @@ const WEEKLY_BUDGET = 70
 interface BudgetEntry {
   id: string
   amount: number
-  category: 'Food' | 'Fun'
+  category: 'Food' | 'Fun' | 'Transport' | 'Subscriptions' | 'Other'
   description: string
   date: string
   timestamp: string
@@ -30,7 +30,7 @@ interface WeekData {
   entries: BudgetEntry[]
   totalSpent: number
   remaining: number
-  categories: { Food: number; Fun: number }
+  categories: { Food: number; Fun: number; Transport: number; Subscriptions: number; Other: number }
 }
 
 // Helper to get ISO week number
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
           entries: [],
           totalSpent: 0,
           remaining: WEEKLY_BUDGET,
-          categories: { Food: 0, Fun: 0 }
+          categories: { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 }
         }
       }
 
@@ -128,11 +128,14 @@ export async function GET(request: NextRequest) {
       (acc, week) => ({
         totalSpent: acc.totalSpent + week.totalSpent,
         totalRemaining: acc.totalRemaining + week.remaining,
-        foodTotal: acc.foodTotal + week.categories.Food,
-        funTotal: acc.funTotal + week.categories.Fun,
+        foodTotal: acc.foodTotal + (week.categories.Food || 0),
+        funTotal: acc.funTotal + (week.categories.Fun || 0),
+        transportTotal: acc.transportTotal + (week.categories.Transport || 0),
+        subscriptionsTotal: acc.subscriptionsTotal + (week.categories.Subscriptions || 0),
+        otherTotal: acc.otherTotal + (week.categories.Other || 0),
         entryCount: acc.entryCount + week.entries.length
       }),
-      { totalSpent: 0, totalRemaining: 0, foodTotal: 0, funTotal: 0, entryCount: 0 }
+      { totalSpent: 0, totalRemaining: 0, foodTotal: 0, funTotal: 0, transportTotal: 0, subscriptionsTotal: 0, otherTotal: 0, entryCount: 0 }
     )
 
     return NextResponse.json({
@@ -140,7 +143,7 @@ export async function GET(request: NextRequest) {
       summary,
       budgetConfig: {
         weeklyBudget: WEEKLY_BUDGET,
-        categories: ['Food', 'Fun']
+        categories: ['Food', 'Fun', 'Transport', 'Subscriptions', 'Other']
       }
     })
 

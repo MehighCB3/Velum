@@ -29,6 +29,9 @@ const budgetFields: FormField[] = [
     options: [
       { label: 'Food', value: 'Food' },
       { label: 'Fun', value: 'Fun' },
+      { label: 'Transport', value: 'Transport' },
+      { label: 'Subscriptions', value: 'Subscriptions' },
+      { label: 'Other', value: 'Other' },
     ],
   },
   { key: 'description', label: 'Description', placeholder: 'What did you spend on?', type: 'text' },
@@ -118,52 +121,69 @@ export default function BudgetScreen() {
         <Card style={styles.categoryCard}>
           <SectionHeader title="By Category" />
           <View style={styles.categoryRow}>
-            <View style={styles.categoryItem}>
-              <View style={[styles.categoryDot, { backgroundColor: colors.food }]} />
-              <View>
-                <Text style={styles.categoryName}>Food</Text>
-                <Text style={styles.categoryAmount}>€{(data.categories.Food || 0).toFixed(2)}</Text>
-              </View>
-            </View>
-            <View style={styles.categoryItem}>
-              <View style={[styles.categoryDot, { backgroundColor: colors.fun }]} />
-              <View>
-                <Text style={styles.categoryName}>Fun</Text>
-                <Text style={styles.categoryAmount}>€{(data.categories.Fun || 0).toFixed(2)}</Text>
-              </View>
-            </View>
+            {([
+              { key: 'Food', color: colors.food },
+              { key: 'Fun', color: colors.fun },
+              { key: 'Transport', color: colors.transport },
+              { key: 'Subscriptions', color: colors.subscriptions },
+              { key: 'Other', color: colors.other },
+            ] as const)
+              .filter(({ key }) => (data.categories[key] || 0) > 0)
+              .map(({ key, color }) => (
+                <View key={key} style={styles.categoryItem}>
+                  <View style={[styles.categoryDot, { backgroundColor: color }]} />
+                  <View>
+                    <Text style={styles.categoryName}>{key}</Text>
+                    <Text style={styles.categoryAmount}>€{(data.categories[key] || 0).toFixed(2)}</Text>
+                  </View>
+                </View>
+              ))}
+            {Object.values(data.categories).every((v) => !v) && (
+              <>
+                <View style={styles.categoryItem}>
+                  <View style={[styles.categoryDot, { backgroundColor: colors.food }]} />
+                  <View>
+                    <Text style={styles.categoryName}>Food</Text>
+                    <Text style={styles.categoryAmount}>€0.00</Text>
+                  </View>
+                </View>
+                <View style={styles.categoryItem}>
+                  <View style={[styles.categoryDot, { backgroundColor: colors.fun }]} />
+                  <View>
+                    <Text style={styles.categoryName}>Fun</Text>
+                    <Text style={styles.categoryAmount}>€0.00</Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Category bars */}
           <View style={styles.categoryBars}>
-            <View style={styles.categoryBarContainer}>
-              <Text style={styles.categoryBarLabel}>Food</Text>
-              <View style={styles.categoryBarBg}>
-                <View
-                  style={[
-                    styles.categoryBarFill,
-                    {
-                      backgroundColor: colors.food,
-                      width: `${data.totalSpent > 0 ? ((data.categories.Food || 0) / data.totalSpent) * 100 : 0}%`,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-            <View style={styles.categoryBarContainer}>
-              <Text style={styles.categoryBarLabel}>Fun</Text>
-              <View style={styles.categoryBarBg}>
-                <View
-                  style={[
-                    styles.categoryBarFill,
-                    {
-                      backgroundColor: colors.fun,
-                      width: `${data.totalSpent > 0 ? ((data.categories.Fun || 0) / data.totalSpent) * 100 : 0}%`,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
+            {([
+              { key: 'Food', color: colors.food },
+              { key: 'Fun', color: colors.fun },
+              { key: 'Transport', color: colors.transport },
+              { key: 'Subscriptions', color: colors.subscriptions },
+              { key: 'Other', color: colors.other },
+            ] as const)
+              .filter(({ key }) => (data.categories[key] || 0) > 0)
+              .map(({ key, color }) => (
+                <View key={key} style={styles.categoryBarContainer}>
+                  <Text style={styles.categoryBarLabel}>{key}</Text>
+                  <View style={styles.categoryBarBg}>
+                    <View
+                      style={[
+                        styles.categoryBarFill,
+                        {
+                          backgroundColor: color,
+                          width: `${data.totalSpent > 0 ? ((data.categories[key] || 0) / data.totalSpent) * 100 : 0}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ))}
           </View>
         </Card>
 
@@ -190,7 +210,13 @@ export default function BudgetScreen() {
                   <View
                     style={[
                       styles.entryDot,
-                      { backgroundColor: entry.category === 'Food' ? colors.food : colors.fun },
+                      { backgroundColor: {
+                          Food: colors.food,
+                          Fun: colors.fun,
+                          Transport: colors.transport,
+                          Subscriptions: colors.subscriptions,
+                          Other: colors.other,
+                        }[entry.category] || colors.other },
                     ]}
                   />
                   <View style={styles.entryInfo}>

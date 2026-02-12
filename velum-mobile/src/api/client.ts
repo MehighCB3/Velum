@@ -139,6 +139,8 @@ export const budgetApi = {
       category: BudgetCategory;
       description?: string;
       reason?: string;
+      date?: string;
+      time?: string;
     },
     week?: string,
   ): Promise<BudgetWeek> {

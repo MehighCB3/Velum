@@ -33,6 +33,8 @@ export type FitnessEntryType =
   | 'swim'
   | 'cycle'
   | 'jiujitsu'
+  | 'gym'
+  | 'other'
   | 'vo2max'
   | 'training_load'
   | 'stress'
@@ -101,7 +103,7 @@ export interface FitnessWeek {
 
 // ==================== BUDGET ====================
 
-export type BudgetCategory = 'Food' | 'Fun';
+export type BudgetCategory = 'Food' | 'Fun' | 'Transport' | 'Subscriptions' | 'Other';
 
 export interface BudgetEntry {
   id: string;
