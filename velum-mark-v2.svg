@@ -1,0 +1,16 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer veil -->
+  <path d="M80 134 L26 38 Q24.5 35 27 33 L52 33 Q55 33 56.5 36 L80 84" fill="none" stroke="rgba(200,149,106,0.18)" stroke-width="1.5"/>
+  <path d="M80 134 L134 38 Q135.5 35 133 33 L108 33 Q105 33 103.5 36 L80 84" fill="none" stroke="rgba(200,149,106,0.18)" stroke-width="1.5"/>
+  <!-- Mid veil -->
+  <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.4)" stroke-width="1.5"/>
+  <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.4)" stroke-width="1.5"/>
+  <!-- Solid V — clean taper -->
+  <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="url(#velumGrad)"/>
+  <defs>
+    <linearGradient id="velumGrad" x1="80" y1="39" x2="80" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e4b08a"/>
+      <stop offset="100%" stop-color="#c8956a"/>
+    </linearGradient>
+  </defs>
+</svg>

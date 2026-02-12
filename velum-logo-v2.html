@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Velum — Logo v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --surface: #141416;
+    --border: #1e1e22;
+    --text: #e8e6e1;
+    --text-muted: #6b6966;
+    --accent: #c8956a;
+    --accent-glow: rgba(200, 149, 106, 0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 40px;
+  }
+
+  .page-header {
+    margin-bottom: 80px;
+    text-align: center;
+  }
+
+  .page-header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 14px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .page-header p {
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: 0.5px;
+  }
+
+  .section {
+    margin-bottom: 100px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 40px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-showcase {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 340px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .logo-showcase::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, var(--accent-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .logo-showcase.light {
+    background: #f5f3ef;
+    border-color: #e0ddd7;
+  }
+
+  .logo-showcase.light::before {
+    background: radial-gradient(ellipse at 50% 40%, rgba(200, 149, 106, 0.06) 0%, transparent 70%);
+  }
+
+  .duo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+  }
+
+  .quad-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-top: 24px;
+  }
+
+  .icon-box {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    position: relative;
+  }
+
+  .icon-box.rounded { border-radius: 24%; }
+  .icon-box.light { background: #f5f3ef; border-color: #e0ddd7; }
+  .icon-box.gradient-bg {
+    background: linear-gradient(135deg, #c8956a 0%, #a87650 100%);
+    border-color: transparent;
+  }
+
+  .icon-box .size-label {
+    position: absolute;
+    bottom: 10px;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .icon-box.light .size-label { color: rgba(0,0,0,0.35); }
+  .icon-box.gradient-bg .size-label { color: rgba(255,255,255,0.4); }
+
+  .wordmark {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: 46px;
+    letter-spacing: 5px;
+    color: var(--text);
+  }
+
+  .wordmark.dark-text { color: #1a1917; }
+
+  .concept-note {
+    margin-top: 60px;
+    padding: 32px 36px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    line-height: 1.7;
+  }
+
+  .concept-note h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: 18px;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .concept-note p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .concept-note p:last-child { margin-bottom: 0; }
+  .concept-note strong { color: var(--text); font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <h1>Velum</h1>
+    <p>Logo & Identity — v2</p>
+  </div>
+
+  <!-- ===================== PRIMARY MARK ===================== -->
+  <div class="section">
+    <div class="section-label">01 — Primary Logo Mark</div>
+    <div class="logo-showcase">
+      <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer veil -->
+        <path d="M80 134 L26 38 Q24.5 35 27 33 L52 33 Q55 33 56.5 36 L80 84" fill="none" stroke="rgba(200,149,106,0.18)" stroke-width="1.5"/>
+        <path d="M80 134 L134 38 Q135.5 35 133 33 L108 33 Q105 33 103.5 36 L80 84" fill="none" stroke="rgba(200,149,106,0.18)" stroke-width="1.5"/>
+        <!-- Mid veil -->
+        <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.4)" stroke-width="1.5"/>
+        <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.4)" stroke-width="1.5"/>
+        <!-- Solid V — clean tapered bottom, no dot -->
+        <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="url(#vg1)"/>
+        <defs>
+          <linearGradient id="vg1" x1="80" y1="39" x2="80" y2="118" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#e4b08a"/>
+            <stop offset="100%" stop-color="#c8956a"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ===================== FULL LOGO ===================== -->
+  <div class="section">
+    <div class="section-label">02 — Full Logo</div>
+    <div class="duo-grid">
+      <!-- Dark -->
+      <div class="logo-showcase" style="min-height: 240px;">
+        <div style="display: flex; align-items: center; gap: 22px;">
+          <svg width="56" height="56" viewBox="0 0 160 160" fill="none">
+            <path d="M80 134 L26 38 Q24.5 35 27 33 L52 33 Q55 33 56.5 36 L80 84" fill="none" stroke="rgba(200,149,106,0.18)" stroke-width="1.5"/>
+            <path d="M80 134 L134 38 Q135.5 35 133 33 L108 33 Q105 33 103.5 36 L80 84" fill="none" stroke="rgba(200,149,106,0.18)" stroke-width="1.5"/>
+            <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.4)" stroke-width="1.5"/>
+            <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.4)" stroke-width="1.5"/>
+            <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="url(#vg2)"/>
+            <defs><linearGradient id="vg2" x1="80" y1="39" x2="80" y2="118" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e4b08a"/><stop offset="100%" stop-color="#c8956a"/></linearGradient></defs>
+          </svg>
+          <span class="wordmark">Velum</span>
+        </div>
+      </div>
+      <!-- Light -->
+      <div class="logo-showcase light" style="min-height: 240px;">
+        <div style="display: flex; align-items: center; gap: 22px;">
+          <svg width="56" height="56" viewBox="0 0 160 160" fill="none">
+            <path d="M80 134 L26 38 Q24.5 35 27 33 L52 33 Q55 33 56.5 36 L80 84" fill="none" stroke="rgba(140,95,50,0.12)" stroke-width="1.5"/>
+            <path d="M80 134 L134 38 Q135.5 35 133 33 L108 33 Q105 33 103.5 36 L80 84" fill="none" stroke="rgba(140,95,50,0.12)" stroke-width="1.5"/>
+            <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(140,95,50,0.3)" stroke-width="1.5"/>
+            <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(140,95,50,0.3)" stroke-width="1.5"/>
+            <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="url(#vg3)"/>
+            <defs><linearGradient id="vg3" x1="80" y1="39" x2="80" y2="118" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#b8875a"/><stop offset="100%" stop-color="#956840"/></linearGradient></defs>
+          </svg>
+          <span class="wordmark dark-text">Velum</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== APP ICONS ===================== -->
+  <div class="section">
+    <div class="section-label">03 — App Icon Variants</div>
+    <div class="quad-grid">
+      <!-- Dark -->
+      <div class="icon-box rounded">
+        <svg width="60" height="60" viewBox="0 0 160 160" fill="none">
+          <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.32)" stroke-width="2.5"/>
+          <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(200,149,106,0.32)" stroke-width="2.5"/>
+          <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="url(#gi1)"/>
+          <defs><linearGradient id="gi1" x1="80" y1="39" x2="80" y2="118" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e4b08a"/><stop offset="100%" stop-color="#c8956a"/></linearGradient></defs>
+        </svg>
+        <span class="size-label">Dark</span>
+      </div>
+      <!-- Light -->
+      <div class="icon-box rounded light">
+        <svg width="60" height="60" viewBox="0 0 160 160" fill="none">
+          <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(140,95,50,0.2)" stroke-width="2.5"/>
+          <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(140,95,50,0.2)" stroke-width="2.5"/>
+          <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="url(#gi2)"/>
+          <defs><linearGradient id="gi2" x1="80" y1="39" x2="80" y2="118" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#b8875a"/><stop offset="100%" stop-color="#956840"/></linearGradient></defs>
+        </svg>
+        <span class="size-label">Light</span>
+      </div>
+      <!-- Branded -->
+      <div class="icon-box rounded gradient-bg">
+        <svg width="60" height="60" viewBox="0 0 160 160" fill="none">
+          <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5"/>
+          <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5"/>
+          <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="white"/>
+        </svg>
+        <span class="size-label">Branded</span>
+      </div>
+      <!-- Mono -->
+      <div class="icon-box rounded" style="background: #1a1917; border-color: #2a2925;">
+        <svg width="60" height="60" viewBox="0 0 160 160" fill="none">
+          <path d="M80 126 L34 42 Q32.5 39 35 37 L50 37 Q53 37 54.5 40 L80 80" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="2.5"/>
+          <path d="M80 126 L126 42 Q127.5 39 125 37 L110 37 Q107 37 105.5 40 L80 80" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="2.5"/>
+          <path d="M80 118 L42 44 Q40.5 41 43 39 L50 39 Q52.5 39 54 41.5 L80 94 L106 41.5 Q107.5 39 110 39 L117 39 Q119.5 41 118 44 L80 118Z" fill="rgba(255,255,255,0.85)"/>
+        </svg>
+        <span class="size-label" style="color: rgba(255,255,255,0.2);">Mono</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CONCEPT NOTE ===================== -->
+  <div class="section">
+    <div class="concept-note">
+      <h3>v2 Changes</h3>
+      <p><strong>Font:</strong> Switched to <strong>Cormorant Garamond Light</strong> — more refined and editorial than Instrument Serif, with elegant thin strokes that match the layered veil concept. Lighter weight feels more premium.</p>
+      <p><strong>Mark size:</strong> Scaled the V up significantly so it reads clearly at small sizes and feels more balanced next to the wordmark.</p>
+      <p><strong>Clean apex:</strong> Removed the dot at the bottom. The V now tapers to a clean, sharp point — more decisive, less cluttered.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
