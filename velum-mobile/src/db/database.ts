@@ -1,13 +1,17 @@
 import * as SQLite from 'expo-sqlite';
-import { PendingChange } from '../types';
+import { PendingChange, FitnessEntry, Goal, BudgetEntry } from '../types';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (db) return db;
-  db = await SQLite.openDatabaseAsync('velum.db');
-  await initializeSchema(db);
-  return db;
+export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const database = await SQLite.openDatabaseAsync('velum.db');
+      await initializeSchema(database);
+      return database;
+    })();
+  }
+  return dbPromise;
 }
 
 async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> {
@@ -149,14 +153,24 @@ export async function getPendingChanges(): Promise<PendingChange[]> {
     created_at: string;
   }>('SELECT * FROM pending_changes ORDER BY created_at ASC');
 
-  return rows.map((row) => ({
-    id: row.id,
-    endpoint: row.endpoint,
-    method: row.method as PendingChange['method'],
-    body: row.body_json ? JSON.parse(row.body_json) : undefined,
-    params: row.params_json ? JSON.parse(row.params_json) : undefined,
-    createdAt: row.created_at,
-  }));
+  return rows.map((row) => {
+    let body: Record<string, unknown> | undefined;
+    let params: Record<string, string> | undefined;
+    try {
+      body = row.body_json ? JSON.parse(row.body_json) : undefined;
+    } catch { body = undefined; }
+    try {
+      params = row.params_json ? JSON.parse(row.params_json) : undefined;
+    } catch { params = undefined; }
+    return {
+      id: row.id,
+      endpoint: row.endpoint,
+      method: row.method as PendingChange['method'],
+      body,
+      params,
+      createdAt: row.created_at,
+    };
+  });
 }
 
 export async function removePendingChange(id: string): Promise<void> {
@@ -285,7 +299,7 @@ export async function getCachedNutritionDay(date: string): Promise<{
 
 export async function cacheFitnessWeek(
   week: string,
-  entries: Array<Record<string, unknown>>,
+  entries: FitnessEntry[],
 ): Promise<void> {
   const database = await getDatabase();
   await database.runAsync('DELETE FROM fitness_entries WHERE week = ?', week);
@@ -294,30 +308,34 @@ export async function cacheFitnessWeek(
     await database.runAsync(
       `INSERT OR REPLACE INTO fitness_entries (id, week, date, timestamp, type, name, data_json, synced)
        VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-      entry.id as string,
+      entry.id,
       week,
-      entry.date as string,
-      entry.timestamp as string,
-      entry.type as string,
-      (entry.name as string) || null,
+      entry.date,
+      entry.timestamp,
+      entry.type,
+      entry.name || null,
       JSON.stringify(entry),
     );
   }
+}
+
+export async function getCachedFitnessWeek(week: string): Promise<FitnessEntry[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<{ data_json: string }>(
+    'SELECT data_json FROM fitness_entries WHERE week = ? ORDER BY date',
+    week,
+  );
+  return rows.map((row) => {
+    try { return JSON.parse(row.data_json); }
+    catch { return null; }
+  }).filter(Boolean);
 }
 
 // ==================== BUDGET CACHE ====================
 
 export async function cacheBudgetWeek(
   week: string,
-  entries: Array<{
-    id: string;
-    amount: number;
-    category: string;
-    description: string;
-    date: string;
-    timestamp: string;
-    reason?: string;
-  }>,
+  entries: BudgetEntry[],
 ): Promise<void> {
   const database = await getDatabase();
   await database.runAsync('DELETE FROM budget_entries WHERE week = ?', week);
@@ -338,11 +356,17 @@ export async function cacheBudgetWeek(
   }
 }
 
+export async function getCachedBudgetWeek(week: string): Promise<BudgetEntry[]> {
+  const database = await getDatabase();
+  return database.getAllAsync<BudgetEntry>(
+    'SELECT id, amount, category, description, date, timestamp, reason FROM budget_entries WHERE week = ? ORDER BY timestamp',
+    week,
+  );
+}
+
 // ==================== GOALS CACHE ====================
 
-export async function cacheGoals(
-  goals: Array<Record<string, unknown>>,
-): Promise<void> {
+export async function cacheGoals(goals: Goal[]): Promise<void> {
   const database = await getDatabase();
   await database.runAsync('DELETE FROM goals');
 
@@ -350,17 +374,40 @@ export async function cacheGoals(
     await database.runAsync(
       `INSERT OR REPLACE INTO goals (id, title, area, objective, key_metric, target_value, current_value, unit, horizon, created_at, completed_at, synced)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      (goal.id as string) || '',
-      (goal.title as string) || '',
-      (goal.area as string) || '',
-      (goal.objective as string) || '',
-      (goal.keyMetric as string) || (goal.key_metric as string) || '',
-      Number(goal.targetValue ?? goal.target_value ?? 0),
-      Number(goal.currentValue ?? goal.current_value ?? 0),
-      (goal.unit as string) || '',
-      (goal.horizon as string) || 'year',
-      (goal.createdAt as string) || (goal.created_at as string) || '',
-      (goal.completedAt as string) || (goal.completed_at as string) || null,
+      goal.id,
+      goal.title,
+      goal.area,
+      goal.objective,
+      goal.keyMetric,
+      goal.targetValue,
+      goal.currentValue,
+      goal.unit,
+      goal.horizon,
+      goal.createdAt || '',
+      goal.completedAt || null,
     );
   }
+}
+
+export async function getCachedGoals(): Promise<Goal[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<{
+    id: string; title: string; area: string; objective: string;
+    key_metric: string; target_value: number; current_value: number;
+    unit: string; horizon: string; created_at: string; completed_at: string | null;
+  }>('SELECT * FROM goals ORDER BY horizon, created_at DESC');
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    area: r.area,
+    objective: r.objective || '',
+    keyMetric: r.key_metric || '',
+    targetValue: Number(r.target_value),
+    currentValue: Number(r.current_value),
+    unit: r.unit || '',
+    horizon: r.horizon as Goal['horizon'],
+    createdAt: r.created_at || undefined,
+    completedAt: r.completed_at || undefined,
+  }));
 }

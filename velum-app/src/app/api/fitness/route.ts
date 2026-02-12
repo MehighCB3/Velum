@@ -425,6 +425,8 @@ export async function POST(request: NextRequest) {
       newEntry.weight = Number(entry.weight) || 0
     } else if (entry.type === 'body_fat') {
       newEntry.bodyFat = Number(entry.bodyFat) || 0
+    } else if (entry.type === 'jiujitsu') {
+      if (entry.duration) newEntry.duration = Number(entry.duration)
     }
 
     // Get existing data

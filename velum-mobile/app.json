@@ -7,28 +7,47 @@
     "icon": "./assets/icon.png",
     "scheme": "velum",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "backgroundColor": "#1c1917",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.velum.mobile",
       "infoPlist": {
-        "NSHealthShareUsageDescription": "Velum uses health data to track your fitness metrics."
+        "NSHealthShareUsageDescription": "Velum uses health data to track your fitness metrics.",
+        "NSMicrophoneUsageDescription": "Velum uses the microphone for Spanish pronunciation practice."
       }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1c1917"
       },
-      "package": "com.velum.mobile"
+      "package": "com.velum.mobile",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
-    "plugins": ["expo-router", "expo-sqlite"],
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Velum uses the microphone for Spanish pronunciation practice."
+        }
+      ]
+    ],
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "velum-mobile"
       }
     }
   }

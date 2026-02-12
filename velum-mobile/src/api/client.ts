@@ -12,6 +12,7 @@ import {
   normalizeGoal,
   SpanishCard,
   UserProfile,
+  AgentInsight,
 } from '../types';
 
 // Base URL of the Velum web app API.
@@ -19,7 +20,7 @@ import {
 // For local development, point to localhost:3000.
 const API_BASE = __DEV__
   ? 'http://localhost:3000'
-  : 'https://velum-app.vercel.app';
+  : 'https://velum-five.vercel.app';
 
 // ==================== HTTP HELPERS ====================
 
@@ -81,8 +82,9 @@ export const nutritionApi = {
     );
   },
 
-  async getWeek(): Promise<NutritionDay[]> {
-    return request<NutritionDay[]>('/nutrition/week');
+  async getWeek(date?: string): Promise<NutritionDay[]> {
+    const res = await request<{ days?: NutritionDay[] }>(`/nutrition/week${qs({ date })}`);
+    return res.days || [];
   },
 };
 
@@ -245,5 +247,14 @@ export const profileApi = {
       method: 'POST',
       body: JSON.stringify(profile),
     });
+  },
+};
+
+// ==================== INSIGHTS ====================
+
+export const insightsApi = {
+  async getAll(section?: string): Promise<AgentInsight[]> {
+    const data = await request<AgentInsight[]>('/insights');
+    return section ? data.filter((i) => i.section === section) : data;
   },
 };

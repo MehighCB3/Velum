@@ -13,11 +13,8 @@ import {
 import { nutritionApi, fitnessApi, budgetApi, goalsApi } from '../api/client';
 import { SyncStatus } from '../types';
 
-// ==================== SYNC ENGINE ====================
-//
 // The sync engine handles bidirectional synchronization between the
-// mobile app's local SQLite cache and the Velum web API. It follows
-// an offline-first approach:
+// mobile app's local SQLite cache and the Velum web API:
 //
 // 1. READ: Try API first, fall back to local cache if offline
 // 2. WRITE: Write to API if online, otherwise queue in pending_changes
@@ -25,7 +22,7 @@ import { SyncStatus } from '../types';
 
 const API_BASE = __DEV__
   ? 'http://localhost:3000'
-  : 'https://velum-app.vercel.app';
+  : 'https://velum-five.vercel.app';
 
 export async function isOnline(): Promise<boolean> {
   try {
@@ -36,7 +33,9 @@ export async function isOnline(): Promise<boolean> {
   }
 }
 
-// Flush all pending changes to the server
+// Flush pending changes to the server.
+// Continues past individual failures so one bad change doesn't block everything.
+// Removes successful changes and non-retryable failures (4xx).
 export async function flushPendingChanges(): Promise<number> {
   const online = await isOnline();
   if (!online) return 0;
@@ -61,11 +60,16 @@ export async function flushPendingChanges(): Promise<number> {
       if (response.ok) {
         await removePendingChange(change.id);
         flushed++;
+      } else if (response.status >= 400 && response.status < 500) {
+        // Client error (bad request, not found) — remove, don't retry forever
+        console.warn(`Sync: dropping change ${change.id} (${response.status})`);
+        await removePendingChange(change.id);
       }
+      // 5xx errors: leave in queue for next sync attempt
     } catch (error) {
-      // Stop flushing on network error, retry later
-      console.warn('Sync flush error:', error);
-      break;
+      // Network error on this item — skip it, continue with rest
+      console.warn('Sync flush error for change', change.id, error);
+      continue;
     }
   }
 
@@ -79,39 +83,26 @@ export async function refreshAllCaches(): Promise<void> {
 
   const today = new Date().toISOString().split('T')[0];
 
-  try {
-    // Refresh nutrition (today)
-    const nutritionData = await nutritionApi.getDay(today);
-    await cacheNutritionDay(today, nutritionData.entries, nutritionData.goals);
-  } catch (error) {
-    console.warn('Nutrition cache refresh failed:', error);
-  }
+  // Run all cache refreshes independently — one failure doesn't block others
+  const results = await Promise.allSettled([
+    nutritionApi.getDay(today).then((data) =>
+      cacheNutritionDay(today, data.entries, data.goals),
+    ),
+    fitnessApi.getWeek().then((data) =>
+      cacheFitnessWeek(data.week, data.entries),
+    ),
+    budgetApi.getWeek().then((data) =>
+      cacheBudgetWeek(data.week, data.entries),
+    ),
+    goalsApi.getAll().then((goals) =>
+      cacheGoals(goals),
+    ),
+  ]);
 
-  try {
-    // Refresh fitness (current week)
-    const fitnessData = await fitnessApi.getWeek();
-    await cacheFitnessWeek(
-      fitnessData.week,
-      fitnessData.entries as unknown as Record<string, unknown>[],
-    );
-  } catch (error) {
-    console.warn('Fitness cache refresh failed:', error);
-  }
-
-  try {
-    // Refresh budget (current week)
-    const budgetData = await budgetApi.getWeek();
-    await cacheBudgetWeek(budgetData.week, budgetData.entries);
-  } catch (error) {
-    console.warn('Budget cache refresh failed:', error);
-  }
-
-  try {
-    // Refresh goals
-    const goals = await goalsApi.getAll();
-    await cacheGoals(goals as unknown as Record<string, unknown>[]);
-  } catch (error) {
-    console.warn('Goals cache refresh failed:', error);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn('Cache refresh failed:', result.reason);
+    }
   }
 
   await setSyncMeta('lastFullSync', new Date().toISOString());
@@ -127,15 +118,7 @@ export async function fullSync(): Promise<SyncStatus> {
     await setSyncMeta('lastSynced', new Date().toISOString());
   }
 
-  const pendingChanges = await getPendingChangeCount();
-  const lastSynced = await getSyncMeta('lastSynced');
-
-  return {
-    lastSynced,
-    isSyncing: false,
-    isOnline: online,
-    pendingChanges,
-  };
+  return getSyncStatus();
 }
 
 // Get current sync status without performing a sync

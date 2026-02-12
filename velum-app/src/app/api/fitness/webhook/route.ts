@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { FitnessEntry } from '../route'
+import { saveInsight } from '../../../lib/insightsStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -426,6 +427,119 @@ function calculatePace(duration: number, distance: number): number {
   return Math.round((duration / distance) * 10) / 10
 }
 
+// ==================== INSIGHT GENERATION ====================
+
+interface SavedWeekData {
+  totals?: {
+    steps: number
+    runs: number
+    swims: number
+    cycles: number
+    jiujitsu: number
+    totalDistance: number
+    totalCalories: number
+  }
+  goals?: { steps: number; runs: number; swims: number }
+  advanced?: {
+    avgRecovery: number
+    recoveryStatus: string
+    totalTrainingLoad: number
+    avgStress: number
+    latestWeight: number
+  }
+}
+
+function generateFitnessInsight(parsed: ParsedFitnessEntry, weekData: SavedWeekData): string | null {
+  const totals = weekData.totals
+  const goals = weekData.goals
+  const advanced = weekData.advanced
+
+  if (parsed.type === 'steps') {
+    const steps = parsed.steps || 0
+    const goal = goals?.steps || 10000
+    if (steps >= goal) return `Daily step goal hit! ${steps.toLocaleString()} steps today.`
+    const pct = Math.round((steps / goal) * 100)
+    if (pct >= 80) return `Almost there — ${pct}% of step goal (${steps.toLocaleString()}/${goal.toLocaleString()}).`
+    return `${steps.toLocaleString()} steps logged. ${(goal - steps).toLocaleString()} more to hit your daily goal.`
+  }
+
+  if (parsed.type === 'run') {
+    const runs = totals?.runs || 0
+    const runGoal = goals?.runs || 3
+    if (runs >= runGoal) return `Run goal complete! ${runs} runs this week. Keep the momentum.`
+    return `Run logged — ${runs}/${runGoal} this week. ${runGoal - runs} more to go.`
+  }
+
+  if (parsed.type === 'swim') {
+    const swims = totals?.swims || 0
+    const swimGoal = goals?.swims || 2
+    if (swims >= swimGoal) return `Swim goal hit! ${swims} swims this week.`
+    return `Swim logged — ${swims}/${swimGoal} this week.`
+  }
+
+  if (parsed.type === 'cycle') {
+    const dist = parsed.distance || 0
+    return `Ride logged: ${dist}km. Total week distance: ${(totals?.totalDistance || 0).toFixed(1)}km.`
+  }
+
+  if (parsed.type === 'jiujitsu') {
+    const sessions = totals?.jiujitsu || 0
+    return `BJJ session ${sessions} this week. Oss! 🥋`
+  }
+
+  if (parsed.type === 'recovery') {
+    const score = parsed.recoveryScore || 0
+    if (score >= 80) return `Recovery looking great (${score}%). Good day for an intense session.`
+    if (score >= 50) return `Recovery at ${score}%. Consider moderate training today.`
+    return `Recovery low (${score}%). Rest day recommended — your body needs it.`
+  }
+
+  if (parsed.type === 'stress') {
+    const stress = parsed.stressLevel || 0
+    if (stress > 70) return `Stress high (${stress}%). Take it easy today — rest is productive.`
+    if (stress > 40) return `Moderate stress (${stress}%). Light activity could help.`
+    return `Stress low (${stress}%). Great window for training.`
+  }
+
+  if (parsed.type === 'weight') {
+    return `Weight logged: ${parsed.weight}kg.`
+  }
+
+  if (parsed.type === 'vo2max') {
+    const vo2 = parsed.vo2max || 0
+    if (vo2 >= 50) return `VO2 Max ${vo2} — excellent aerobic fitness.`
+    if (vo2 >= 40) return `VO2 Max ${vo2} — solid base. Keep building.`
+    return `VO2 Max ${vo2} — room to grow. Consistent cardio will move this up.`
+  }
+
+  if (parsed.type === 'training_load') {
+    const load = parsed.trainingLoad || 0
+    const totalLoad = advanced?.totalTrainingLoad || load
+    if (totalLoad > 400) return `Weekly training load high (${totalLoad}). Prioritize recovery.`
+    if (totalLoad > 250) return `Training load building nicely (${totalLoad}). Monitor fatigue.`
+    return `Training load at ${totalLoad}. Capacity for more if recovery allows.`
+  }
+
+  return null
+}
+
+function classifyInsightType(parsed: ParsedFitnessEntry, weekData: SavedWeekData): 'nudge' | 'alert' | 'celebration' {
+  const totals = weekData.totals
+  const goals = weekData.goals
+
+  // Celebrations: goal completions
+  if (parsed.type === 'steps' && (parsed.steps || 0) >= (goals?.steps || 10000)) return 'celebration'
+  if (parsed.type === 'run' && (totals?.runs || 0) >= (goals?.runs || 3)) return 'celebration'
+  if (parsed.type === 'swim' && (totals?.swims || 0) >= (goals?.swims || 2)) return 'celebration'
+
+  // Alerts: poor recovery or high stress
+  if (parsed.type === 'recovery' && (parsed.recoveryScore || 0) < 50) return 'alert'
+  if (parsed.type === 'stress' && (parsed.stressLevel || 0) > 70) return 'alert'
+  if (parsed.type === 'training_load' && (weekData.advanced?.totalTrainingLoad || 0) > 400) return 'alert'
+
+  return 'nudge'
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Verify secret (optional, for production)
@@ -534,7 +648,29 @@ export async function POST(request: NextRequest) {
     }
     
     const savedData = await response.json()
-    
+
+    // ==================== PUSH INSIGHT TO FITY AGENT ====================
+    // Generate a contextual insight and save directly to the shared store
+    // (Redis-backed) so it persists across serverless invocations.
+    try {
+      const insightText = generateFitnessInsight(parsed, savedData)
+      if (insightText) {
+        const insightType = classifyInsightType(parsed, savedData)
+        await saveInsight({
+          agent: 'Fity',
+          agentId: 'fitness-agent',
+          emoji: '🏋️',
+          insight: insightText,
+          type: insightType,
+          updatedAt: new Date().toISOString(),
+          section: 'fitness',
+        })
+      }
+    } catch (insightErr) {
+      // Non-blocking: don't fail the webhook if insight push fails
+      console.warn('Failed to push fitness insight:', insightErr)
+    }
+
     // Build success message
     let successMessage = ''
     if (parsed.type === 'steps') {

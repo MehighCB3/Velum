@@ -5,3 +5,4 @@ export { SyncIndicator } from './SyncIndicator';
 export { WeekSelector, getISOWeekKey } from './WeekSelector';
 export { AddEntryModal } from './AddEntryModal';
 export type { FormField } from './AddEntryModal';
+export { AgentInsightCard } from './AgentInsightCard';
