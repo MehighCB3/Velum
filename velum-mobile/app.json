@@ -32,9 +32,18 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 5000
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "expo-router",
       "expo-sqlite",
+      "expo-updates",
       [
         "expo-av",
         {

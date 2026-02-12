@@ -21,6 +21,7 @@ import { SyncIndicator } from '../../src/components/SyncIndicator';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { useSync } from '../../src/hooks/useSync';
 import { useGoals } from '../../src/hooks/useGoals';
+import { useAppUpdate } from '../../src/hooks/useAppUpdate';
 
 type SubTab = 'profile' | 'goals';
 
@@ -408,6 +409,22 @@ function ProfileContent() {
   const [editCountry, setEditCountry] = useState('');
   const [editLifeExpectancy, setEditLifeExpectancy] = useState('85');
   const { status: syncStatus, sync } = useSync();
+  const { status: updateStatus, isChecking, isUpdateAvailable, checkAndUpdate, applyUpdate, error: updateError } = useAppUpdate();
+
+  const handleUpdateApp = useCallback(() => {
+    if (isUpdateAvailable) {
+      Alert.alert(
+        'Update Ready',
+        'A new version has been downloaded. Restart the app to apply it?',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Restart Now', onPress: applyUpdate },
+        ],
+      );
+    } else {
+      checkAndUpdate();
+    }
+  }, [isUpdateAvailable, checkAndUpdate, applyUpdate]);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -561,6 +578,46 @@ function ProfileContent() {
         <Ionicons name="sync" size={18} color={colors.accent} />
         <Text style={styles.syncButtonText}>Force Sync Now</Text>
       </Pressable>
+
+      {/* Update App */}
+      <Pressable
+        style={[
+          styles.updateButton,
+          isUpdateAvailable && styles.updateButtonReady,
+        ]}
+        onPress={handleUpdateApp}
+        disabled={isChecking}
+      >
+        <Ionicons
+          name={
+            isUpdateAvailable
+              ? 'download-outline'
+              : isChecking
+              ? 'hourglass-outline'
+              : 'cloud-download-outline'
+          }
+          size={18}
+          color={isUpdateAvailable ? colors.darkText : colors.accent}
+        />
+        <Text
+          style={[
+            styles.updateButtonText,
+            isUpdateAvailable && styles.updateButtonTextReady,
+          ]}
+        >
+          {isChecking
+            ? updateStatus === 'downloading'
+              ? 'Downloading Update...'
+              : 'Checking for Updates...'
+            : isUpdateAvailable
+            ? 'Restart to Apply Update'
+            : updateStatus === 'up-to-date'
+            ? 'App is Up to Date'
+            : updateStatus === 'error'
+            ? 'Update Failed — Tap to Retry'
+            : 'Update App'}
+        </Text>
+      </Pressable>
     </>
   );
 }
@@ -677,4 +734,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   syncButtonText: { fontSize: 14, fontWeight: '600', color: colors.accent },
+  updateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    gap: 8,
+    marginTop: 10,
+  },
+  updateButtonReady: {
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+  },
+  updateButtonText: { fontSize: 14, fontWeight: '600', color: colors.accent },
+  updateButtonTextReady: { color: colors.darkText },
 });
