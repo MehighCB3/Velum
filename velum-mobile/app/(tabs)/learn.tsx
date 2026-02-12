@@ -11,13 +11,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
+import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { colors } from '../../src/theme/colors';
 import { spanishApi } from '../../src/api/client';
 import { SpanishCard, SpanishDeckStats } from '../../src/types';
 import { Card, DarkCard, EmptyState } from '../../src/components/Card';
 
 type ReviewResult = 'again' | 'hard' | 'good' | 'easy';
-type TopTab = 'cards' | 'exercises';
+type TopTab = 'cards' | 'exercises' | 'speak';
 
 // ==================== TTS HELPER ====================
 
@@ -371,6 +373,359 @@ const exStyles = StyleSheet.create({
   nextText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
 
+// ==================== PRONUNCIATION PRACTICE ====================
+
+const API_BASE = __DEV__
+  ? 'http://localhost:3000'
+  : 'https://velum-five.vercel.app';
+
+function PronunciationView({ cards }: { cards: SpanishCard[] }) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [playback, setPlayback] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [result, setResult] = useState<{ transcription: string; match: boolean } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [sttAvailable, setSttAvailable] = useState<boolean | null>(null);
+  const [score, setScore] = useState({ correct: 0, total: 0 });
+
+  const practiceCards = cards.filter((c) => c.status !== 'parked').slice(0, 20);
+  const card = practiceCards[currentIdx];
+
+  useEffect(() => {
+    return () => {
+      if (playback) playback.unloadAsync();
+    };
+  }, [playback]);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) return;
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      setRecording(rec);
+      setIsRecording(true);
+      setResult(null);
+      setRecordingUri(null);
+    } catch (err) {
+      console.warn('Failed to start recording:', err);
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    if (!recording) return;
+    setIsRecording(false);
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecordingUri(uri);
+      setRecording(null);
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+    } catch (err) {
+      console.warn('Failed to stop recording:', err);
+      setRecording(null);
+    }
+  }, [recording]);
+
+  const playRecording = useCallback(async () => {
+    if (!recordingUri) return;
+    try {
+      if (playback) await playback.unloadAsync();
+      const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
+      setPlayback(sound);
+      setIsPlaying(true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if ('didJustFinish' in status && status.didJustFinish) {
+          setIsPlaying(false);
+        }
+      });
+      await sound.playAsync();
+    } catch (err) {
+      console.warn('Playback error:', err);
+      setIsPlaying(false);
+    }
+  }, [recordingUri, playback]);
+
+  const checkPronunciation = useCallback(async () => {
+    if (!recordingUri || !card) return;
+    setChecking(true);
+    try {
+      const response = await uploadAsync(
+        `${API_BASE}/api/spanish/pronounce`,
+        recordingUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystemUploadType.MULTIPART,
+          fieldName: 'audio',
+          mimeType: 'audio/m4a',
+          parameters: { expected: card.spanish_word },
+        },
+      );
+      const data = JSON.parse(response.body);
+      if (data.error === 'not_configured') {
+        setSttAvailable(false);
+      } else {
+        setSttAvailable(true);
+        setResult({ transcription: data.transcription || '', match: data.match || false });
+        setScore((s) => ({
+          correct: s.correct + (data.match ? 1 : 0),
+          total: s.total + 1,
+        }));
+      }
+    } catch {
+      setSttAvailable(false);
+    } finally {
+      setChecking(false);
+    }
+  }, [recordingUri, card]);
+
+  const nextCard = useCallback(() => {
+    setCurrentIdx((i) => (i + 1) % practiceCards.length);
+    setResult(null);
+    setRecordingUri(null);
+  }, [practiceCards.length]);
+
+  if (practiceCards.length === 0) {
+    return <EmptyState icon="🎤" title="No cards to practice" subtitle="Add cards to your deck first" />;
+  }
+
+  if (!card) {
+    return <EmptyState icon="🎤" title="No cards to practice" subtitle="Add cards to your deck first" />;
+  }
+
+  return (
+    <View>
+      <View style={spkStyles.progressRow}>
+        <Text style={spkStyles.progressText}>
+          {currentIdx + 1} / {practiceCards.length}
+        </Text>
+        <Text style={spkStyles.scoreText}>
+          Score: {score.correct}/{score.total}
+        </Text>
+      </View>
+
+      <Card style={spkStyles.card}>
+        <Text style={spkStyles.label}>Say this word:</Text>
+        <View style={spkStyles.wordRow}>
+          <Text style={spkStyles.word}>{card.spanish_word}</Text>
+          <SpeakerButton text={card.spanish_word} size={28} />
+        </View>
+        <Text style={spkStyles.translation}>{card.english_translation}</Text>
+
+        {/* Record button */}
+        <Pressable
+          style={[spkStyles.recordBtn, isRecording && spkStyles.recordBtnActive]}
+          onPress={isRecording ? stopRecording : startRecording}
+        >
+          <Ionicons
+            name={isRecording ? 'stop' : 'mic'}
+            size={32}
+            color={isRecording ? '#fff' : colors.dark}
+          />
+          <Text style={[spkStyles.recordText, isRecording && { color: '#fff' }]}>
+            {isRecording ? 'Stop' : 'Record'}
+          </Text>
+        </Pressable>
+
+        {/* Playback + Check */}
+        {recordingUri && !isRecording && (
+          <View style={spkStyles.actionsRow}>
+            <Pressable style={spkStyles.playBtn} onPress={playRecording}>
+              <Ionicons name={isPlaying ? 'pause' : 'play'} size={20} color={colors.text} />
+              <Text style={spkStyles.playText}>Play back</Text>
+            </Pressable>
+            {sttAvailable !== false && (
+              <Pressable
+                style={[spkStyles.checkBtn, checking && { opacity: 0.5 }]}
+                onPress={checkPronunciation}
+                disabled={checking}
+              >
+                {checking ? (
+                  <ActivityIndicator size="small" color={colors.darkText} />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.darkText} />
+                    <Text style={spkStyles.checkText}>Check</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* STT Result */}
+        {result && (
+          <View style={spkStyles.resultBox}>
+            {result.match ? (
+              <Text style={[spkStyles.resultText, { color: colors.success }]}>
+                ✓ Correct! "{result.transcription}"
+              </Text>
+            ) : (
+              <>
+                <Text style={[spkStyles.resultText, { color: colors.error }]}>
+                  ✗ Heard: "{result.transcription}"
+                </Text>
+                <Text style={spkStyles.expectedText}>Expected: {card.spanish_word}</Text>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Self-assessment fallback */}
+        {sttAvailable === false && recordingUri && !isRecording && (
+          <View style={spkStyles.selfAssess}>
+            <Text style={spkStyles.selfAssessLabel}>How did you do?</Text>
+            <View style={spkStyles.selfAssessRow}>
+              <Pressable
+                style={[spkStyles.selfBtn, { backgroundColor: colors.error + '15' }]}
+                onPress={() => {
+                  setScore((s) => ({ correct: s.correct, total: s.total + 1 }));
+                  nextCard();
+                }}
+              >
+                <Text style={[spkStyles.selfBtnText, { color: colors.error }]}>Try Again</Text>
+              </Pressable>
+              <Pressable
+                style={[spkStyles.selfBtn, { backgroundColor: colors.success + '15' }]}
+                onPress={() => {
+                  setScore((s) => ({ correct: s.correct + 1, total: s.total + 1 }));
+                  nextCard();
+                }}
+              >
+                <Text style={[spkStyles.selfBtnText, { color: colors.success }]}>Got It</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Next button (shown after STT result) */}
+        {result && (
+          <Pressable style={spkStyles.nextBtn} onPress={nextCard}>
+            <Text style={spkStyles.nextText}>Next →</Text>
+          </Pressable>
+        )}
+      </Card>
+
+      {/* Tip */}
+      <View style={spkStyles.tip}>
+        <Text style={spkStyles.tipText}>
+          💡 Tap the speaker to hear the pronunciation, then record yourself saying it
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const spkStyles = StyleSheet.create({
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  progressText: { fontSize: 13, color: colors.textLight },
+  scoreText: { fontSize: 13, fontWeight: '600', color: colors.text },
+  card: { padding: 24, alignItems: 'center' },
+  label: { fontSize: 14, color: colors.textLight, marginBottom: 8 },
+  wordRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  word: { fontSize: 32, fontWeight: '800', color: colors.text },
+  translation: { fontSize: 16, color: colors.textLight, marginBottom: 24 },
+  recordBtn: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.sidebar,
+    borderWidth: 3,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  recordBtnActive: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
+  },
+  recordText: { fontSize: 12, fontWeight: '600', color: colors.text, marginTop: 4 },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  playBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  playText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  checkBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: colors.dark,
+  },
+  checkText: { fontSize: 14, fontWeight: '700', color: colors.darkText },
+  resultBox: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: colors.sidebar,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  resultText: { fontSize: 16, fontWeight: '700' },
+  expectedText: { fontSize: 14, color: colors.textLight, marginTop: 4 },
+  selfAssess: { width: '100%', marginBottom: 16 },
+  selfAssessLabel: {
+    fontSize: 14,
+    color: colors.textLight,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  selfAssessRow: { flexDirection: 'row', gap: 12 },
+  selfBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  selfBtnText: { fontSize: 15, fontWeight: '700' },
+  nextBtn: {
+    width: '100%',
+    backgroundColor: colors.accent,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  nextText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  tip: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tipText: { fontSize: 13, color: colors.textLight, textAlign: 'center' },
+});
+
 // ==================== MAIN SCREEN ====================
 
 export default function LearnScreen() {
@@ -565,6 +920,14 @@ export default function LearnScreen() {
             Exercises
           </Text>
         </Pressable>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'speak' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('speak')}
+        >
+          <Text style={[styles.tabBtnText, activeTab === 'speak' && styles.tabBtnTextActive]}>
+            Speak
+          </Text>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -667,8 +1030,10 @@ export default function LearnScreen() {
               </Card>
             ))}
           </>
-        ) : (
+        ) : activeTab === 'exercises' ? (
           <ExercisesView />
+        ) : (
+          <PronunciationView cards={cards} />
         )}
 
         <View style={{ height: 40 }} />
