@@ -12,7 +12,7 @@ export function useSync() {
     isOnline: true,
     pendingChanges: 0,
   });
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const sync = useCallback(async () => {
     setStatus((s) => ({ ...s, isSyncing: true }));

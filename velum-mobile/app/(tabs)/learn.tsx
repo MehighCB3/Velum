@@ -6,14 +6,372 @@ import {
   ScrollView,
   RefreshControl,
   Pressable,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 import { colors } from '../../src/theme/colors';
 import { spanishApi } from '../../src/api/client';
 import { SpanishCard, SpanishDeckStats } from '../../src/types';
 import { Card, DarkCard, EmptyState } from '../../src/components/Card';
 
 type ReviewResult = 'again' | 'hard' | 'good' | 'easy';
+type TopTab = 'cards' | 'exercises';
+
+// ==================== TTS HELPER ====================
+
+function speak(text: string, slow = false) {
+  Speech.stop();
+  Speech.speak(text, {
+    language: 'es-ES',
+    rate: slow ? 0.6 : 0.85,
+    pitch: 1.0,
+  });
+}
+
+function SpeakerButton({ text, size = 22 }: { text: string; size?: number }) {
+  const [speaking, setSpeaking] = useState(false);
+
+  const handlePress = useCallback(() => {
+    setSpeaking(true);
+    Speech.stop();
+    Speech.speak(text, {
+      language: 'es-ES',
+      rate: 0.85,
+      pitch: 1.0,
+      onDone: () => setSpeaking(false),
+      onStopped: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
+  }, [text]);
+
+  const handleLongPress = useCallback(() => {
+    setSpeaking(true);
+    Speech.stop();
+    Speech.speak(text, {
+      language: 'es-ES',
+      rate: 0.55,
+      pitch: 1.0,
+      onDone: () => setSpeaking(false),
+      onStopped: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
+  }, [text]);
+
+  return (
+    <Pressable onPress={handlePress} onLongPress={handleLongPress} hitSlop={10}>
+      <Ionicons
+        name={speaking ? 'volume-high' : 'volume-medium-outline'}
+        size={size}
+        color={speaking ? colors.accent : colors.textLight}
+      />
+    </Pressable>
+  );
+}
+
+// ==================== EXERCISES ====================
+
+interface Exercise {
+  id: string;
+  type: 'verb_conjugation' | 'cloze' | 'translation' | 'grammar' | 'writing';
+  difficulty: string;
+  content: Record<string, unknown>;
+  answer_key: Record<string, unknown>;
+  tags: string[];
+}
+
+function ExercisesView() {
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [score, setScore] = useState({ correct: 0, total: 0 });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(
+          `${__DEV__ ? 'http://localhost:3000' : 'https://velum-five.vercel.app'}/api/spanish/exercises`,
+        );
+        const data = await res.json();
+        setExercises(data.exercises || []);
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={exStyles.loading}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
+
+  if (exercises.length === 0) {
+    return <EmptyState icon="📝" title="No exercises" subtitle="Exercises will appear here" />;
+  }
+
+  const ex = exercises[currentIdx];
+  if (!ex) {
+    return (
+      <DarkCard style={exStyles.doneCard}>
+        <Text style={exStyles.doneEmoji}>🎉</Text>
+        <Text style={exStyles.doneTitle}>Session Complete!</Text>
+        <Text style={exStyles.doneScore}>
+          {score.correct} / {score.total} correct
+        </Text>
+        <Pressable
+          style={exStyles.restartBtn}
+          onPress={() => {
+            setCurrentIdx(0);
+            setScore({ correct: 0, total: 0 });
+            setSubmitted(false);
+            setUserAnswer('');
+          }}
+        >
+          <Text style={exStyles.restartText}>Restart</Text>
+        </Pressable>
+      </DarkCard>
+    );
+  }
+
+  const checkAnswer = () => {
+    if (!userAnswer.trim()) return;
+    setSubmitted(true);
+    const key = ex.answer_key;
+    const answer = userAnswer.trim().toLowerCase();
+    let isCorrect = false;
+
+    if (ex.type === 'grammar') {
+      const correctIdx = key.correct as number;
+      const options = (ex.content.options as string[]) || [];
+      isCorrect = answer === options[correctIdx]?.toLowerCase();
+    } else if (key.answers) {
+      isCorrect = (key.answers as string[]).some(
+        (a) => a.toLowerCase() === answer,
+      );
+    } else if (key.answer) {
+      isCorrect = (key.answer as string).toLowerCase() === answer;
+    }
+    setScore((s) => ({ correct: s.correct + (isCorrect ? 1 : 0), total: s.total + 1 }));
+  };
+
+  const nextExercise = () => {
+    setCurrentIdx((i) => i + 1);
+    setUserAnswer('');
+    setSubmitted(false);
+  };
+
+  const getPrompt = () => {
+    const c = ex.content;
+    switch (ex.type) {
+      case 'verb_conjugation':
+        return `Conjugate "${c.verb}" (${c.hint}) in ${c.tense}, ${c.pronoun}`;
+      case 'cloze':
+        return String(c.text || '');
+      case 'translation':
+        return String(c.sourceText || '');
+      case 'grammar':
+        return String(c.question || '');
+      case 'writing':
+        return String(c.prompt || '');
+      default:
+        return '';
+    }
+  };
+
+  const getCorrectAnswer = () => {
+    const key = ex.answer_key;
+    if (ex.type === 'grammar') {
+      const options = (ex.content.options as string[]) || [];
+      return options[key.correct as number] || '';
+    }
+    if (key.answers) return (key.answers as string[]).join(' / ');
+    return String(key.answer || '');
+  };
+
+  const typeLabels: Record<string, string> = {
+    verb_conjugation: '🔤 Conjugation',
+    cloze: '📝 Fill in the Blank',
+    translation: '🌐 Translation',
+    grammar: '📖 Grammar',
+    writing: '✍️ Writing',
+  };
+
+  const prompt = getPrompt();
+
+  return (
+    <View>
+      {/* Progress */}
+      <View style={exStyles.progressRow}>
+        <Text style={exStyles.progressText}>
+          {currentIdx + 1} / {exercises.length}
+        </Text>
+        <Text style={exStyles.scoreText}>
+          Score: {score.correct}/{score.total}
+        </Text>
+      </View>
+
+      <Card style={exStyles.card}>
+        <Text style={exStyles.typeLabel}>{typeLabels[ex.type] || ex.type}</Text>
+        <View style={exStyles.promptRow}>
+          <Text style={exStyles.prompt}>{prompt}</Text>
+          {(ex.type === 'cloze' || ex.type === 'translation') && (
+            <SpeakerButton text={prompt} size={20} />
+          )}
+        </View>
+
+        {ex.content.hint ? (
+          <Text style={exStyles.hint}>Hint: {String(ex.content.hint)}</Text>
+        ) : null}
+
+        {/* Grammar multiple choice */}
+        {ex.type === 'grammar' && !submitted ? (
+          <View style={exStyles.optionsContainer}>
+            {((ex.content.options as string[]) || []).map((opt, i) => (
+              <Pressable
+                key={i}
+                style={[
+                  exStyles.optionBtn,
+                  userAnswer === opt && exStyles.optionSelected,
+                ]}
+                onPress={() => setUserAnswer(opt)}
+              >
+                <Text
+                  style={[
+                    exStyles.optionText,
+                    userAnswer === opt && exStyles.optionSelectedText,
+                  ]}
+                >
+                  {opt}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : !submitted ? (
+          <TextInput
+            style={exStyles.input}
+            value={userAnswer}
+            onChangeText={setUserAnswer}
+            placeholder="Type your answer..."
+            placeholderTextColor={colors.textLight}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        ) : null}
+
+        {/* Result */}
+        {submitted && (
+          <View style={exStyles.result}>
+            {userAnswer.trim().toLowerCase() === getCorrectAnswer().split(' / ')[0].toLowerCase() ? (
+              <Text style={[exStyles.resultText, { color: colors.success }]}>✓ Correct!</Text>
+            ) : (
+              <>
+                <Text style={[exStyles.resultText, { color: colors.error }]}>✗ Incorrect</Text>
+                <Text style={exStyles.correctAnswer}>Correct: {getCorrectAnswer()}</Text>
+              </>
+            )}
+            {ex.content.explanation ? (
+              <Text style={exStyles.explanation}>{String(ex.content.explanation)}</Text>
+            ) : null}
+          </View>
+        )}
+
+        {/* Action button */}
+        {!submitted ? (
+          <Pressable
+            style={[exStyles.submitBtn, !userAnswer.trim() && { opacity: 0.4 }]}
+            onPress={checkAnswer}
+            disabled={!userAnswer.trim()}
+          >
+            <Text style={exStyles.submitText}>Check</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={exStyles.nextBtn} onPress={nextExercise}>
+            <Text style={exStyles.nextText}>Next →</Text>
+          </Pressable>
+        )}
+      </Card>
+    </View>
+  );
+}
+
+const exStyles = StyleSheet.create({
+  loading: { alignItems: 'center', paddingTop: 40 },
+  doneCard: { alignItems: 'center', paddingVertical: 32 },
+  doneEmoji: { fontSize: 48, marginBottom: 12 },
+  doneTitle: { fontSize: 22, fontWeight: '800', color: colors.darkText },
+  doneScore: { fontSize: 16, color: colors.darkTextSecondary, marginTop: 8 },
+  restartBtn: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  restartText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  progressText: { fontSize: 13, color: colors.textLight },
+  scoreText: { fontSize: 13, fontWeight: '600', color: colors.text },
+  card: { padding: 20 },
+  typeLabel: { fontSize: 13, fontWeight: '600', color: colors.accent, marginBottom: 12 },
+  promptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  prompt: { fontSize: 17, fontWeight: '600', color: colors.text, flex: 1 },
+  hint: { fontSize: 13, color: colors.textLight, marginBottom: 16, fontStyle: 'italic' },
+  optionsContainer: { gap: 8, marginBottom: 16 },
+  optionBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  optionSelected: { borderColor: colors.accent, backgroundColor: colors.accent + '10' },
+  optionText: { fontSize: 15, color: colors.text },
+  optionSelectedText: { color: colors.accent, fontWeight: '600' },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.sidebar,
+    marginBottom: 16,
+  },
+  result: { marginBottom: 16, paddingVertical: 12 },
+  resultText: { fontSize: 18, fontWeight: '700' },
+  correctAnswer: { fontSize: 15, color: colors.text, marginTop: 4 },
+  explanation: { fontSize: 13, color: colors.textLight, marginTop: 8, fontStyle: 'italic' },
+  submitBtn: {
+    backgroundColor: colors.dark,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  submitText: { fontSize: 16, fontWeight: '700', color: colors.darkText },
+  nextBtn: {
+    backgroundColor: colors.accent,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  nextText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+});
+
+// ==================== MAIN SCREEN ====================
 
 export default function LearnScreen() {
   const [cards, setCards] = useState<SpanishCard[]>([]);
@@ -29,6 +387,7 @@ export default function LearnScreen() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [reviewedToday, setReviewedToday] = useState(0);
   const [mode, setMode] = useState<'deck' | 'review'>('deck');
+  const [activeTab, setActiveTab] = useState<TopTab>('cards');
 
   const fetchCards = useCallback(async () => {
     setLoading(true);
@@ -70,20 +429,15 @@ export default function LearnScreen() {
   const handleReview = useCallback(
     async (result: ReviewResult) => {
       if (!currentCard) return;
-
       try {
         await spanishApi.reviewCard(currentCard.id, result);
         setReviewedToday((n) => n + 1);
-
-        // Move to next card
         const currentIndex = cards.findIndex((c) => c.id === currentCard.id);
         const nextCard = cards[currentIndex + 1];
-
         if (nextCard) {
           setCurrentCard(nextCard);
           setShowAnswer(false);
         } else {
-          // Done with session
           setMode('deck');
           setCurrentCard(null);
           fetchCards();
@@ -95,205 +449,230 @@ export default function LearnScreen() {
     [currentCard, cards, fetchCards],
   );
 
-  // Deck overview mode
-  if (mode === 'deck') {
+  // ==================== REVIEW MODE ====================
+  if (mode === 'review') {
     return (
       <View style={styles.container}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={fetchCards} tintColor={colors.accent} />
-          }
-        >
-          {/* Deck Header */}
-          <DarkCard style={styles.deckHero}>
-            <Text style={styles.deckFlag}>🇪🇸</Text>
-            <Text style={styles.deckTitle}>Spanish Vocabulary</Text>
-            <Text style={styles.deckLevel}>A2 / B1 Level</Text>
-
-            <View style={styles.deckStatsRow}>
-              <View style={styles.deckStat}>
-                <Text style={styles.deckStatValue}>{stats.total}</Text>
-                <Text style={styles.deckStatLabel}>Total</Text>
-              </View>
-              <View style={styles.deckStat}>
-                <Text style={[styles.deckStatValue, { color: colors.info }]}>{stats.new}</Text>
-                <Text style={styles.deckStatLabel}>New</Text>
-              </View>
-              <View style={styles.deckStat}>
-                <Text style={[styles.deckStatValue, { color: colors.warning }]}>
-                  {stats.learning}
-                </Text>
-                <Text style={styles.deckStatLabel}>Learning</Text>
-              </View>
-              <View style={styles.deckStat}>
-                <Text style={[styles.deckStatValue, { color: colors.success }]}>
-                  {stats.review}
-                </Text>
-                <Text style={styles.deckStatLabel}>Review</Text>
-              </View>
-            </View>
-          </DarkCard>
-
-          {/* Today's Progress */}
-          <Card style={styles.todayCard}>
-            <View style={styles.todayRow}>
-              <View>
-                <Text style={styles.todayTitle}>Today's Progress</Text>
-                <Text style={styles.todayCount}>
-                  {reviewedToday} card{reviewedToday !== 1 ? 's' : ''} reviewed
-                </Text>
-              </View>
-              <View style={styles.dueBadge}>
-                <Text style={styles.dueText}>{stats.dueToday} due</Text>
-              </View>
-            </View>
-          </Card>
-
-          {/* Start Review Button */}
-          <Pressable style={styles.startButton} onPress={startReview}>
-            <Ionicons name="flash" size={20} color={colors.darkText} />
-            <Text style={styles.startButtonText}>Start Review Session</Text>
+        {/* Progress bar */}
+        <View style={styles.reviewProgress}>
+          <View style={styles.reviewProgressBar}>
+            <View
+              style={[
+                styles.reviewProgressFill,
+                {
+                  width: `${
+                    cards.length > 0
+                      ? ((cards.findIndex((c) => c.id === currentCard?.id) + 1) / cards.length) * 100
+                      : 0
+                  }%`,
+                },
+              ]}
+            />
+          </View>
+          <Pressable onPress={() => setMode('deck')} hitSlop={12}>
+            <Ionicons name="close" size={24} color={colors.textLight} />
           </Pressable>
+        </View>
 
-          {/* Recent Cards Preview */}
-          <Text style={styles.previewTitle}>Recent Cards</Text>
-          {cards.slice(0, 8).map((card) => (
-            <Card key={card.id} style={styles.previewCard}>
-              <View style={styles.previewRow}>
-                <View style={styles.previewLeft}>
-                  <Text style={styles.previewSpanish}>{card.spanish_word}</Text>
-                  <Text style={styles.previewEnglish}>{card.english_translation}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        card.status === 'review'
-                          ? colors.success + '20'
-                          : card.status === 'learning'
-                          ? colors.warning + '20'
-                          : colors.info + '20',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color:
-                          card.status === 'review'
-                            ? colors.success
-                            : card.status === 'learning'
-                            ? colors.warning
-                            : colors.info,
-                      },
-                    ]}
-                  >
-                    {card.status}
-                  </Text>
-                </View>
+        {currentCard ? (
+          <View style={styles.reviewContainer}>
+            <Pressable style={styles.flashcard} onPress={() => setShowAnswer(true)}>
+              <View style={styles.wordRow}>
+                <Text style={styles.flashcardWord}>{currentCard.spanish_word}</Text>
+                <SpeakerButton text={currentCard.spanish_word} size={26} />
               </View>
-            </Card>
-          ))}
+              <Text style={styles.flashcardType}>{currentCard.word_type}</Text>
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
+              {showAnswer ? (
+                <View style={styles.answerSection}>
+                  <View style={styles.divider} />
+                  <Text style={styles.flashcardTranslation}>
+                    {currentCard.english_translation}
+                  </Text>
+                  {currentCard.example_sentence_spanish && (
+                    <View style={styles.exampleContainer}>
+                      <View style={styles.exampleRow}>
+                        <Text style={styles.exampleSpanish}>
+                          {currentCard.example_sentence_spanish}
+                        </Text>
+                        <SpeakerButton text={currentCard.example_sentence_spanish} size={18} />
+                      </View>
+                      <Text style={styles.exampleEnglish}>
+                        {currentCard.example_sentence_english}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.tapHint}>Tap to reveal answer</Text>
+              )}
+            </Pressable>
+
+            {showAnswer && (
+              <View style={styles.reviewButtons}>
+                <Pressable
+                  style={[styles.reviewBtn, { backgroundColor: colors.error + '15' }]}
+                  onPress={() => handleReview('again')}
+                >
+                  <Text style={[styles.reviewBtnText, { color: colors.error }]}>Again</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.reviewBtn, { backgroundColor: colors.warning + '15' }]}
+                  onPress={() => handleReview('hard')}
+                >
+                  <Text style={[styles.reviewBtnText, { color: colors.warning }]}>Hard</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.reviewBtn, { backgroundColor: colors.success + '15' }]}
+                  onPress={() => handleReview('good')}
+                >
+                  <Text style={[styles.reviewBtnText, { color: colors.success }]}>Good</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.reviewBtn, { backgroundColor: colors.accent + '15' }]}
+                  onPress={() => handleReview('easy')}
+                >
+                  <Text style={[styles.reviewBtnText, { color: colors.accent }]}>Easy</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        ) : (
+          <EmptyState icon="🎉" title="All done!" subtitle="No more cards to review" />
+        )}
       </View>
     );
   }
 
-  // Review mode
+  // ==================== DECK / EXERCISES MODE ====================
   return (
     <View style={styles.container}>
-      {/* Progress bar */}
-      <View style={styles.reviewProgress}>
-        <View style={styles.reviewProgressBar}>
-          <View
-            style={[
-              styles.reviewProgressFill,
-              {
-                width: `${
-                  cards.length > 0
-                    ? ((cards.findIndex((c) => c.id === currentCard?.id) + 1) / cards.length) * 100
-                    : 0
-                }%`,
-              },
-            ]}
-          />
-        </View>
-        <Pressable onPress={() => setMode('deck')} hitSlop={12}>
-          <Ionicons name="close" size={24} color={colors.textLight} />
+      {/* Top tabs */}
+      <View style={styles.tabBar}>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'cards' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('cards')}
+        >
+          <Text style={[styles.tabBtnText, activeTab === 'cards' && styles.tabBtnTextActive]}>
+            Cards
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'exercises' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('exercises')}
+        >
+          <Text style={[styles.tabBtnText, activeTab === 'exercises' && styles.tabBtnTextActive]}>
+            Exercises
+          </Text>
         </Pressable>
       </View>
 
-      {currentCard ? (
-        <View style={styles.reviewContainer}>
-          {/* Card */}
-          <Pressable
-            style={styles.flashcard}
-            onPress={() => setShowAnswer(true)}
-          >
-            <Text style={styles.flashcardWord}>{currentCard.spanish_word}</Text>
-            <Text style={styles.flashcardType}>{currentCard.word_type}</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={fetchCards} tintColor={colors.accent} />
+        }
+      >
+        {activeTab === 'cards' ? (
+          <>
+            {/* Deck Header */}
+            <DarkCard style={styles.deckHero}>
+              <Text style={styles.deckFlag}>🇪🇸</Text>
+              <Text style={styles.deckTitle}>Spanish Vocabulary</Text>
+              <Text style={styles.deckLevel}>A2 / B1 Level</Text>
+              <View style={styles.deckStatsRow}>
+                <View style={styles.deckStat}>
+                  <Text style={styles.deckStatValue}>{stats.total}</Text>
+                  <Text style={styles.deckStatLabel}>Total</Text>
+                </View>
+                <View style={styles.deckStat}>
+                  <Text style={[styles.deckStatValue, { color: colors.info }]}>{stats.new}</Text>
+                  <Text style={styles.deckStatLabel}>New</Text>
+                </View>
+                <View style={styles.deckStat}>
+                  <Text style={[styles.deckStatValue, { color: colors.warning }]}>{stats.learning}</Text>
+                  <Text style={styles.deckStatLabel}>Learning</Text>
+                </View>
+                <View style={styles.deckStat}>
+                  <Text style={[styles.deckStatValue, { color: colors.success }]}>{stats.review}</Text>
+                  <Text style={styles.deckStatLabel}>Review</Text>
+                </View>
+              </View>
+            </DarkCard>
 
-            {showAnswer ? (
-              <View style={styles.answerSection}>
-                <View style={styles.divider} />
-                <Text style={styles.flashcardTranslation}>
-                  {currentCard.english_translation}
-                </Text>
-                {currentCard.example_sentence_spanish && (
-                  <View style={styles.exampleContainer}>
-                    <Text style={styles.exampleSpanish}>
-                      {currentCard.example_sentence_spanish}
-                    </Text>
-                    <Text style={styles.exampleEnglish}>
-                      {currentCard.example_sentence_english}
+            {/* Today's Progress */}
+            <Card style={styles.todayCard}>
+              <View style={styles.todayRow}>
+                <View>
+                  <Text style={styles.todayTitle}>Today's Progress</Text>
+                  <Text style={styles.todayCount}>
+                    {reviewedToday} card{reviewedToday !== 1 ? 's' : ''} reviewed
+                  </Text>
+                </View>
+                <View style={styles.dueBadge}>
+                  <Text style={styles.dueText}>{stats.dueToday} due</Text>
+                </View>
+              </View>
+            </Card>
+
+            {/* Start Review */}
+            <Pressable style={styles.startButton} onPress={startReview}>
+              <Ionicons name="flash" size={20} color={colors.darkText} />
+              <Text style={styles.startButtonText}>Start Review Session</Text>
+            </Pressable>
+
+            {/* Recent Cards */}
+            <Text style={styles.previewTitle}>Recent Cards</Text>
+            {cards.slice(0, 8).map((card) => (
+              <Card key={card.id} style={styles.previewCard}>
+                <View style={styles.previewRow}>
+                  <View style={styles.previewLeft}>
+                    <View style={styles.previewWordRow}>
+                      <Text style={styles.previewSpanish}>{card.spanish_word}</Text>
+                      <SpeakerButton text={card.spanish_word} size={18} />
+                    </View>
+                    <Text style={styles.previewEnglish}>{card.english_translation}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor:
+                          card.status === 'review'
+                            ? colors.success + '20'
+                            : card.status === 'learning'
+                            ? colors.warning + '20'
+                            : colors.info + '20',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        {
+                          color:
+                            card.status === 'review'
+                              ? colors.success
+                              : card.status === 'learning'
+                              ? colors.warning
+                              : colors.info,
+                        },
+                      ]}
+                    >
+                      {card.status}
                     </Text>
                   </View>
-                )}
-              </View>
-            ) : (
-              <Text style={styles.tapHint}>Tap to reveal answer</Text>
-            )}
-          </Pressable>
+                </View>
+              </Card>
+            ))}
+          </>
+        ) : (
+          <ExercisesView />
+        )}
 
-          {/* Review Buttons */}
-          {showAnswer && (
-            <View style={styles.reviewButtons}>
-              <Pressable
-                style={[styles.reviewBtn, { backgroundColor: colors.error + '15' }]}
-                onPress={() => handleReview('again')}
-              >
-                <Text style={[styles.reviewBtnText, { color: colors.error }]}>Again</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.reviewBtn, { backgroundColor: colors.warning + '15' }]}
-                onPress={() => handleReview('hard')}
-              >
-                <Text style={[styles.reviewBtnText, { color: colors.warning }]}>Hard</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.reviewBtn, { backgroundColor: colors.success + '15' }]}
-                onPress={() => handleReview('good')}
-              >
-                <Text style={[styles.reviewBtnText, { color: colors.success }]}>Good</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.reviewBtn, { backgroundColor: colors.accent + '15' }]}
-                onPress={() => handleReview('easy')}
-              >
-                <Text style={[styles.reviewBtnText, { color: colors.accent }]}>Easy</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      ) : (
-        <EmptyState icon="🎉" title="All done!" subtitle="No more cards to review" />
-      )}
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </View>
   );
 }
@@ -302,6 +681,26 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.sidebar },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
+
+  // Top tabs
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.bg,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tabBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.sidebar,
+  },
+  tabBtnActive: { backgroundColor: colors.dark },
+  tabBtnText: { fontSize: 14, fontWeight: '600', color: colors.textLight },
+  tabBtnTextActive: { color: colors.darkText },
 
   // Deck mode
   deckHero: { marginBottom: 12, alignItems: 'center', paddingVertical: 24 },
@@ -334,15 +733,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   startButtonText: { fontSize: 16, fontWeight: '700', color: colors.darkText },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 10,
-  },
+  previewTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 },
   previewCard: { marginBottom: 8 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   previewLeft: {},
+  previewWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   previewSpanish: { fontSize: 15, fontWeight: '600', color: colors.text },
   previewEnglish: { fontSize: 13, color: colors.textLight, marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
@@ -389,6 +784,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  wordRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   flashcardWord: {
     fontSize: 32,
     fontWeight: '800',
@@ -401,11 +797,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-  tapHint: {
-    fontSize: 14,
-    color: colors.textLight,
-    marginTop: 24,
-  },
+  tapHint: { fontSize: 14, color: colors.textLight, marginTop: 24 },
   answerSection: { alignItems: 'center', width: '100%' },
   divider: {
     height: 1,
@@ -420,6 +812,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   exampleContainer: { marginTop: 16 },
+  exampleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
   exampleSpanish: {
     fontSize: 14,
     color: colors.text,
