@@ -1,13 +1,17 @@
 import * as SQLite from 'expo-sqlite';
 import { PendingChange, FitnessEntry, Goal, BudgetEntry } from '../types';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (db) return db;
-  db = await SQLite.openDatabaseAsync('velum.db');
-  await initializeSchema(db);
-  return db;
+export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const database = await SQLite.openDatabaseAsync('velum.db');
+      await initializeSchema(database);
+      return database;
+    })();
+  }
+  return dbPromise;
 }
 
 async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> {
