@@ -38,6 +38,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          title: 'Home',
+          headerTitle: 'Velum',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="nutrition"
+        options={{
           title: 'Nutrition',
           headerTitle: 'Nutrition',
           tabBarIcon: ({ color, size }) => (
@@ -66,16 +76,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="goals"
-        options={{
-          title: 'Goals',
-          headerTitle: 'Goals',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="flag-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="learn"
         options={{
           title: 'Spanish',
@@ -93,6 +93,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
+        }}
+      />
+      {/* Goals is now a subtab inside Profile — hide from tab bar */}
+      <Tabs.Screen
+        name="goals"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

@@ -2,14 +2,15 @@
   "expo": {
     "name": "Velum",
     "slug": "velum-mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "velum",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#1c1917",
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#141416",
       "resizeMode": "contain"
     },
     "ios": {
@@ -23,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1c1917"
+        "backgroundColor": "#141416"
       },
       "package": "com.velum.mobile",
       "permissions": [
@@ -32,9 +33,18 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 5000
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "expo-router",
       "expo-sqlite",
+      "expo-updates",
       [
         "expo-av",
         {

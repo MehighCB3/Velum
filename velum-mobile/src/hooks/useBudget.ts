@@ -13,7 +13,7 @@ function makeEmptyWeek(weekKey: string): BudgetWeek {
     entries: [],
     totalSpent: 0,
     remaining: WEEKLY_BUDGET,
-    categories: { Food: 0, Fun: 0 },
+    categories: { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 },
   };
 }
 
@@ -42,7 +42,7 @@ export function useBudget(weekDate?: Date) {
               acc[e.category as BudgetCategory] = (acc[e.category as BudgetCategory] || 0) + e.amount;
               return acc;
             },
-            { Food: 0, Fun: 0 } as Record<BudgetCategory, number>,
+            { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<BudgetCategory, number>,
           );
           setData({
             week: weekKey,
@@ -64,7 +64,7 @@ export function useBudget(weekDate?: Date) {
             entries: cached,
             totalSpent,
             remaining: WEEKLY_BUDGET - totalSpent,
-            categories: { Food: 0, Fun: 0 },
+            categories: { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 },
           });
         }
       } catch { /* ignore cache errors */ }

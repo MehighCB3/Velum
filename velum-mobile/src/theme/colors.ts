@@ -9,12 +9,12 @@ export const colors = {
   border: '#e3e2e0',
   text: '#37352f',
   textLight: '#9b9a97',
-  accent: '#2eaadc',
+  accent: '#c8956a',
 
   // Dark surfaces (hero cards, headers)
-  dark: '#1c1917',
-  darkSecondary: '#292524',
-  darkTertiary: '#44403c',
+  dark: '#141416',
+  darkSecondary: '#1e1e22',
+  darkTertiary: '#2a2a30',
   darkText: '#ffffff',
   darkTextSecondary: '#a8a29e',
 
@@ -33,6 +33,12 @@ export const colors = {
   // Category colors (budget)
   food: '#f97316',
   fun: '#8b5cf6',
+  transport: '#3b82f6',
+  subscriptions: '#06b6d4',
+  other: '#6b7280',
+
+  // Fitness extra
+  gym: '#a855f7',
 
   // Fitness colors
   steps: '#10b981',
@@ -47,7 +53,7 @@ export const colors = {
   recoveryPoor: '#ef4444',
 
   // Tab bar
-  tabActive: '#2eaadc',
+  tabActive: '#c8956a',
   tabInactive: '#9b9a97',
 } as const;
 

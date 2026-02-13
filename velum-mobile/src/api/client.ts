@@ -139,6 +139,8 @@ export const budgetApi = {
       category: BudgetCategory;
       description?: string;
       reason?: string;
+      date?: string;
+      time?: string;
     },
     week?: string,
   ): Promise<BudgetWeek> {
@@ -212,20 +214,40 @@ export const goalsApi = {
 
 export const spanishApi = {
   async getCards(): Promise<{ cards: SpanishCard[]; stats: Record<string, number> }> {
-    return request('/spanish');
+    const [allData, progressData] = await Promise.all([
+      request<{ cards: SpanishCard[] }>('/spanish?action=all'),
+      request<{ stats: Record<string, number>; reviewedToday: number }>(
+        '/spanish?action=progress',
+      ),
+    ]);
+    return { cards: allData.cards || [], stats: progressData.stats || {} };
   },
 
-  async getDueCards(): Promise<{ cards: SpanishCard[] }> {
-    return request('/spanish?filter=due');
+  async getDueCards(limit = 20): Promise<{ cards: SpanishCard[]; total: number }> {
+    return request(`/spanish?action=due&limit=${limit}`);
   },
 
   async reviewCard(
     cardId: string,
     result: 'again' | 'hard' | 'good' | 'easy',
-  ): Promise<{ card: SpanishCard }> {
+  ): Promise<{ success: boolean; nextReview: string; interval: number }> {
     return request('/spanish', {
       method: 'POST',
-      body: JSON.stringify({ cardId, result }),
+      body: JSON.stringify({ action: 'review', cardId, result }),
+    });
+  },
+
+  async parkCard(cardId: string): Promise<{ success: boolean }> {
+    return request('/spanish', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'park', cardId }),
+    });
+  },
+
+  async unparkCard(cardId: string): Promise<{ success: boolean }> {
+    return request('/spanish', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'unpark', cardId }),
     });
   },
 };

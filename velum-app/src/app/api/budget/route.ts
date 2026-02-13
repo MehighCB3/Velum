@@ -17,7 +17,10 @@ const useRedis = !!redis
 const WEEKLY_BUDGET = 70 // €70 per week
 const CATEGORIES = {
   Food: 0,
-  Fun: 0
+  Fun: 0,
+  Transport: 0,
+  Subscriptions: 0,
+  Other: 0,
 } as const
 
 type Category = keyof typeof CATEGORIES
@@ -94,7 +97,7 @@ async function deleteFromRedis(week: string, entryId?: string): Promise<boolean>
         data.categories = data.entries.reduce((acc, e) => {
           acc[e.category] = (acc[e.category] || 0) + e.amount
           return acc
-        }, { Food: 0, Fun: 0 } as Record<Category, number>)
+        }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<Category, number>)
         await writeToRedis(week, data)
       }
     } else {
@@ -114,7 +117,7 @@ function readFromFallback(week: string): WeekData {
     entries: [],
     totalSpent: 0,
     remaining: WEEKLY_BUDGET,
-    categories: { Food: 0, Fun: 0 }
+    categories: { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 }
   }
 }
 
@@ -128,7 +131,7 @@ function calculateWeekData(week: string, entries: BudgetEntry[]): WeekData {
   const categories = entries.reduce((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + e.amount
     return acc
-  }, { Food: 0, Fun: 0 } as Record<Category, number>)
+  }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<Category, number>)
 
   return {
     week,
@@ -144,19 +147,41 @@ function calculateWeekData(week: string, entries: BudgetEntry[]): WeekData {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const week = searchParams.get('week') || getWeekKey(new Date())
+    const dateParam = searchParams.get('date')
+    const weekParam = searchParams.get('week')
+
+    // If date is provided, resolve it to the containing week
+    const week = dateParam
+      ? getWeekKey(new Date(dateParam + 'T00:00:00Z'))
+      : weekParam || getWeekKey(new Date())
 
     // Try Redis first
     if (useRedis) {
       const data = await readFromRedis(week)
       if (data) {
-        return NextResponse.json(data)
+        return NextResponse.json({
+          ...data,
+          totals: {
+            spent: data.totalSpent,
+            budget: WEEKLY_BUDGET,
+            remaining: data.remaining,
+            by_category: data.categories,
+          },
+        })
       }
     }
 
     // Fallback to in-memory storage
     const fallbackData = readFromFallback(week)
-    return NextResponse.json(fallbackData)
+    return NextResponse.json({
+      ...fallbackData,
+      totals: {
+        spent: fallbackData.totalSpent,
+        budget: WEEKLY_BUDGET,
+        remaining: fallbackData.remaining,
+        by_category: fallbackData.categories,
+      },
+    })
 
   } catch (error) {
     console.error('GET error:', error)
@@ -177,9 +202,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate category
-    if (!['Food', 'Fun'].includes(entry.category)) {
+    if (!['Food', 'Fun', 'Transport', 'Subscriptions', 'Other'].includes(entry.category)) {
       return NextResponse.json(
-        { error: 'Category must be Food or Fun' },
+        { error: 'Category must be Food, Fun, Transport, Subscriptions, or Other' },
         { status: 400 }
       )
     }
@@ -230,10 +255,10 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const week = searchParams.get('week') || getWeekKey(new Date())
-    const entryId = searchParams.get('entryId')
+    const entryId = searchParams.get('entryId') || searchParams.get('id')
 
     if (!entryId) {
-      return NextResponse.json({ error: 'entryId required' }, { status: 400 })
+      return NextResponse.json({ error: 'entryId or id required' }, { status: 400 })
     }
 
     // Get existing data

@@ -912,10 +912,16 @@ export async function GET(request: NextRequest) {
         try {
           await initTables()
           const result = await sql`
-            SELECT c.*, p.ease_factor, p.interval, p.repetitions, p.status, p.next_review, p.last_reviewed
+            SELECT c.*,
+              COALESCE(p.ease_factor, 2.5) as ease_factor,
+              COALESCE(p.interval, 0) as interval,
+              COALESCE(p.repetitions, 0) as repetitions,
+              COALESCE(p.status, 'new') as status,
+              p.next_review,
+              p.last_reviewed
             FROM spanish_cards c
             LEFT JOIN spanish_progress p ON c.id = p.card_id
-            WHERE p.status != 'parked' AND (p.next_review IS NULL OR p.next_review::date <= ${today}::date)
+            WHERE (p.status IS NULL OR p.status != 'parked') AND (p.next_review IS NULL OR p.next_review::date <= ${today}::date)
             ORDER BY p.next_review ASC NULLS FIRST
             LIMIT ${limit}
           `
@@ -987,7 +993,13 @@ export async function GET(request: NextRequest) {
         try {
           await initTables()
           const result = await sql`
-            SELECT c.*, p.ease_factor, p.interval, p.repetitions, p.status, p.next_review, p.last_reviewed
+            SELECT c.*,
+              COALESCE(p.ease_factor, 2.5) as ease_factor,
+              COALESCE(p.interval, 0) as interval,
+              COALESCE(p.repetitions, 0) as repetitions,
+              COALESCE(p.status, 'new') as status,
+              p.next_review,
+              p.last_reviewed
             FROM spanish_cards c
             LEFT JOIN spanish_progress p ON c.id = p.card_id
             ORDER BY c.spanish_word
