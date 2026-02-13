@@ -409,22 +409,24 @@ function ProfileContent() {
   const [editCountry, setEditCountry] = useState('');
   const [editLifeExpectancy, setEditLifeExpectancy] = useState('85');
   const { status: syncStatus, sync } = useSync();
-  const { status: updateStatus, isChecking, isUpdateAvailable, checkAndUpdate, applyUpdate, error: updateError } = useAppUpdate();
+  const { status: updateStatus, isChecking, isUpdateAvailable, checkAndUpdate, applyUpdate, releaseNotes, error: updateError } = useAppUpdate();
 
   const handleUpdateApp = useCallback(() => {
     if (isUpdateAvailable) {
       Alert.alert(
-        'Update Ready',
-        'A new version has been downloaded. Restart the app to apply it?',
+        'Update Available',
+        releaseNotes
+          ? `${releaseNotes}\n\nDownload and install the new APK?`
+          : 'A new version is available. Download and install?',
         [
           { text: 'Later', style: 'cancel' },
-          { text: 'Restart Now', onPress: applyUpdate },
+          { text: 'Download', onPress: applyUpdate },
         ],
       );
     } else {
       checkAndUpdate();
     }
-  }, [isUpdateAvailable, checkAndUpdate, applyUpdate]);
+  }, [isUpdateAvailable, checkAndUpdate, applyUpdate, releaseNotes]);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -606,11 +608,9 @@ function ProfileContent() {
           ]}
         >
           {isChecking
-            ? updateStatus === 'downloading'
-              ? 'Downloading Update...'
-              : 'Checking for Updates...'
+            ? 'Checking for Updates...'
             : isUpdateAvailable
-            ? 'Restart to Apply Update'
+            ? 'Download New Version'
             : updateStatus === 'up-to-date'
             ? 'App is Up to Date'
             : updateStatus === 'error'
