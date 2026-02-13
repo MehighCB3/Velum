@@ -748,13 +748,25 @@ export default function LearnScreen() {
     setLoading(true);
     try {
       const data = await spanishApi.getCards();
-      setCards(data.cards || []);
+      const allCards = (data.cards || []).filter((c: SpanishCard) => c.status !== 'parked');
+      setCards(allCards);
+      const s = data.stats || {};
+      const today = new Date().toISOString().split('T')[0];
+      const dueCount = allCards.filter(
+        (c: SpanishCard) => !c.next_review || c.next_review <= today,
+      ).length;
       setStats({
-        total: data.stats?.total || data.cards?.length || 0,
-        new: data.stats?.new || 0,
-        learning: data.stats?.learning || 0,
-        review: data.stats?.review || 0,
-        dueToday: data.stats?.dueToday || 0,
+        total: allCards.length,
+        new: Number(s.new_count) || allCards.filter((c: SpanishCard) => c.status === 'new').length,
+        learning:
+          Number(s.learning_count) ||
+          allCards.filter(
+            (c: SpanishCard) => c.status === 'learning' || c.status === 'relearning',
+          ).length,
+        review:
+          Number(s.review_count) ||
+          allCards.filter((c: SpanishCard) => c.status === 'review').length,
+        dueToday: dueCount,
       });
     } catch (err) {
       console.warn('Failed to load Spanish cards:', err);
@@ -769,7 +781,7 @@ export default function LearnScreen() {
 
   const startReview = useCallback(async () => {
     try {
-      const data = await spanishApi.getDueCards();
+      const data = await spanishApi.getDueCards(50);
       if (data.cards && data.cards.length > 0) {
         setCards(data.cards);
         setCurrentCard(data.cards[0]);
@@ -803,6 +815,27 @@ export default function LearnScreen() {
     },
     [currentCard, cards, fetchCards],
   );
+
+  const handlePark = useCallback(async () => {
+    if (!currentCard) return;
+    try {
+      await spanishApi.parkCard(currentCard.id);
+      const remaining = cards.filter((c) => c.id !== currentCard.id);
+      setCards(remaining);
+      const currentIndex = cards.findIndex((c) => c.id === currentCard.id);
+      const nextCard = remaining[currentIndex] || remaining[0];
+      if (nextCard) {
+        setCurrentCard(nextCard);
+        setShowAnswer(false);
+      } else {
+        setMode('deck');
+        setCurrentCard(null);
+        fetchCards();
+      }
+    } catch (err) {
+      console.warn('Park failed:', err);
+    }
+  }, [currentCard, cards, fetchCards]);
 
   // ==================== REVIEW MODE ====================
   if (mode === 'review') {
@@ -864,32 +897,38 @@ export default function LearnScreen() {
             </Pressable>
 
             {showAnswer && (
-              <View style={styles.reviewButtons}>
-                <Pressable
-                  style={[styles.reviewBtn, { backgroundColor: colors.error + '15' }]}
-                  onPress={() => handleReview('again')}
-                >
-                  <Text style={[styles.reviewBtnText, { color: colors.error }]}>Again</Text>
+              <>
+                <View style={styles.reviewButtons}>
+                  <Pressable
+                    style={[styles.reviewBtn, { backgroundColor: colors.error + '15' }]}
+                    onPress={() => handleReview('again')}
+                  >
+                    <Text style={[styles.reviewBtnText, { color: colors.error }]}>Again</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.reviewBtn, { backgroundColor: colors.warning + '15' }]}
+                    onPress={() => handleReview('hard')}
+                  >
+                    <Text style={[styles.reviewBtnText, { color: colors.warning }]}>Hard</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.reviewBtn, { backgroundColor: colors.success + '15' }]}
+                    onPress={() => handleReview('good')}
+                  >
+                    <Text style={[styles.reviewBtnText, { color: colors.success }]}>Good</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.reviewBtn, { backgroundColor: colors.accent + '15' }]}
+                    onPress={() => handleReview('easy')}
+                  >
+                    <Text style={[styles.reviewBtnText, { color: colors.accent }]}>Easy</Text>
+                  </Pressable>
+                </View>
+                <Pressable style={styles.parkBtn} onPress={handlePark}>
+                  <Ionicons name="archive-outline" size={16} color={colors.textLight} />
+                  <Text style={styles.parkBtnText}>Park (hide forever)</Text>
                 </Pressable>
-                <Pressable
-                  style={[styles.reviewBtn, { backgroundColor: colors.warning + '15' }]}
-                  onPress={() => handleReview('hard')}
-                >
-                  <Text style={[styles.reviewBtnText, { color: colors.warning }]}>Hard</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.reviewBtn, { backgroundColor: colors.success + '15' }]}
-                  onPress={() => handleReview('good')}
-                >
-                  <Text style={[styles.reviewBtnText, { color: colors.success }]}>Good</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.reviewBtn, { backgroundColor: colors.accent + '15' }]}
-                  onPress={() => handleReview('easy')}
-                >
-                  <Text style={[styles.reviewBtnText, { color: colors.accent }]}>Easy</Text>
-                </Pressable>
-              </View>
+              </>
             )}
           </View>
         ) : (
@@ -1203,4 +1242,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reviewBtnText: { fontSize: 15, fontWeight: '700' },
+  parkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 10,
+  },
+  parkBtnText: { fontSize: 13, color: colors.textLight },
 });
