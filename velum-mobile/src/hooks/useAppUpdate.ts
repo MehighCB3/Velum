@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 export type UpdateStatus =
@@ -34,6 +34,14 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
 export function useAppUpdate() {
   const [state, setState] = useState<AppUpdateState>({
     status: 'idle',
@@ -58,12 +66,18 @@ export function useAppUpdate() {
     try {
       setState((s) => ({ ...s, status: 'checking', error: null }));
 
-      const res = await fetch(`${API_BASE}/api/app-version`);
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const url = `${API_BASE}/api/app-version`;
+      const res = await fetchWithTimeout(url);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Server ${res.status}: ${body || res.statusText}`);
+      }
 
       const data = await res.json();
       const currentVersion =
-        Constants.expoConfig?.version || Constants.manifest?.version || '1.0.0';
+        Constants.expoConfig?.version ||
+        (Constants.manifest as Record<string, unknown>)?.version as string ||
+        '1.0.0';
 
       if (compareVersions(data.version, currentVersion) > 0) {
         setState({
@@ -83,9 +97,15 @@ export function useAppUpdate() {
         });
       }
     } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.name === 'AbortError'
+            ? 'Request timed out'
+            : err.message
+          : 'Update check failed';
       setState({
         status: 'error',
-        error: err instanceof Error ? err.message : 'Update check failed',
+        error: msg,
         lastChecked: new Date().toISOString(),
         apkUrl: null,
         releaseNotes: null,
@@ -94,7 +114,16 @@ export function useAppUpdate() {
   }, []);
 
   const applyUpdate = useCallback(async () => {
-    if (state.apkUrl) {
+    if (!state.apkUrl) return;
+    try {
+      // Open the APK URL in the system browser which handles the download
+      if (Platform.OS === 'android') {
+        await Linking.openURL(state.apkUrl);
+      } else {
+        await Linking.openURL(state.apkUrl);
+      }
+    } catch {
+      // Fallback: try opening in browser
       await Linking.openURL(state.apkUrl);
     }
   }, [state.apkUrl]);

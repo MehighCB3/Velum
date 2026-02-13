@@ -14,6 +14,7 @@ import { format, subDays } from 'date-fns';
 import { colors } from '../../src/theme/colors';
 import { useNutrition } from '../../src/hooks/useNutrition';
 import { DarkCard, Card, SectionHeader, EmptyState } from '../../src/components/Card';
+import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { MacroBar } from '../../src/components/MacroBar';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
@@ -226,6 +227,29 @@ export default function NutritionScreen() {
   const caloriesRemaining = data.goals.calories - data.totals.calories;
   const calorieProgress = data.goals.calories > 0 ? data.totals.calories / data.goals.calories : 0;
 
+  // Compute nutrition insights
+  const nutritionInsights: InsightItem[] = [];
+  if (data.totals.calories > 0) {
+    if (caloriesRemaining < 0) {
+      nutritionInsights.push({ emoji: '🔴', text: `${Math.round(Math.abs(caloriesRemaining))} cal over your daily goal.`, tone: 'negative' });
+    } else if (calorieProgress > 0.8) {
+      nutritionInsights.push({ emoji: '🟡', text: `${Math.round(caloriesRemaining)} cal remaining — nearly at your goal.`, tone: 'warning' });
+    } else {
+      nutritionInsights.push({ emoji: '🟢', text: `${Math.round(caloriesRemaining)} cal remaining of ${data.goals.calories} kcal goal.`, tone: 'positive' });
+    }
+    // Protein check
+    const proteinPct = data.goals.protein > 0 ? data.totals.protein / data.goals.protein : 0;
+    if (proteinPct < 0.5 && calorieProgress > 0.5) {
+      nutritionInsights.push({ emoji: '🥩', text: `Protein is only ${Math.round(proteinPct * 100)}% of target — consider a protein-rich meal.`, tone: 'warning' });
+    } else if (proteinPct >= 1) {
+      nutritionInsights.push({ emoji: '💪', text: `Protein goal hit! ${Math.round(data.totals.protein)}g of ${data.goals.protein}g.`, tone: 'positive' });
+    }
+    // Carbs check
+    if (data.goals.carbs > 0 && data.totals.carbs > data.goals.carbs) {
+      nutritionInsights.push({ emoji: '🍞', text: `Carbs over limit — ${Math.round(data.totals.carbs)}g of ${data.goals.carbs}g max.`, tone: 'warning' });
+    }
+  }
+
   return (
     <View style={styles.container}>
       {/* Sub-tabs */}
@@ -281,6 +305,9 @@ export default function NutritionScreen() {
                 />
               </View>
             </DarkCard>
+
+            {/* Insights */}
+            <InsightBanner insights={nutritionInsights} />
 
             {/* Macros */}
             <Card style={styles.macroCard}>

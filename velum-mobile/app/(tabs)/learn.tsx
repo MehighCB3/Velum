@@ -17,6 +17,7 @@ import { colors } from '../../src/theme/colors';
 import { spanishApi } from '../../src/api/client';
 import { SpanishCard, SpanishDeckStats } from '../../src/types';
 import { Card, DarkCard, EmptyState } from '../../src/components/Card';
+import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 
 type ReviewResult = 'again' | 'hard' | 'good' | 'easy';
 type TopTab = 'cards' | 'exercises' | 'speak';
@@ -977,6 +978,22 @@ export default function LearnScreen() {
         }
       >
         {activeTab === 'cards' ? (
+          (() => {
+            // Compute learn insights
+            const learnInsights: InsightItem[] = [];
+            if (stats.dueToday > 0) {
+              learnInsights.push({ emoji: '📚', text: `${stats.dueToday} card${stats.dueToday !== 1 ? 's' : ''} due for review today.`, tone: stats.dueToday > 20 ? 'warning' : 'neutral' });
+            }
+            if (reviewedToday > 0) {
+              learnInsights.push({ emoji: '✅', text: `${reviewedToday} card${reviewedToday !== 1 ? 's' : ''} reviewed today — keep it up!`, tone: 'positive' });
+            }
+            if (stats.new > 0 && stats.new > stats.total * 0.5) {
+              learnInsights.push({ emoji: '🌱', text: `${stats.new} new cards ready to learn (${Math.round((stats.new / stats.total) * 100)}% of deck).`, tone: 'neutral' });
+            }
+            if (stats.total > 0 && stats.review >= stats.total * 0.5) {
+              learnInsights.push({ emoji: '🏆', text: `${stats.review} of ${stats.total} cards mastered — great retention!`, tone: 'positive' });
+            }
+            return (
           <>
             {/* Deck Header */}
             <DarkCard style={styles.deckHero}>
@@ -1002,6 +1019,9 @@ export default function LearnScreen() {
                 </View>
               </View>
             </DarkCard>
+
+            {/* Insights */}
+            <InsightBanner insights={learnInsights} />
 
             {/* Today's Progress */}
             <Card style={styles.todayCard}>
@@ -1069,6 +1089,8 @@ export default function LearnScreen() {
               </Card>
             ))}
           </>
+            );
+          })()
         ) : activeTab === 'exercises' ? (
           <ExercisesView />
         ) : (
