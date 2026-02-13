@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useBudget } from '../../src/hooks/useBudget';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
+import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { BudgetCategory } from '../../src/types';
@@ -69,6 +70,32 @@ export default function BudgetScreen() {
   const spentPercent = data.totalSpent / WEEKLY_BUDGET;
   const isOverBudget = data.remaining < 0;
 
+  // Compute budget insights
+  const budgetInsights: InsightItem[] = [];
+  if (isOverBudget) {
+    budgetInsights.push({ emoji: '🚨', text: `You're €${Math.abs(data.remaining).toFixed(2)} over your €${WEEKLY_BUDGET} weekly budget.`, tone: 'negative' });
+  } else if (spentPercent > 0.8) {
+    budgetInsights.push({ emoji: '⚠️', text: `€${data.remaining.toFixed(2)} left — ${Math.round((1 - spentPercent) * 100)}% of your budget remaining.`, tone: 'warning' });
+  } else if (data.totalSpent > 0) {
+    budgetInsights.push({ emoji: '💰', text: `€${data.remaining.toFixed(2)} remaining of €${WEEKLY_BUDGET} budget (${Math.round(spentPercent * 100)}% spent).`, tone: 'positive' });
+  }
+  // Top spending category
+  const catEntries = Object.entries(data.categories).filter(([, v]) => v > 0) as [string, number][];
+  if (catEntries.length > 0) {
+    const top = catEntries.sort((a, b) => b[1] - a[1])[0];
+    const pct = data.totalSpent > 0 ? Math.round((top[1] / data.totalSpent) * 100) : 0;
+    budgetInsights.push({ emoji: '📊', text: `${top[0]} is your top category — €${top[1].toFixed(2)} (${pct}% of spending).`, tone: 'neutral' });
+  }
+  // Daily pace projection
+  const dayOfWeek = new Date().getDay() || 7; // 1=Mon..7=Sun
+  if (data.totalSpent > 0 && dayOfWeek < 7) {
+    const dailyPace = data.totalSpent / dayOfWeek;
+    const projected = dailyPace * 7;
+    if (projected > WEEKLY_BUDGET) {
+      budgetInsights.push({ emoji: '📈', text: `At this pace you'll spend ~€${projected.toFixed(0)} by Sunday — €${(projected - WEEKLY_BUDGET).toFixed(0)} over budget.`, tone: 'warning' });
+    }
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -116,6 +143,9 @@ export default function BudgetScreen() {
             />
           </View>
         </DarkCard>
+
+        {/* Insights */}
+        <InsightBanner insights={budgetInsights} />
 
         {/* Category Breakdown */}
         <Card style={styles.categoryCard}>

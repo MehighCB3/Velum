@@ -14,6 +14,7 @@ import { useFitness } from '../../src/hooks/useFitness';
 import { useInsights } from '../../src/hooks/useInsights';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
+import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
@@ -110,6 +111,24 @@ export default function FitnessScreen() {
     poor: colors.recoveryPoor,
   }[data.advanced?.recoveryStatus || 'good'];
 
+  // Compute insights from current data
+  const computedInsights: InsightItem[] = [];
+  const stepsPercent = data.goals.steps > 0 ? stepsToday / data.goals.steps : 0;
+  if (stepsPercent >= 1) {
+    computedInsights.push({ emoji: '🎉', text: `Step goal smashed! ${stepsToday.toLocaleString()} steps today.`, tone: 'positive' });
+  } else if (stepsToday > 0) {
+    computedInsights.push({ emoji: '🚶', text: `${stepsToday.toLocaleString()} steps today — ${Math.round(stepsPercent * 100)}% of your ${(data.goals.steps / 1000).toFixed(0)}k goal.`, tone: 'neutral' });
+  }
+  const totalSessions = data.totals.runs + data.totals.swims + data.totals.cycles + data.totals.jiujitsu;
+  if (totalSessions >= 5) {
+    computedInsights.push({ emoji: '💪', text: `${totalSessions} workouts this week — outstanding consistency!`, tone: 'positive' });
+  } else if (totalSessions > 0) {
+    computedInsights.push({ emoji: '📊', text: `${totalSessions} workout${totalSessions !== 1 ? 's' : ''} this week · ${data.totals.totalDistance.toFixed(1)} km total distance.`, tone: 'neutral' });
+  }
+  if (data.advanced?.recoveryStatus === 'poor') {
+    computedInsights.push({ emoji: '⚠️', text: 'Recovery is low — consider a rest day or light activity.', tone: 'warning' });
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -161,6 +180,16 @@ export default function FitnessScreen() {
             />
           </View>
         </DarkCard>
+
+        {/* Insights */}
+        <InsightBanner insights={computedInsights} />
+        {fitnessInsights.length > 0 && (
+          <View style={styles.insightsContainer}>
+            {fitnessInsights.map((fi) => (
+              <AgentInsightCard key={fi.agentId} insight={fi} />
+            ))}
+          </View>
+        )}
 
         {/* Week Stats */}
         <Card style={styles.statsCard}>
@@ -264,15 +293,6 @@ export default function FitnessScreen() {
               </Pressable>
             );
           })
-        )}
-
-        {/* Agent Insights */}
-        {fitnessInsights.length > 0 && (
-          <View style={styles.insightsContainer}>
-            {fitnessInsights.map((fi) => (
-              <AgentInsightCard key={fi.agentId} insight={fi} />
-            ))}
-          </View>
         )}
 
         <View style={{ height: 100 }} />

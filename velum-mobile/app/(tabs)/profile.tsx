@@ -614,8 +614,8 @@ function ProfileContent() {
             : updateStatus === 'up-to-date'
             ? 'App is Up to Date'
             : updateStatus === 'error'
-            ? 'Update Failed — Tap to Retry'
-            : 'Update App'}
+            ? `Update Failed — Tap to Retry${updateError ? `\n${updateError}` : ''}`
+            : 'Check for Updates'}
         </Text>
       </Pressable>
     </>
