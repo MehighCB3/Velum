@@ -9,7 +9,8 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#1c1917",
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#141416",
       "resizeMode": "contain"
     },
     "ios": {
@@ -23,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1c1917"
+        "backgroundColor": "#141416"
       },
       "package": "com.velum.mobile",
       "permissions": [

@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#141416"/>
+  <!-- Mid veil -->
+  <path d="M256 404 L110 138 Q107 133 111 130 L160 130 Q166 130 169 134 L256 264" fill="none" stroke="rgba(200,149,106,0.32)" stroke-width="4"/>
+  <path d="M256 404 L402 138 Q405 133 401 130 L352 130 Q346 130 343 134 L256 264" fill="none" stroke="rgba(200,149,106,0.32)" stroke-width="4"/>
+  <!-- Solid V -->
+  <path d="M256 380 L134 146 Q131 141 135 138 L157 138 Q162 138 165 142 L256 310 L347 142 Q350 138 355 138 L377 138 Q381 141 378 146 L256 380Z" fill="url(#iconGrad)"/>
+  <defs>
+    <linearGradient id="iconGrad" x1="256" y1="138" x2="256" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e4b08a"/>
+      <stop offset="100%" stop-color="#c8956a"/>
+    </linearGradient>
+  </defs>
+</svg>
