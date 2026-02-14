@@ -10,9 +10,13 @@
     "list": [
       {
         "id": "main",
-        "default": true
+        "default": true,
+        "skills": ["assistant", "coach", "nutrition", "books", "spanish"]
       }
     ]
+  },
+  "skills": {
+    "path": "./skills"
   },
   "session": {
     "scope": "per-sender",
@@ -28,11 +32,8 @@
     "port": 18789
   },
   "channels": {
-    "whatsapp": {
-      "enabled": false
-    },
     "telegram": {
-      "enabled": false
+      "enabled": true
     }
   }
 }
