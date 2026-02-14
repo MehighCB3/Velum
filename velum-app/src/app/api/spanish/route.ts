@@ -5,6 +5,11 @@ export const dynamic = 'force-dynamic'
 
 const usePostgres = !!process.env.POSTGRES_URL
 
+// Convert JS string array to Postgres TEXT[] literal (e.g. {"a","b"})
+function pgTextArray(arr: string[]): string {
+  return '{' + arr.map(s => '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"').join(',') + '}'
+}
+
 // ==================== SM-2 SPACED REPETITION ALGORITHM ====================
 
 function calculateNextReview(
@@ -870,7 +875,7 @@ async function initTables() {
         example_sentence_spanish TEXT,
         example_sentence_english TEXT,
         word_type VARCHAR(50),
-        tags TEXT[],
+        tags TEXT[] DEFAULT '{}',
         source VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -888,6 +893,22 @@ async function initTables() {
     `
     await sql`CREATE INDEX IF NOT EXISTS idx_sp_next_review ON spanish_progress(next_review)`
     tablesInitialized = true
+
+    // Auto-seed: if the cards table is empty, populate from SEED_CARDS
+    const countResult = await sql`SELECT COUNT(*) as count FROM spanish_cards`
+    const cardCount = Number(countResult.rows[0]?.count || 0)
+    if (cardCount === 0) {
+      console.log(`Auto-seeding ${SEED_CARDS.length} Spanish cards into Postgres...`)
+      for (const card of SEED_CARDS) {
+        await sql`
+          INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
+          VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${pgTextArray(card.tags)}, ${card.source})
+          ON CONFLICT (id) DO NOTHING
+        `
+        await sql`INSERT INTO spanish_progress (card_id) VALUES (${card.id}) ON CONFLICT (card_id) DO NOTHING`
+      }
+      console.log('Auto-seed complete')
+    }
   } catch (error) {
     console.error('Failed to init Spanish tables:', error)
     throw error
@@ -1142,7 +1163,7 @@ export async function POST(request: NextRequest) {
           await initTables()
           await sql`
             INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-            VALUES (${id}, ${spanish_word}, ${english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${JSON.stringify(card.tags)}, ${card.source})
+            VALUES (${id}, ${spanish_word}, ${english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${pgTextArray(card.tags)}, ${card.source})
           `
           await sql`INSERT INTO spanish_progress (card_id) VALUES (${id})`
           return NextResponse.json({ success: true, card })
@@ -1168,7 +1189,7 @@ export async function POST(request: NextRequest) {
           for (const card of SEED_CARDS) {
             await sql`
               INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-              VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${JSON.stringify(card.tags)}, ${card.source})
+              VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${pgTextArray(card.tags)}, ${card.source})
               ON CONFLICT (id) DO NOTHING
             `
             await sql`INSERT INTO spanish_progress (card_id) VALUES (${card.id}) ON CONFLICT (card_id) DO NOTHING`

@@ -8,6 +8,7 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
@@ -745,8 +746,11 @@ export default function LearnScreen() {
   const [mode, setMode] = useState<'deck' | 'review'>('deck');
   const [activeTab, setActiveTab] = useState<TopTab>('cards');
 
+  const [error, setError] = useState<string | null>(null);
+
   const fetchCards = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await spanishApi.getCards();
       const allCards = (data.cards || []).filter((c: SpanishCard) => c.status !== 'parked');
@@ -770,7 +774,9 @@ export default function LearnScreen() {
         dueToday: dueCount,
       });
     } catch (err) {
-      console.warn('Failed to load Spanish cards:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      console.warn('Failed to load Spanish cards:', msg);
+      setError(`Failed to load cards: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -788,9 +794,12 @@ export default function LearnScreen() {
         setCurrentCard(data.cards[0]);
         setShowAnswer(false);
         setMode('review');
+      } else {
+        Alert.alert('All caught up!', 'No cards are due for review right now.');
       }
     } catch (err) {
-      console.warn('Failed to load due cards:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      Alert.alert('Load Error', `Failed to load review cards: ${msg}`);
     }
   }, []);
 
@@ -811,7 +820,8 @@ export default function LearnScreen() {
           fetchCards();
         }
       } catch (err) {
-        console.warn('Review failed:', err);
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        Alert.alert('Review Failed', `Could not save review: ${msg}`);
       }
     },
     [currentCard, cards, fetchCards],
@@ -834,7 +844,8 @@ export default function LearnScreen() {
         fetchCards();
       }
     } catch (err) {
-      console.warn('Park failed:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      Alert.alert('Park Failed', `Could not park card: ${msg}`);
     }
   }, [currentCard, cards, fetchCards]);
 
@@ -1023,6 +1034,16 @@ export default function LearnScreen() {
             {/* Insights */}
             <InsightBanner insights={learnInsights} />
 
+            {/* Error banner */}
+            {error && (
+              <Card style={styles.errorCard}>
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable style={styles.retryBtn} onPress={fetchCards}>
+                  <Text style={styles.retryText}>Retry</Text>
+                </Pressable>
+              </Card>
+            )}
+
             {/* Today's Progress */}
             <Card style={styles.todayCard}>
               <View style={styles.todayRow}>
@@ -1137,6 +1158,24 @@ const styles = StyleSheet.create({
   deckStat: { alignItems: 'center' },
   deckStatValue: { fontSize: 22, fontWeight: '700', color: colors.darkText },
   deckStatLabel: { fontSize: 11, color: colors.darkTextSecondary, marginTop: 2 },
+  errorCard: {
+    marginBottom: 12,
+    backgroundColor: colors.error + '10',
+    borderColor: colors.error + '30',
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: { fontSize: 13, color: colors.error, flex: 1 },
+  retryBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.error + '20',
+    marginLeft: 12,
+  },
+  retryText: { fontSize: 13, fontWeight: '600', color: colors.error },
   todayCard: { marginBottom: 12 },
   todayRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   todayTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
