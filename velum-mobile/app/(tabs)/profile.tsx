@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
-import { profileApi } from '../../src/api/client';
+import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
 import { UserProfile, GoalHorizon, Goal } from '../../src/types';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { SyncIndicator } from '../../src/components/SyncIndicator';
@@ -399,6 +399,263 @@ const goalStyles = StyleSheet.create({
   progressSubmitText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
 });
 
+// ==================== QUICK ACTIONS ====================
+
+interface QuickAction {
+  key: QuickLogType;
+  icon: string;
+  label: string;
+  color: string;
+  placeholder: string;
+  unit: string;
+  hasDescription?: boolean;
+  hasCategory?: boolean;
+  categories?: string[];
+}
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { key: 'steps', icon: 'footsteps-outline', label: 'Steps', color: colors.success, placeholder: '8000', unit: 'steps' },
+  { key: 'expense', icon: 'card-outline', label: 'Expense', color: colors.warning, placeholder: '15', unit: '\u20AC', hasDescription: true, hasCategory: true, categories: ['Food', 'Fun', 'Transport', 'Subscriptions', 'Other'] },
+  { key: 'meal', icon: 'restaurant-outline', label: 'Meal', color: colors.accent, placeholder: '500', unit: 'cal', hasDescription: true },
+  { key: 'weight', icon: 'scale-outline', label: 'Weight', color: colors.info, placeholder: '78.5', unit: 'kg' },
+];
+
+function QuickActionsSection() {
+  const [activeAction, setActiveAction] = useState<QuickAction | null>(null);
+  const [inputValue, setInputValue] = useState('');
+  const [inputDesc, setInputDesc] = useState('');
+  const [inputCategory, setInputCategory] = useState('Food');
+  const [submitting, setSubmitting] = useState(false);
+  const [lastResult, setLastResult] = useState<{ type: string; success: boolean } | null>(null);
+
+  const handleSubmit = useCallback(async () => {
+    if (!activeAction || !inputValue.trim()) return;
+    setSubmitting(true);
+    try {
+      await quickLogApi.log({
+        type: activeAction.key,
+        value: Number(inputValue) || 0,
+        description: inputDesc || undefined,
+        category: activeAction.hasCategory ? inputCategory : undefined,
+      });
+      setLastResult({ type: activeAction.label, success: true });
+      setActiveAction(null);
+      setInputValue('');
+      setInputDesc('');
+      setTimeout(() => setLastResult(null), 3000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      Alert.alert('Log Failed', msg);
+      setLastResult({ type: activeAction.label, success: false });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [activeAction, inputValue, inputDesc, inputCategory]);
+
+  return (
+    <>
+      <Card style={qaStyles.card}>
+        <SectionHeader title="Quick Actions" />
+        <Text style={qaStyles.subtitle}>One-tap logging — skip the full flow</Text>
+
+        <View style={qaStyles.grid}>
+          {QUICK_ACTIONS.map((action) => (
+            <Pressable
+              key={action.key}
+              style={qaStyles.actionBtn}
+              onPress={() => {
+                setActiveAction(action);
+                setInputValue('');
+                setInputDesc('');
+                setInputCategory('Food');
+              }}
+            >
+              <View style={[qaStyles.actionIcon, { backgroundColor: action.color + '15' }]}>
+                <Ionicons name={action.icon as keyof typeof Ionicons.glyphMap} size={24} color={action.color} />
+              </View>
+              <Text style={qaStyles.actionLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {lastResult && (
+          <View style={[qaStyles.toast, { backgroundColor: lastResult.success ? colors.success + '15' : colors.error + '15' }]}>
+            <Ionicons
+              name={lastResult.success ? 'checkmark-circle' : 'close-circle'}
+              size={16}
+              color={lastResult.success ? colors.success : colors.error}
+            />
+            <Text style={[qaStyles.toastText, { color: lastResult.success ? colors.success : colors.error }]}>
+              {lastResult.type} {lastResult.success ? 'logged!' : 'failed'}
+            </Text>
+          </View>
+        )}
+      </Card>
+
+      {/* Quick-log input modal */}
+      <Modal visible={!!activeAction} animationType="fade" transparent>
+        <KeyboardAvoidingView
+          style={qaStyles.overlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={qaStyles.sheet}>
+            <View style={qaStyles.sheetHeader}>
+              <Ionicons
+                name={activeAction?.icon as keyof typeof Ionicons.glyphMap || 'add'}
+                size={22}
+                color={activeAction?.color || colors.accent}
+              />
+              <Text style={qaStyles.sheetTitle}>Log {activeAction?.label}</Text>
+            </View>
+
+            <TextInput
+              style={qaStyles.input}
+              value={inputValue}
+              onChangeText={setInputValue}
+              placeholder={activeAction?.placeholder || '0'}
+              placeholderTextColor={colors.textLight}
+              keyboardType="decimal-pad"
+              autoFocus
+            />
+            <Text style={qaStyles.unitHint}>{activeAction?.unit}</Text>
+
+            {activeAction?.hasDescription && (
+              <TextInput
+                style={[qaStyles.input, { marginTop: 10 }]}
+                value={inputDesc}
+                onChangeText={setInputDesc}
+                placeholder={activeAction.key === 'meal' ? 'What did you eat?' : 'Description'}
+                placeholderTextColor={colors.textLight}
+              />
+            )}
+
+            {activeAction?.hasCategory && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={qaStyles.catRow}>
+                {(activeAction.categories || []).map((cat) => (
+                  <Pressable
+                    key={cat}
+                    style={[qaStyles.catBtn, inputCategory === cat && qaStyles.catBtnActive]}
+                    onPress={() => setInputCategory(cat)}
+                  >
+                    <Text style={[qaStyles.catText, inputCategory === cat && qaStyles.catTextActive]}>
+                      {cat}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+
+            <View style={qaStyles.buttons}>
+              <Pressable
+                style={qaStyles.cancelBtn}
+                onPress={() => setActiveAction(null)}
+              >
+                <Text style={qaStyles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[qaStyles.submitBtn, submitting && { opacity: 0.5 }]}
+                onPress={handleSubmit}
+                disabled={submitting || !inputValue.trim()}
+              >
+                <Text style={qaStyles.submitText}>{submitting ? 'Saving...' : 'Log'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
+  );
+}
+
+const qaStyles = StyleSheet.create({
+  card: { marginBottom: 12 },
+  subtitle: { fontSize: 13, color: colors.textLight, marginBottom: 16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  actionBtn: { alignItems: 'center', width: '22%' },
+  actionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  actionLabel: { fontSize: 12, fontWeight: '600', color: colors.text },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  toastText: { fontSize: 13, fontWeight: '600' },
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    padding: 24,
+  },
+  sheet: {
+    backgroundColor: colors.bg,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 18,
+    color: colors.text,
+    backgroundColor: colors.sidebar,
+    textAlign: 'center',
+  },
+  unitHint: { fontSize: 13, color: colors.textLight, textAlign: 'center', marginTop: 4 },
+  catRow: { marginTop: 12, flexGrow: 0 },
+  catBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 8,
+  },
+  catBtnActive: { backgroundColor: colors.dark, borderColor: colors.dark },
+  catText: { fontSize: 13, fontWeight: '600', color: colors.textLight },
+  catTextActive: { color: colors.darkText },
+  buttons: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  cancelText: { fontSize: 15, fontWeight: '600', color: colors.textLight },
+  submitBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: colors.dark,
+    alignItems: 'center',
+  },
+  submitText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
+});
+
 // ==================== PROFILE CONTENT ====================
 
 function ProfileContent() {
@@ -547,6 +804,9 @@ function ProfileContent() {
           </View>
         )}
       </Card>
+
+      {/* Quick Actions */}
+      <QuickActionsSection />
 
       {/* App Info */}
       <Card style={styles.infoCard}>

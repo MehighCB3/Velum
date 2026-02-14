@@ -272,6 +272,24 @@ export const profileApi = {
   },
 };
 
+// ==================== QUICK LOG ====================
+
+export type QuickLogType = 'steps' | 'expense' | 'meal' | 'weight';
+
+export const quickLogApi = {
+  async log(entry: {
+    type: QuickLogType;
+    value?: number;
+    description?: string;
+    category?: string;
+  }): Promise<{ success: boolean }> {
+    return request('/quick-log', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    });
+  },
+};
+
 // ==================== INSIGHTS ====================
 
 export const insightsApi = {
