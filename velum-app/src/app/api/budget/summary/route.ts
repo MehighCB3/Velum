@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Redis } from '@upstash/redis'
+import { redis, useRedis } from '../../../lib/redis'
+import { getWeekKey } from '../../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
-
-// Redis client setup
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
-  : null
-
-const useRedis = !!redis
 
 // Budget configuration
 const WEEKLY_BUDGET = 70
@@ -31,22 +22,6 @@ interface WeekData {
   totalSpent: number
   remaining: number
   categories: { Food: number; Fun: number; Transport: number; Subscriptions: number; Other: number }
-}
-
-// Helper to get ISO week number
-function getISOWeek(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-}
-
-// Helper to generate week key
-function getWeekKey(date: Date): string {
-  const year = date.getFullYear()
-  const week = getISOWeek(date)
-  return `${year}-W${String(week).padStart(2, '0')}`
 }
 
 // Get date range for the last 4 weeks

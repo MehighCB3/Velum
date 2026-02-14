@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getISOWeek } from '../../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
 
 // Budget webhook handler for Telegram "Budgy" topic
 // Parses messages like: "15€ lunch food week 2" or "20€ drinks fun"
 
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET
 
 interface ParsedExpense {
   amount: number
@@ -76,16 +77,7 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
   return { amount, description, category, week, reason }
 }
 
-// Helper to get ISO week number
-function getISOWeek(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-}
-
-function getWeekKey(weekNum: number | null): string {
+function getWeekKeyForBudget(weekNum: number | null): string {
   const now = new Date()
   const year = now.getFullYear()
 
@@ -99,19 +91,18 @@ function getWeekKey(weekNum: number | null): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify secret (optional, for production)
-    const secret = request.headers.get('x-webhook-secret')
-    if (secret !== WEBHOOK_SECRET) {
-      console.warn('Invalid webhook secret')
-      // Still process in dev mode
+    // Verify webhook secret when configured
+    if (WEBHOOK_SECRET) {
+      const secret = request.headers.get('x-webhook-secret')
+      if (secret !== WEBHOOK_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     const body = await request.json()
-    
+
     // Extract message text from Telegram format
     const messageText = body.message?.text || body.text
-    const chatId = body.message?.chat?.id || body.chat_id
-    const messageId = body.message?.message_id || body.message_id
     
     if (!messageText) {
       return NextResponse.json({ error: 'No message text' }, { status: 400 })
@@ -129,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get week key
-    const weekKey = getWeekKey(parsed.week)
+    const weekKey = getWeekKeyForBudget(parsed.week)
     
     // Create entry
     const entry = {
