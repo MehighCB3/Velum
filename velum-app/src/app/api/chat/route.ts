@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'https://rasppi5.tail5b3227.ts.net'
+const GATEWAY_URL = process.env.GATEWAY_URL
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_PASSWORD
 
 // Local fallback responses when gateway is unavailable
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if gateway is configured
-    if (!GATEWAY_TOKEN) {
-      console.warn('OPENCLAW_GATEWAY_TOKEN not set, using local response')
+    if (!GATEWAY_URL || !GATEWAY_TOKEN) {
+      console.warn('GATEWAY_URL or OPENCLAW_GATEWAY_TOKEN not set, using local response')
       return NextResponse.json({
         content: generateLocalResponse(message, context),
         source: 'local'

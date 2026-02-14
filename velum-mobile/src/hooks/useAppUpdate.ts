@@ -27,7 +27,7 @@ const API_BASE = __DEV__
 function getCurrentVersion(): string {
   return (
     Constants.expoConfig?.version ||
-    Constants.manifest?.version ||
+    (Constants.manifest as Record<string, unknown> | null)?.version as string ||
     '0.0.0'
   );
 }

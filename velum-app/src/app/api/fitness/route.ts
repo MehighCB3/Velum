@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Redis } from '@upstash/redis'
+import { redis, useRedis } from '../../lib/redis'
+import { getWeekKey, parseWeekKey, getWeekDates } from '../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
-
-// Redis client setup
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
-  : null
-
-const useRedis = !!redis
 
 // Default goals
 const DEFAULT_GOALS = {
@@ -82,52 +73,6 @@ export interface FitnessWeek {
 
 // In-memory fallback storage
 const fallbackStorage: Record<string, FitnessWeek> = {}
-
-// Helper to generate week key (e.g., "2026-W06") - ISO week format
-function getWeekKey(date: Date): string {
-  const year = date.getFullYear()
-  
-  // Calculate ISO week number
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-  
-  return `${year}-W${String(weekNumber).padStart(2, '0')}`
-}
-
-// Parse week key to get start date
-function parseWeekKey(weekKey: string): Date {
-  const match = weekKey.match(/^(\d{4})-W(\d{2})$/)
-  if (!match) return new Date()
-  
-  const [, year, week] = match
-  const yearNum = parseInt(year)
-  const weekNum = parseInt(week)
-  
-  // Calculate the first day of the ISO week (Monday)
-  const yearStart = new Date(Date.UTC(yearNum, 0, 1))
-  const dayNum = yearStart.getUTCDay() || 7
-  const weekStart = new Date(yearStart)
-  weekStart.setUTCDate(yearStart.getUTCDate() + (weekNum - 1) * 7 - dayNum + 1)
-  
-  return weekStart
-}
-
-// Get all dates in a week
-function getWeekDates(weekKey: string): string[] {
-  const startDate = parseWeekKey(weekKey)
-  const dates: string[] = []
-  
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(startDate)
-    date.setUTCDate(startDate.getUTCDate() + i)
-    dates.push(date.toISOString().split('T')[0])
-  }
-  
-  return dates
-}
 
 // Calculate distance from steps (approx 0.7m per step for walking)
 function calculateDistanceFromSteps(steps: number): number {

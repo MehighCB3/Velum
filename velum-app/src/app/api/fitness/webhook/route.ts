@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { FitnessEntry } from '../route'
 import { saveInsight } from '../../../lib/insightsStore'
+import { getWeekKey } from '../../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
 
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'dev-secret'
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET
 
 interface ParsedFitnessEntry {
   type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
@@ -408,16 +409,6 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
   return null
 }
 
-function getWeekKey(date: Date): string {
-  const year = date.getFullYear()
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-  return `${year}-W${String(weekNumber).padStart(2, '0')}`
-}
-
 function calculateDistanceFromSteps(steps: number): number {
   return Math.round((steps * 0.0007) * 100) / 100
 }
@@ -542,20 +533,19 @@ function classifyInsightType(parsed: ParsedFitnessEntry, weekData: SavedWeekData
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify secret (optional, for production)
-    const secret = request.headers.get('x-webhook-secret')
-    if (secret !== WEBHOOK_SECRET) {
-      console.warn('Invalid webhook secret')
-      // Still process in dev mode
+    // Verify webhook secret when configured
+    if (WEBHOOK_SECRET) {
+      const secret = request.headers.get('x-webhook-secret')
+      if (secret !== WEBHOOK_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     const body = await request.json()
     
     // Extract message text from Telegram format
     const messageText = body.message?.text || body.text
-    const chatId = body.message?.chat?.id || body.chat_id
-    const messageId = body.message?.message_id || body.message_id
-    const topicName = body.message?.forum_topic_created?.name || 
+    const topicName = body.message?.forum_topic_created?.name ||
                       body.message?.reply_to_message?.forum_topic_created?.name ||
                       body.message?.message_thread_name
     

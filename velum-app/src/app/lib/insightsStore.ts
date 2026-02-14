@@ -1,4 +1,4 @@
-import { Redis } from '@upstash/redis'
+import { redis, useRedis } from './redis'
 
 export interface Insight {
   agent: string
@@ -9,16 +9,6 @@ export interface Insight {
   updatedAt: string
   section: 'nutrition' | 'fitness' | 'budget' | 'tasks' | 'knowledge'
 }
-
-// Redis client (shared with fitness/budget APIs)
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
-  : null
-
-const useRedis = !!redis
 
 // In-memory fallback
 const fallbackStore = new Map<string, Insight>()
