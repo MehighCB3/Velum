@@ -15,6 +15,8 @@ import { colors } from '../../src/theme/colors';
 import { useNutrition } from '../../src/hooks/useNutrition';
 import { DarkCard, Card, SectionHeader, EmptyState } from '../../src/components/Card';
 import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
+import { AgentInsightCard } from '../../src/components/AgentInsightCard';
+import { useInsights } from '../../src/hooks/useInsights';
 import { MacroBar } from '../../src/components/MacroBar';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
@@ -195,6 +197,7 @@ const calStyles = StyleSheet.create({
 export default function NutritionScreen() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const { data, loading, refresh, addEntry, deleteEntry } = useNutrition(today);
+  const { insights: nutritionAgentInsights } = useInsights('nutrition');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('today');
 
@@ -308,6 +311,9 @@ export default function NutritionScreen() {
 
             {/* Insights */}
             <InsightBanner insights={nutritionInsights} />
+            {nutritionAgentInsights.map((ai) => (
+              <AgentInsightCard key={ai.agentId} insight={ai} />
+            ))}
 
             {/* Macros */}
             <Card style={styles.macroCard}>
