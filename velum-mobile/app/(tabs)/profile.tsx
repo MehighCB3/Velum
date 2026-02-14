@@ -409,7 +409,7 @@ function ProfileContent() {
   const [editCountry, setEditCountry] = useState('');
   const [editLifeExpectancy, setEditLifeExpectancy] = useState('85');
   const { status: syncStatus, sync } = useSync();
-  const { status: updateStatus, isChecking, isUpdateAvailable, checkAndUpdate, applyUpdate, releaseNotes, error: updateError } = useAppUpdate();
+  const { status: updateStatus, isChecking, isUpdateAvailable, checkAndUpdate, applyUpdate, releaseNotes, error: updateError, currentVersion, remoteVersion } = useAppUpdate();
 
   const handleUpdateApp = useCallback(() => {
     if (isUpdateAvailable) {
@@ -553,7 +553,7 @@ function ProfileContent() {
         <SectionHeader title="About Velum" />
         <View style={styles.infoRow}>
           <Ionicons name="phone-portrait-outline" size={16} color={colors.textLight} />
-          <Text style={styles.infoText}>Velum Mobile v1.0.0</Text>
+          <Text style={styles.infoText}>Velum Mobile v{currentVersion}</Text>
         </View>
         <View style={styles.infoRow}>
           <Ionicons name="sync-outline" size={16} color={colors.textLight} />
@@ -610,11 +610,11 @@ function ProfileContent() {
           {isChecking
             ? 'Checking for Updates...'
             : isUpdateAvailable
-            ? 'Download New Version'
+            ? `Download v${remoteVersion}`
             : updateStatus === 'up-to-date'
-            ? 'App is Up to Date'
+            ? `v${currentVersion} — Up to Date`
             : updateStatus === 'error'
-            ? `Update Failed — Tap to Retry${updateError ? `\n${updateError}` : ''}`
+            ? `Update Failed — Tap to Retry`
             : 'Check for Updates'}
         </Text>
       </Pressable>

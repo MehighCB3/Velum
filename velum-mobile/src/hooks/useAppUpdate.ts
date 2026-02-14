@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import Constants from 'expo-constants';
 
 export type UpdateStatus =
@@ -16,11 +16,21 @@ interface AppUpdateState {
   lastChecked: string | null;
   apkUrl: string | null;
   releaseNotes: string | null;
+  remoteVersion: string | null;
+  currentVersion: string;
 }
 
 const API_BASE = __DEV__
   ? 'http://localhost:3000'
   : 'https://velum-five.vercel.app';
+
+function getCurrentVersion(): string {
+  return (
+    Constants.expoConfig?.version ||
+    Constants.manifest?.version ||
+    '0.0.0'
+  );
+}
 
 function compareVersions(a: string, b: string): number {
   const pa = a.split('.').map(Number);
@@ -34,12 +44,13 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
+function fetchWithTimeout(url: string, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { signal: controller.signal }).finally(() =>
-    clearTimeout(timer),
-  );
+  return fetch(url, {
+    signal: controller.signal,
+    headers: { Accept: 'application/json' },
+  }).finally(() => clearTimeout(timer));
 }
 
 export function useAppUpdate() {
@@ -49,35 +60,29 @@ export function useAppUpdate() {
     lastChecked: null,
     apkUrl: null,
     releaseNotes: null,
+    remoteVersion: null,
+    currentVersion: getCurrentVersion(),
   });
 
   const checkAndUpdate = useCallback(async () => {
     if (__DEV__) {
-      setState({
+      setState((s) => ({
+        ...s,
         status: 'up-to-date',
         error: null,
         lastChecked: new Date().toISOString(),
-        apkUrl: null,
-        releaseNotes: null,
-      });
+      }));
       return;
     }
 
     try {
       setState((s) => ({ ...s, status: 'checking', error: null }));
 
-      const url = `${API_BASE}/api/app-version`;
-      const res = await fetchWithTimeout(url);
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        throw new Error(`Server ${res.status}: ${body || res.statusText}`);
-      }
+      const res = await fetchWithTimeout(`${API_BASE}/api/app-version`);
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
 
       const data = await res.json();
-      const currentVersion =
-        Constants.expoConfig?.version ||
-        (Constants.manifest as Record<string, unknown>)?.version as string ||
-        '1.0.0';
+      const currentVersion = getCurrentVersion();
 
       if (compareVersions(data.version, currentVersion) > 0) {
         setState({
@@ -86,6 +91,8 @@ export function useAppUpdate() {
           lastChecked: new Date().toISOString(),
           apkUrl: data.apkUrl || null,
           releaseNotes: data.releaseNotes || null,
+          remoteVersion: data.version,
+          currentVersion,
         });
       } else {
         setState({
@@ -94,37 +101,43 @@ export function useAppUpdate() {
           lastChecked: new Date().toISOString(),
           apkUrl: null,
           releaseNotes: null,
+          remoteVersion: data.version,
+          currentVersion,
         });
       }
     } catch (err) {
-      const msg =
+      const message =
         err instanceof Error
           ? err.name === 'AbortError'
-            ? 'Request timed out'
+            ? 'Request timed out — check your connection'
             : err.message
           : 'Update check failed';
-      setState({
+      setState((s) => ({
+        ...s,
         status: 'error',
-        error: msg,
+        error: message,
         lastChecked: new Date().toISOString(),
-        apkUrl: null,
-        releaseNotes: null,
-      });
+      }));
     }
   }, []);
 
   const applyUpdate = useCallback(async () => {
     if (!state.apkUrl) return;
     try {
-      // Open the APK URL in the system browser which handles the download
-      if (Platform.OS === 'android') {
+      const canOpen = await Linking.canOpenURL(state.apkUrl);
+      if (canOpen) {
         await Linking.openURL(state.apkUrl);
       } else {
-        await Linking.openURL(state.apkUrl);
+        Alert.alert(
+          'Download Link',
+          `Open this URL in your browser to download:\n\n${state.apkUrl}`,
+        );
       }
     } catch {
-      // Fallback: try opening in browser
-      await Linking.openURL(state.apkUrl);
+      Alert.alert(
+        'Download Link',
+        `Open this URL in your browser to download:\n\n${state.apkUrl}`,
+      );
     }
   }, [state.apkUrl]);
 

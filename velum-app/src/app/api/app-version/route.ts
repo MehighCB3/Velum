@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
 // Current app version — bump this when publishing new APK builds
-const CURRENT_VERSION = '1.0.1';
+const CURRENT_VERSION = '1.1.0';
 const APK_DOWNLOAD_URL =
-  'https://github.com/MehighCB3/Velum/raw/main/velum-mobile/velum-v1.0.0-arm64.apk';
+  'https://github.com/MehighCB3/Velum/raw/main/velum-mobile/velum-v1.1.0-arm64.apk';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +17,7 @@ export async function GET() {
     {
       version: CURRENT_VERSION,
       apkUrl: APK_DOWNLOAD_URL,
-      releaseNotes: 'New branding, Spanish card fixes, park feature',
+      releaseNotes: 'Insights on every tab, update fix, improved error handling',
     },
     { headers: CORS_HEADERS },
   );
