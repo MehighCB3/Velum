@@ -1,26 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Redis } from '@upstash/redis'
+import { sql } from '@vercel/postgres'
 
 export const dynamic = 'force-dynamic'
 
-// Redis client setup
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
-  : null
-
-const useRedis = !!redis
+// Storage mode detection
+const usePostgres = !!process.env.POSTGRES_URL
 
 // Budget configuration
 const WEEKLY_BUDGET = 70 // €70 per week
-const CATEGORIES = {
-  Food: 0,
-  Fun: 0
-} as const
 
-type Category = keyof typeof CATEGORIES
+type Category = 'Food' | 'Fun' | 'Transport' | 'Subscriptions' | 'Other'
 
 interface BudgetEntry {
   id: string
@@ -29,7 +18,6 @@ interface BudgetEntry {
   description: string
   date: string
   timestamp: string
-  reason?: string
 }
 
 interface WeekData {
@@ -38,6 +26,12 @@ interface WeekData {
   totalSpent: number
   remaining: number
   categories: Record<Category, number>
+  totals?: {
+    spent: number
+    budget: number
+    remaining: number
+    by_category: Record<Category, number>
+  }
 }
 
 // In-memory fallback storage
@@ -59,62 +53,121 @@ function getWeekKey(date: Date): string {
   return `${year}-W${String(week).padStart(2, '0')}`
 }
 
-// Redis operations
-async function readFromRedis(week: string): Promise<WeekData | null> {
-  if (!redis) return null
+// ==================== POSTGRES FUNCTIONS ====================
+
+let tablesInitialized = false
+
+async function initializePostgresTables(): Promise<void> {
+  if (tablesInitialized) return
+  
   try {
-    const data = await redis.get<WeekData>(`budget:${week}`)
-    return data
+    await sql`
+      CREATE TABLE IF NOT EXISTS budget_entries (
+        id SERIAL PRIMARY KEY,
+        entry_id VARCHAR(50) UNIQUE NOT NULL,
+        week VARCHAR(10) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        description TEXT,
+        date DATE NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    
+    await sql`CREATE INDEX IF NOT EXISTS idx_budget_week ON budget_entries(week)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_budget_date ON budget_entries(date)`
+    
+    tablesInitialized = true
   } catch (error) {
-    console.error('Redis read error:', error)
-    return null
+    console.error('Failed to initialize budget tables:', error)
+    throw error
   }
 }
 
-async function writeToRedis(week: string, data: WeekData): Promise<boolean> {
-  if (!redis) return false
+async function readFromPostgres(week: string): Promise<WeekData> {
   try {
-    await redis.set(`budget:${week}`, data)
+    await initializePostgresTables()
+    
+    const entriesResult = await sql`
+      SELECT entry_id as id, amount, category, description, 
+             date::text, timestamp::text
+      FROM budget_entries
+      WHERE week = ${week}
+      ORDER BY timestamp ASC
+    `
+    
+    const entries: BudgetEntry[] = entriesResult.rows.map((row: any) => ({
+      id: row.id,
+      amount: parseFloat(row.amount),
+      category: row.category as Category,
+      description: row.description || '',
+      date: row.date,
+      timestamp: row.timestamp
+    }))
+    
+    return calculateWeekData(week, entries)
+  } catch (error) {
+    console.error('Postgres read error:', error)
+    return readFromFallback(week)
+  }
+}
+
+async function writeToPostgres(entry: BudgetEntry, week: string): Promise<boolean> {
+  try {
+    await initializePostgresTables()
+    
+    await sql`
+      INSERT INTO budget_entries (entry_id, week, amount, category, description, date, timestamp)
+      VALUES (
+        ${entry.id},
+        ${week},
+        ${entry.amount},
+        ${entry.category},
+        ${entry.description},
+        ${entry.date},
+        ${entry.timestamp}
+      )
+      ON CONFLICT (entry_id) DO UPDATE SET
+        amount = EXCLUDED.amount,
+        category = EXCLUDED.category,
+        description = EXCLUDED.description,
+        date = EXCLUDED.date,
+        timestamp = EXCLUDED.timestamp
+    `
+    
     return true
   } catch (error) {
-    console.error('Redis write error:', error)
+    console.error('Postgres write error:', error)
     return false
   }
 }
 
-async function deleteFromRedis(week: string, entryId?: string): Promise<boolean> {
-  if (!redis) return false
+async function deleteFromPostgres(entryId: string): Promise<boolean> {
   try {
-    if (entryId) {
-      const data = await readFromRedis(week)
-      if (data) {
-        data.entries = data.entries.filter(e => e.id !== entryId)
-        data.totalSpent = data.entries.reduce((sum, e) => sum + e.amount, 0)
-        data.remaining = WEEKLY_BUDGET - data.totalSpent
-        data.categories = data.entries.reduce((acc, e) => {
-          acc[e.category] = (acc[e.category] || 0) + e.amount
-          return acc
-        }, { Food: 0, Fun: 0 } as Record<Category, number>)
-        await writeToRedis(week, data)
-      }
-    } else {
-      await redis.del(`budget:${week}`)
-    }
+    await initializePostgresTables()
+    
+    await sql`
+      DELETE FROM budget_entries
+      WHERE entry_id = ${entryId}
+    `
+    
     return true
   } catch (error) {
-    console.error('Redis delete error:', error)
+    console.error('Postgres delete error:', error)
     return false
   }
 }
 
-// Fallback storage operations
+// ==================== FALLBACK STORAGE FUNCTIONS ====================
+
 function readFromFallback(week: string): WeekData {
   return fallbackStorage[week] || {
     week,
     entries: [],
     totalSpent: 0,
     remaining: WEEKLY_BUDGET,
-    categories: { Food: 0, Fun: 0 }
+    categories: { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 }
   }
 }
 
@@ -128,14 +181,20 @@ function calculateWeekData(week: string, entries: BudgetEntry[]): WeekData {
   const categories = entries.reduce((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + e.amount
     return acc
-  }, { Food: 0, Fun: 0 } as Record<Category, number>)
+  }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<Category, number>)
 
   return {
     week,
     entries,
     totalSpent,
     remaining: WEEKLY_BUDGET - totalSpent,
-    categories
+    categories,
+    totals: {
+      spent: totalSpent,
+      budget: WEEKLY_BUDGET,
+      remaining: WEEKLY_BUDGET - totalSpent,
+      by_category: categories
+    }
   }
 }
 
@@ -146,17 +205,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const week = searchParams.get('week') || getWeekKey(new Date())
 
-    // Try Redis first
-    if (useRedis) {
-      const data = await readFromRedis(week)
-      if (data) {
-        return NextResponse.json(data)
-      }
+    // Try Postgres first
+    if (usePostgres) {
+      const data = await readFromPostgres(week)
+      return NextResponse.json({ ...data, storage: 'postgres' })
     }
 
     // Fallback to in-memory storage
     const fallbackData = readFromFallback(week)
-    return NextResponse.json(fallbackData)
+    return NextResponse.json({ ...fallbackData, storage: 'fallback' })
 
   } catch (error) {
     console.error('GET error:', error)
@@ -177,14 +234,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate category
-    if (!['Food', 'Fun'].includes(entry.category)) {
+    if (!['Food', 'Fun', 'Transport', 'Subscriptions', 'Other'].includes(entry.category)) {
       return NextResponse.json(
-        { error: 'Category must be Food or Fun' },
+        { error: 'Invalid category' },
         { status: 400 }
       )
     }
 
-    const weekKey = week || getWeekKey(new Date())
+    const weekKey = week || getWeekKey(new Date(entry.date || new Date()))
 
     // Create new entry
     const newEntry: BudgetEntry = {
@@ -193,32 +250,31 @@ export async function POST(request: NextRequest) {
       category: entry.category,
       description: entry.description || '',
       date: entry.date || new Date().toISOString().split('T')[0],
-      timestamp: entry.timestamp || new Date().toISOString(),
-      reason: entry.reason
+      timestamp: entry.timestamp || new Date().toISOString()
     }
-
-    // Get existing data
-    let existingData: WeekData | null = null
-    if (useRedis) {
-      existingData = await readFromRedis(weekKey)
-    }
-    if (!existingData) {
-      existingData = readFromFallback(weekKey)
-    }
-
-    // Add new entry and recalculate
-    const updatedEntries = [...existingData.entries, newEntry]
-    const updatedData = calculateWeekData(weekKey, updatedEntries)
 
     // Save to storage
     let storage = 'fallback'
-    if (useRedis) {
-      const saved = await writeToRedis(weekKey, updatedData)
-      if (saved) storage = 'redis'
+    if (usePostgres) {
+      const saved = await writeToPostgres(newEntry, weekKey)
+      if (saved) storage = 'postgres'
     }
+
+    // Also save to fallback for consistency
+    const existingData = storage === 'postgres' 
+      ? await readFromPostgres(weekKey)
+      : readFromFallback(weekKey)
+    
+    const updatedEntries = [...existingData.entries.filter(e => e.id !== newEntry.id), newEntry]
+    const updatedData = calculateWeekData(weekKey, updatedEntries)
     writeToFallback(weekKey, updatedData)
 
-    return NextResponse.json({ ...updatedData, storage })
+    // Re-read from Postgres to get the canonical data
+    const finalData = storage === 'postgres'
+      ? await readFromPostgres(weekKey)
+      : updatedData
+
+    return NextResponse.json({ ...finalData, storage })
 
   } catch (error) {
     console.error('POST error:', error)
@@ -236,26 +292,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'entryId required' }, { status: 400 })
     }
 
-    // Get existing data
-    let existingData: WeekData | null = null
-    if (useRedis) {
-      existingData = await readFromRedis(week)
-    }
-    if (!existingData) {
-      existingData = readFromFallback(week)
-    }
-
-    // Remove entry and recalculate
-    const updatedEntries = existingData.entries.filter(e => e.id !== entryId)
-    const updatedData = calculateWeekData(week, updatedEntries)
-
-    // Save to storage
+    // Delete from storage
     let storage = 'fallback'
-    if (useRedis) {
-      const saved = await writeToRedis(week, updatedData)
-      if (saved) storage = 'redis'
+    if (usePostgres) {
+      const deleted = await deleteFromPostgres(entryId)
+      if (deleted) storage = 'postgres'
     }
-    writeToFallback(week, updatedData)
+
+    // Get updated data
+    const updatedData = storage === 'postgres'
+      ? await readFromPostgres(week)
+      : (() => {
+          const existingData = readFromFallback(week)
+          const updatedEntries = existingData.entries.filter(e => e.id !== entryId)
+          const newData = calculateWeekData(week, updatedEntries)
+          writeToFallback(week, newData)
+          return newData
+        })()
 
     return NextResponse.json({ ...updatedData, storage })
 
