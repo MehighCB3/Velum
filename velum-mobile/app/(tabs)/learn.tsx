@@ -19,6 +19,8 @@ import { spanishApi } from '../../src/api/client';
 import { SpanishCard, SpanishDeckStats } from '../../src/types';
 import { Card, DarkCard, EmptyState } from '../../src/components/Card';
 import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
+import { AgentInsightCard } from '../../src/components/AgentInsightCard';
+import { useInsights } from '../../src/hooks/useInsights';
 
 type ReviewResult = 'again' | 'hard' | 'good' | 'easy';
 type TopTab = 'cards' | 'exercises' | 'speak';
@@ -745,6 +747,7 @@ export default function LearnScreen() {
   const [reviewedToday, setReviewedToday] = useState(0);
   const [mode, setMode] = useState<'deck' | 'review'>('deck');
   const [activeTab, setActiveTab] = useState<TopTab>('cards');
+  const { insights: knowledgeAgentInsights } = useInsights('knowledge');
 
   const [error, setError] = useState<string | null>(null);
 
@@ -1033,6 +1036,9 @@ export default function LearnScreen() {
 
             {/* Insights */}
             <InsightBanner insights={learnInsights} />
+            {knowledgeAgentInsights.map((ai) => (
+              <AgentInsightCard key={ai.agentId} insight={ai} />
+            ))}
 
             {/* Error banner */}
             {error && (

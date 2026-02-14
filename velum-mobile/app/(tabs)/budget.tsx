@@ -13,6 +13,8 @@ import { colors } from '../../src/theme/colors';
 import { useBudget } from '../../src/hooks/useBudget';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
+import { AgentInsightCard } from '../../src/components/AgentInsightCard';
+import { useInsights } from '../../src/hooks/useInsights';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { BudgetCategory } from '../../src/types';
@@ -42,6 +44,7 @@ const budgetFields: FormField[] = [
 export default function BudgetScreen() {
   const [weekDate, setWeekDate] = useState(new Date());
   const { data, loading, refresh, addEntry, deleteEntry } = useBudget(weekDate);
+  const { insights: budgetAgentInsights } = useInsights('budget');
   const [showAddModal, setShowAddModal] = useState(false);
 
   const handleAddEntry = useCallback(
@@ -146,6 +149,9 @@ export default function BudgetScreen() {
 
         {/* Insights */}
         <InsightBanner insights={budgetInsights} />
+        {budgetAgentInsights.map((ai) => (
+          <AgentInsightCard key={ai.agentId} insight={ai} />
+        ))}
 
         {/* Category Breakdown */}
         <Card style={styles.categoryCard}>
