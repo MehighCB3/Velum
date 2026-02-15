@@ -103,7 +103,7 @@ async function readFromPostgres(week: string): Promise<WeekData | null> {
   const categories = entries.reduce((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + Number(e.amount)
     return acc
-  }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<Category, number>)
+  }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<BudgetEntry["category"], number>)
   
   return {
     week,
