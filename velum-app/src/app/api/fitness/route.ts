@@ -246,7 +246,7 @@ async function initializePostgresTables(): Promise<void> {
 
 async function readFromPostgres(week: string): Promise<FitnessWeek | null> {
   const entriesResult = await sql`
-    SELECT 
+    SELECT
       entry_id as id,
       date::text as date,
       entry_type as type,
@@ -270,23 +270,72 @@ async function readFromPostgres(week: string): Promise<FitnessWeek | null> {
     WHERE week = ${week}
     ORDER BY date, created_at
   `
-  
+
   const goalsResult = await sql`
-    SELECT steps, runs, swims 
-    FROM fitness_goals 
+    SELECT steps, runs, swims
+    FROM fitness_goals
     WHERE week = ${week}
   `
-  
-  const goals = (goalsResult.rows[0] as typeof DEFAULT_GOALS) || DEFAULT_GOALS
-  const entries = entriesResult.rows as FitnessEntry[]
-  
+
+  const goalsRow = goalsResult.rows[0] as { steps: number; runs: number; swims: number } | undefined
+  const goals = goalsRow
+    ? {
+        steps: Number(goalsRow.steps),
+        runs: Number(goalsRow.runs),
+        swims: Number(goalsRow.swims),
+      }
+    : DEFAULT_GOALS
+
+  // Convert entries ensuring numeric types (Postgres DECIMAL returns as string)
+  const entries = (entriesResult.rows as Array<{
+    id: string
+    date: string
+    type: string
+    name?: string | null
+    steps?: number | string | null
+    distanceKm?: number | string | null
+    duration?: number | string | null
+    distance?: number | string | null
+    pace?: number | string | null
+    calories?: number | string | null
+    vo2max?: number | string | null
+    trainingLoad?: number | string | null
+    stressLevel?: number | string | null
+    recoveryScore?: number | string | null
+    hrv?: number | string | null
+    weight?: number | string | null
+    bodyFat?: number | string | null
+    notes?: string | null
+    timestamp: string
+  }>).map((row) => ({
+    id: row.id,
+    date: row.date,
+    timestamp: row.timestamp,
+    type: row.type as FitnessEntry['type'],
+    name: row.name ?? undefined,
+    steps: row.steps != null ? Number(row.steps) : undefined,
+    distanceKm: row.distanceKm != null ? Number(row.distanceKm) : undefined,
+    duration: row.duration != null ? Number(row.duration) : undefined,
+    distance: row.distance != null ? Number(row.distance) : undefined,
+    pace: row.pace != null ? Number(row.pace) : undefined,
+    calories: row.calories != null ? Number(row.calories) : undefined,
+    vo2max: row.vo2max != null ? Number(row.vo2max) : undefined,
+    trainingLoad: row.trainingLoad != null ? Number(row.trainingLoad) : undefined,
+    stressLevel: row.stressLevel != null ? Number(row.stressLevel) : undefined,
+    recoveryScore: row.recoveryScore != null ? Number(row.recoveryScore) : undefined,
+    hrv: row.hrv != null ? Number(row.hrv) : undefined,
+    weight: row.weight != null ? Number(row.weight) : undefined,
+    bodyFat: row.bodyFat != null ? Number(row.bodyFat) : undefined,
+    notes: row.notes ?? undefined,
+  })) as FitnessEntry[]
+
   if (entries.length === 0 && goalsResult.rows.length === 0) {
     return null
   }
-  
+
   const weekData = calculateWeekData(week, entries)
   weekData.goals = goals
-  
+
   return weekData
 }
 

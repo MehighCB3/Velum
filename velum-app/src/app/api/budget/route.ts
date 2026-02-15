@@ -75,7 +75,7 @@ async function initializePostgresTables(): Promise<void> {
 
 async function readFromPostgres(week: string): Promise<WeekData | null> {
   const entriesResult = await sql`
-    SELECT 
+    SELECT
       entry_id as id,
       amount,
       category,
@@ -87,19 +87,36 @@ async function readFromPostgres(week: string): Promise<WeekData | null> {
     WHERE week = ${week}
     ORDER BY date, created_at
   `
-  
-  const entries = entriesResult.rows as BudgetEntry[]
-  
+
+  // Convert entries ensuring numeric types (Postgres DECIMAL returns as string)
+  const entries = (entriesResult.rows as Array<{
+    id: string
+    amount: string | number
+    category: Category
+    description: string
+    date: string
+    timestamp: string
+    reason?: string | null
+  }>).map((row) => ({
+    id: row.id,
+    amount: Number(row.amount),
+    category: row.category,
+    description: row.description,
+    date: row.date,
+    timestamp: row.timestamp,
+    reason: row.reason ?? undefined,
+  }))
+
   if (entries.length === 0) {
     return null
   }
-  
-  const totalSpent = entries.reduce((sum, e) => sum + Number(e.amount), 0)
+
+  const totalSpent = entries.reduce((sum, e) => sum + e.amount, 0)
   const categories = entries.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + Number(e.amount)
+    acc[e.category] = (acc[e.category] || 0) + e.amount
     return acc
   }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<Category, number>)
-  
+
   return {
     week,
     entries,
