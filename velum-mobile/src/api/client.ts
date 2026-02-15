@@ -15,12 +15,7 @@ import {
   AgentInsight,
 } from '../types';
 
-// Base URL of the Velum web app API.
-// In production this points to the Vercel deployment.
-// For local development, point to localhost:3000.
-const API_BASE = __DEV__
-  ? 'http://localhost:3000'
-  : 'https://velum-five.vercel.app';
+import { API_BASE } from './config';
 
 // ==================== HTTP HELPERS ====================
 
