@@ -169,9 +169,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const secret = searchParams.get('secret')
+
   return NextResponse.json({
     message: 'Migration API - Use POST with ?secret=YOUR_SECRET to run migration',
-    note: 'Set MIGRATE_SECRET env var in Vercel dashboard first'
+    note: 'Set MIGRATE_SECRET env var in Vercel dashboard first',
+    debug: {
+      envVarSet: !!process.env.MIGRATE_SECRET,
+      envVarLength: process.env.MIGRATE_SECRET?.length ?? 0,
+      secretMatch: secret ? secret === process.env.MIGRATE_SECRET : undefined,
+    }
   })
 }
