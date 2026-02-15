@@ -6,3 +6,5 @@ export { WeekSelector, getISOWeekKey } from './WeekSelector';
 export { AddEntryModal } from './AddEntryModal';
 export type { FormField } from './AddEntryModal';
 export { AgentInsightCard } from './AgentInsightCard';
+export { InsightBanner } from './InsightBanner';
+export type { InsightItem } from './InsightBanner';

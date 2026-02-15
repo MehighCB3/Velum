@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const secret = searchParams.get('secret')
     
-    if (secret !== process.env.MIGRATE_SECRET) {
+    if (secret !== process.env.MIGRATE_SECRET?.trim()) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

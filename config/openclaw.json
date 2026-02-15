@@ -35,5 +35,32 @@
     "telegram": {
       "enabled": true
     }
+  },
+  "api": {
+    "baseUrl": "https://velum-five.vercel.app",
+    "endpoints": {
+      "nutrition": "/api/nutrition",
+      "nutritionGoals": "/api/nutrition/goals",
+      "nutritionWeek": "/api/nutrition/week",
+      "nutritionLookup": "/api/nutrition/lookup",
+      "fitness": "/api/fitness",
+      "fitnessWebhook": "/api/fitness/webhook",
+      "budget": "/api/budget",
+      "budgetWebhook": "/api/budget/webhook",
+      "budgetSummary": "/api/budget/summary",
+      "goals": "/api/goals",
+      "spanish": "/api/spanish",
+      "spanishExercises": "/api/spanish/exercises",
+      "spanishPronounce": "/api/spanish/pronounce",
+      "profile": "/api/profile",
+      "quickLog": "/api/quick-log",
+      "insights": "/api/insights",
+      "memory": "/api/memory",
+      "books": "/api/books",
+      "chat": "/api/chat",
+      "chatHistory": "/api/chat/history",
+      "appVersion": "/api/app-version",
+      "migrate": "/api/migrate"
+    }
   }
 }
