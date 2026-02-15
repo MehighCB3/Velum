@@ -380,61 +380,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ...existingData, storage })
     }
 
-    // Handle entry creation
-    if (!entry || !entry.type) {
+    // Handle entry creation — accept both { entry: { type, ... } } and flat { type, ... }
+    const resolvedEntry = entry || (body.type ? body : null)
+    if (!resolvedEntry || !resolvedEntry.type) {
       return NextResponse.json(
-        { error: 'Entry with type required' },
+        { error: 'Entry with type required. Send { entry: { type, ... } } or { type, ... }' },
         { status: 400 }
       )
     }
 
-    // Validate type
-    if (!['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'gym', 'other', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat'].includes(entry.type)) {
+    const VALID_TYPES = ['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'gym', 'other', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat']
+    if (!VALID_TYPES.includes(resolvedEntry.type)) {
       return NextResponse.json(
-        { error: 'Type must be steps, run, swim, cycle, jiujitsu, gym, other, vo2max, training_load, stress, recovery, hrv, weight, or body_fat' },
+        { error: `Type must be one of: ${VALID_TYPES.join(', ')}` },
         { status: 400 }
       )
     }
 
     const weekKey = week || getWeekKey(new Date())
-    const entryDate = entry.date || new Date().toISOString().split('T')[0]
+    const entryDate = resolvedEntry.date || new Date().toISOString().split('T')[0]
 
     // Create new entry with calculated fields
     const newEntry: FitnessEntry = {
-      id: entry.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: resolvedEntry.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       date: entryDate,
-      timestamp: entry.timestamp || new Date().toISOString(),
-      type: entry.type,
-      name: entry.name,
-      notes: entry.notes,
+      timestamp: resolvedEntry.timestamp || new Date().toISOString(),
+      type: resolvedEntry.type,
+      name: resolvedEntry.name,
+      notes: resolvedEntry.notes,
     }
 
     // Add type-specific fields
-    if (entry.type === 'steps') {
-      newEntry.steps = Number(entry.steps) || 0
-      newEntry.distanceKm = entry.distanceKm || calculateDistanceFromSteps(newEntry.steps)
-    } else if (entry.type === 'run' || entry.type === 'swim' || entry.type === 'cycle') {
-      newEntry.duration = Number(entry.duration) || 0
-      newEntry.distance = Number(entry.distance) || 0
-      newEntry.calories = Number(entry.calories) || 0
-      newEntry.pace = entry.pace || calculatePace(newEntry.duration, newEntry.distance)
-    } else if (entry.type === 'vo2max') {
-      newEntry.vo2max = Number(entry.vo2max) || 0
-    } else if (entry.type === 'training_load') {
-      newEntry.trainingLoad = Number(entry.trainingLoad) || 0
-    } else if (entry.type === 'stress') {
-      newEntry.stressLevel = Number(entry.stressLevel) || 0
-    } else if (entry.type === 'recovery') {
-      newEntry.recoveryScore = Number(entry.recoveryScore) || 0
-    } else if (entry.type === 'hrv') {
-      newEntry.hrv = Number(entry.hrv) || 0
-    } else if (entry.type === 'weight') {
-      newEntry.weight = Number(entry.weight) || 0
-    } else if (entry.type === 'body_fat') {
-      newEntry.bodyFat = Number(entry.bodyFat) || 0
-    } else if (entry.type === 'jiujitsu' || entry.type === 'gym' || entry.type === 'other') {
-      if (entry.duration) newEntry.duration = Number(entry.duration)
-      if (entry.calories) newEntry.calories = Number(entry.calories)
+    if (resolvedEntry.type === 'steps') {
+      newEntry.steps = Number(resolvedEntry.steps) || 0
+      newEntry.distanceKm = resolvedEntry.distanceKm || calculateDistanceFromSteps(newEntry.steps)
+    } else if (resolvedEntry.type === 'run' || resolvedEntry.type === 'swim' || resolvedEntry.type === 'cycle') {
+      newEntry.duration = Number(resolvedEntry.duration) || 0
+      newEntry.distance = Number(resolvedEntry.distance) || 0
+      newEntry.calories = Number(resolvedEntry.calories) || 0
+      newEntry.pace = resolvedEntry.pace || calculatePace(newEntry.duration, newEntry.distance)
+    } else if (resolvedEntry.type === 'vo2max') {
+      newEntry.vo2max = Number(resolvedEntry.vo2max) || 0
+    } else if (resolvedEntry.type === 'training_load') {
+      newEntry.trainingLoad = Number(resolvedEntry.trainingLoad) || 0
+    } else if (resolvedEntry.type === 'stress') {
+      newEntry.stressLevel = Number(resolvedEntry.stressLevel) || 0
+    } else if (resolvedEntry.type === 'recovery') {
+      newEntry.recoveryScore = Number(resolvedEntry.recoveryScore) || 0
+    } else if (resolvedEntry.type === 'hrv') {
+      newEntry.hrv = Number(resolvedEntry.hrv) || 0
+    } else if (resolvedEntry.type === 'weight') {
+      newEntry.weight = Number(resolvedEntry.weight) || 0
+    } else if (resolvedEntry.type === 'body_fat') {
+      newEntry.bodyFat = Number(resolvedEntry.bodyFat) || 0
+    } else if (resolvedEntry.type === 'jiujitsu' || resolvedEntry.type === 'gym' || resolvedEntry.type === 'other') {
+      if (resolvedEntry.duration) newEntry.duration = Number(resolvedEntry.duration)
+      if (resolvedEntry.calories) newEntry.calories = Number(resolvedEntry.calories)
     }
 
     // Get existing data
@@ -447,8 +448,8 @@ export async function POST(request: NextRequest) {
     }
 
     // For steps: replace existing entry for the same date
-    if (entry.type === 'steps') {
-      existingData.entries = existingData.entries.filter(e => 
+    if (resolvedEntry.type === 'steps') {
+      existingData.entries = existingData.entries.filter(e =>
         !(e.type === 'steps' && e.date === entryDate)
       )
     }

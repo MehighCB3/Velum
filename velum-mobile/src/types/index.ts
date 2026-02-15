@@ -9,6 +9,7 @@ export interface NutritionEntry {
   fat: number;
   time: string;
   date: string;
+  photoUrl?: string;
 }
 
 export interface NutritionGoals {
