@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 // Current app version — bump this when publishing new APK builds
 const CURRENT_VERSION = '1.1.0';
 const APK_DOWNLOAD_URL =
-  'https://github.com/MehighCB3/Velum/raw/main/velum-mobile/velum-v1.1.0-arm64.apk';
+  'https://raw.githubusercontent.com/MehighCB3/Velum/main/velum-mobile/velum-v1.1.0-arm64.apk';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
