@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Alert, Linking } from 'react-native';
 import Constants from 'expo-constants';
+import { API_BASE } from '../api/config';
 
 export type UpdateStatus =
   | 'idle'
@@ -19,10 +20,6 @@ interface AppUpdateState {
   remoteVersion: string | null;
   currentVersion: string;
 }
-
-const API_BASE = __DEV__
-  ? 'http://localhost:3000'
-  : 'https://velum-five.vercel.app';
 
 function getCurrentVersion(): string {
   return (

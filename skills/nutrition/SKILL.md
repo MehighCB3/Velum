@@ -43,9 +43,13 @@ Current daily goals (updated 2026-02-15):
 | Carbs    | 310g   | Endurance fuel       |
 | Fat      | 80g    | Hormone health       |
 
-You can read or update goals via the Velum API:
-- **GET** `{BASE_URL}/api/nutrition/goals?date=YYYY-MM-DD` — returns current goals
-- **POST** `{BASE_URL}/api/nutrition/goals` — body: `{ "date": "...", "calories": N, "protein": N, "carbs": N, "fat": N }`
+You can read or update goals via the Velum API (base: `https://velum-five.vercel.app`):
+- **GET** `/api/nutrition/goals?date=YYYY-MM-DD` — returns current goals
+- **POST** `/api/nutrition/goals` — body: `{ "date": "...", "calories": N, "protein": N, "carbs": N, "fat": N }`
+- **GET** `/api/nutrition?date=YYYY-MM-DD` — returns day's entries and totals
+- **POST** `/api/nutrition` — log a meal entry
+- **GET** `/api/nutrition/week?date=YYYY-MM-DD` — 7-day summary
+- **GET** `/api/nutrition/lookup?q=food+name` — search food nutrition data
 
 ## Tracking Approach
 

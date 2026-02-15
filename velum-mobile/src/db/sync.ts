@@ -11,18 +11,8 @@ import {
   cacheGoals,
 } from './database';
 import { nutritionApi, fitnessApi, budgetApi, goalsApi } from '../api/client';
+import { API_BASE } from '../api/config';
 import { SyncStatus } from '../types';
-
-// The sync engine handles bidirectional synchronization between the
-// mobile app's local SQLite cache and the Velum web API:
-//
-// 1. READ: Try API first, fall back to local cache if offline
-// 2. WRITE: Write to API if online, otherwise queue in pending_changes
-// 3. SYNC: On reconnect, flush pending_changes queue then refresh caches
-
-const API_BASE = __DEV__
-  ? 'http://localhost:3000'
-  : 'https://velum-five.vercel.app';
 
 export async function isOnline(): Promise<boolean> {
   try {
