@@ -16,6 +16,7 @@ interface NutritionEntry {
   fat: number
   time: string
   date: string
+  photoUrl?: string
 }
 
 interface NutritionGoals {
@@ -87,7 +88,14 @@ async function initializePostgresTables(): Promise<void> {
     `
     
     await sql`CREATE INDEX IF NOT EXISTS idx_entries_date ON nutrition_entries(date)`
-    
+
+    // Add photo_url column if it doesn't exist (migration-safe)
+    try {
+      await sql`ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT`
+    } catch {
+      // Column may already exist — ignore
+    }
+
     tablesInitialized = true
   } catch (error) {
     console.error('Failed to initialize tables:', error)
@@ -97,9 +105,9 @@ async function initializePostgresTables(): Promise<void> {
 
 async function readFromPostgres(date: string): Promise<NutritionDay> {
   const entriesResult = await sql`
-    SELECT entry_id as id, name, calories, protein, carbs, fat, 
-           TO_CHAR(entry_time, 'HH24:MI') as time
-    FROM nutrition_entries 
+    SELECT entry_id as id, name, calories, protein, carbs, fat,
+           TO_CHAR(entry_time, 'HH24:MI') as time, photo_url as "photoUrl"
+    FROM nutrition_entries
     WHERE date = ${date}
     ORDER BY entry_time
   `
@@ -143,15 +151,16 @@ async function writeToPostgres(date: string, entries: NutritionEntry[], goals?: 
   
   for (const entry of entries) {
     await sql`
-      INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
-      VALUES (${entry.id}, ${date}, ${entry.name}, ${entry.calories}, ${entry.protein}, ${entry.carbs}, ${entry.fat}, ${entry.time})
-      ON CONFLICT (entry_id) DO UPDATE SET 
+      INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time, photo_url)
+      VALUES (${entry.id}, ${date}, ${entry.name}, ${entry.calories}, ${entry.protein}, ${entry.carbs}, ${entry.fat}, ${entry.time}, ${entry.photoUrl || null})
+      ON CONFLICT (entry_id) DO UPDATE SET
         name = EXCLUDED.name,
         calories = EXCLUDED.calories,
         protein = EXCLUDED.protein,
         carbs = EXCLUDED.carbs,
         fat = EXCLUDED.fat,
-        entry_time = EXCLUDED.entry_time
+        entry_time = EXCLUDED.entry_time,
+        photo_url = EXCLUDED.photo_url
     `
   }
 }

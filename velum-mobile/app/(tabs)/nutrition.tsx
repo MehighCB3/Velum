@@ -8,6 +8,9 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Modal,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format, subDays } from 'date-fns';
@@ -21,7 +24,9 @@ import { MacroBar } from '../../src/components/MacroBar';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { nutritionApi } from '../../src/api/client';
-import { NutritionDay } from '../../src/types';
+import { NutritionDay, NutritionEntry } from '../../src/types';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const mealFields: FormField[] = [
   { key: 'name', label: 'Food Name', placeholder: 'e.g. Chicken breast', type: 'text', required: true },
@@ -42,7 +47,208 @@ function getMealEmoji(time: string): string {
 
 type Tab = 'today' | '30days';
 
-// ==================== 30-DAY CALENDAR VIEW ====================
+// ==================== MEAL DETAIL MODAL ====================
+
+function MealDetailModal({
+  entry,
+  visible,
+  onClose,
+  onDelete,
+}: {
+  entry: NutritionEntry | null;
+  visible: boolean;
+  onClose: () => void;
+  onDelete: (id: string, name: string) => void;
+}) {
+  if (!entry) return null;
+
+  const totalMacroGrams = entry.protein + entry.carbs + entry.fat;
+  const proteinPct = totalMacroGrams > 0 ? Math.round((entry.protein / totalMacroGrams) * 100) : 0;
+  const carbsPct = totalMacroGrams > 0 ? Math.round((entry.carbs / totalMacroGrams) * 100) : 0;
+  const fatPct = totalMacroGrams > 0 ? Math.round((entry.fat / totalMacroGrams) * 100) : 0;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <Pressable style={detailStyles.overlay} onPress={onClose}>
+        <Pressable style={detailStyles.sheet} onPress={() => {}}>
+          {/* Header */}
+          <View style={detailStyles.header}>
+            <View style={detailStyles.headerLeft}>
+              <Text style={detailStyles.emoji}>{getMealEmoji(entry.time)}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={detailStyles.name}>{entry.name}</Text>
+                <Text style={detailStyles.time}>{entry.time}</Text>
+              </View>
+            </View>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <Ionicons name="close" size={24} color={colors.textLight} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={detailStyles.body} bounces={false}>
+            {/* Photo */}
+            {entry.photoUrl ? (
+              <Image
+                source={{ uri: entry.photoUrl }}
+                style={detailStyles.photo}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={detailStyles.noPhoto}>
+                <Ionicons name="camera-outline" size={32} color={colors.border} />
+                <Text style={detailStyles.noPhotoText}>No photo</Text>
+              </View>
+            )}
+
+            {/* Calories hero */}
+            <View style={detailStyles.calorieRow}>
+              <Text style={detailStyles.calorieValue}>{Math.round(entry.calories)}</Text>
+              <Text style={detailStyles.calorieUnit}>kcal</Text>
+            </View>
+
+            {/* Macro breakdown */}
+            <View style={detailStyles.macroGrid}>
+              <View style={detailStyles.macroItem}>
+                <View style={[detailStyles.macroIndicator, { backgroundColor: colors.protein }]} />
+                <Text style={detailStyles.macroValue}>{Math.round(entry.protein)}g</Text>
+                <Text style={detailStyles.macroLabel}>Protein</Text>
+                <Text style={detailStyles.macroPct}>{proteinPct}%</Text>
+              </View>
+              <View style={detailStyles.macroItem}>
+                <View style={[detailStyles.macroIndicator, { backgroundColor: colors.carbs }]} />
+                <Text style={detailStyles.macroValue}>{Math.round(entry.carbs)}g</Text>
+                <Text style={detailStyles.macroLabel}>Carbs</Text>
+                <Text style={detailStyles.macroPct}>{carbsPct}%</Text>
+              </View>
+              <View style={detailStyles.macroItem}>
+                <View style={[detailStyles.macroIndicator, { backgroundColor: colors.fat }]} />
+                <Text style={detailStyles.macroValue}>{Math.round(entry.fat)}g</Text>
+                <Text style={detailStyles.macroLabel}>Fat</Text>
+                <Text style={detailStyles.macroPct}>{fatPct}%</Text>
+              </View>
+            </View>
+
+            {/* Macro bar visualization */}
+            {totalMacroGrams > 0 && (
+              <View style={detailStyles.stackedBar}>
+                <View style={[detailStyles.stackedSegment, { flex: entry.protein, backgroundColor: colors.protein }]} />
+                <View style={[detailStyles.stackedSegment, { flex: entry.carbs, backgroundColor: colors.carbs }]} />
+                <View style={[detailStyles.stackedSegment, { flex: entry.fat, backgroundColor: colors.fat }]} />
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Delete button */}
+          <Pressable
+            style={detailStyles.deleteBtn}
+            onPress={() => {
+              onClose();
+              onDelete(entry.id, entry.name);
+            }}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.error} />
+            <Text style={detailStyles.deleteBtnText}>Delete Entry</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const detailStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheet: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  emoji: { fontSize: 28 },
+  name: { fontSize: 18, fontWeight: '700', color: colors.text },
+  time: { fontSize: 13, color: colors.textLight, marginTop: 2 },
+  body: { paddingHorizontal: 20, paddingTop: 16 },
+  photo: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 16,
+    backgroundColor: colors.sidebar,
+  },
+  noPhoto: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    marginBottom: 16,
+    backgroundColor: colors.sidebar,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  noPhotoText: { fontSize: 12, color: colors.textLight },
+  calorieRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    marginBottom: 20,
+  },
+  calorieValue: { fontSize: 36, fontWeight: '800', color: colors.text },
+  calorieUnit: { fontSize: 16, fontWeight: '500', color: colors.textLight },
+  macroGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  macroItem: { alignItems: 'center', gap: 4 },
+  macroIndicator: { width: 8, height: 8, borderRadius: 4 },
+  macroValue: { fontSize: 20, fontWeight: '700', color: colors.text },
+  macroLabel: { fontSize: 12, color: colors.textLight },
+  macroPct: { fontSize: 11, fontWeight: '600', color: colors.textLight },
+  stackedBar: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  stackedSegment: { height: '100%' },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 20,
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.error + '30',
+    backgroundColor: colors.error + '08',
+  },
+  deleteBtnText: { fontSize: 14, fontWeight: '600', color: colors.error },
+});
+
+// ==================== 30-DAY CALENDAR VIEW (COMPACT CIRCLES) ====================
 
 function ThirtyDayView() {
   const [days, setDays] = useState<NutritionDay[]>([]);
@@ -52,20 +258,17 @@ function ThirtyDayView() {
     setLoading(true);
     try {
       const today = new Date();
-      // Fetch 5 weeks to cover 30 days (each call returns 7 days)
       const promises = [0, 7, 14, 21, 28].map((offset) => {
         const d = subDays(today, offset);
         return nutritionApi.getWeek(format(d, 'yyyy-MM-dd')).catch(() => []);
       });
       const results = await Promise.all(promises);
-      // Merge and deduplicate by date
       const byDate = new Map<string, NutritionDay>();
       for (const week of results) {
         for (const day of week) {
           byDate.set(day.date, day);
         }
       }
-      // Sort descending (most recent first), take last 30
       const sorted = Array.from(byDate.values())
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 30);
@@ -94,7 +297,6 @@ function ThirtyDayView() {
     return <EmptyState icon="📊" title="No data yet" subtitle="Start logging meals to see your 30-day overview" />;
   }
 
-  // Stats
   const daysWithEntries = days.filter((d) => d.entries.length > 0);
   const greenDays = daysWithEntries.filter(
     (d) => d.totals.calories <= d.goals.calories && d.totals.carbs <= d.goals.carbs,
@@ -102,6 +304,14 @@ function ThirtyDayView() {
   const redDays = daysWithEntries.filter(
     (d) => d.totals.calories > d.goals.calories || d.totals.carbs > d.goals.carbs,
   );
+
+  // Calculate averages
+  const avgCalories = daysWithEntries.length > 0
+    ? Math.round(daysWithEntries.reduce((sum, d) => sum + d.totals.calories, 0) / daysWithEntries.length)
+    : 0;
+
+  // Circle size based on screen width — 6 per row with gaps
+  const circleSize = Math.floor((SCREEN_WIDTH - 32 - 50) / 6);
 
   return (
     <View>
@@ -111,11 +321,11 @@ function ThirtyDayView() {
         <View style={calStyles.summaryRow}>
           <View style={calStyles.summaryItem}>
             <Text style={[calStyles.summaryValue, { color: colors.success }]}>{greenDays.length}</Text>
-            <Text style={calStyles.summaryLabel}>Good days</Text>
+            <Text style={calStyles.summaryLabel}>On track</Text>
           </View>
           <View style={calStyles.summaryItem}>
             <Text style={[calStyles.summaryValue, { color: colors.error }]}>{redDays.length}</Text>
-            <Text style={calStyles.summaryLabel}>Over limit</Text>
+            <Text style={calStyles.summaryLabel}>Over</Text>
           </View>
           <View style={calStyles.summaryItem}>
             <Text style={[calStyles.summaryValue, { color: colors.darkTextSecondary }]}>
@@ -123,54 +333,108 @@ function ThirtyDayView() {
             </Text>
             <Text style={calStyles.summaryLabel}>No data</Text>
           </View>
+          <View style={calStyles.summaryItem}>
+            <Text style={[calStyles.summaryValue, { color: colors.accent }]}>{avgCalories}</Text>
+            <Text style={calStyles.summaryLabel}>Avg kcal</Text>
+          </View>
         </View>
       </DarkCard>
 
-      {/* Day List */}
-      {days.map((day) => {
-        const hasEntries = day.entries.length > 0;
-        const overCalories = hasEntries && day.totals.calories > day.goals.calories;
-        const overCarbs = hasEntries && day.totals.carbs > day.goals.carbs;
-        const isRed = overCalories || overCarbs;
-        const isGreen = hasEntries && !isRed;
+      {/* Compact circle grid */}
+      <Card style={calStyles.gridCard}>
+        <View style={calStyles.circleGrid}>
+          {days.map((day) => {
+            const hasEntries = day.entries.length > 0;
+            const overCalories = hasEntries && day.totals.calories > day.goals.calories;
+            const overCarbs = hasEntries && day.totals.carbs > day.goals.carbs;
+            const isOver = overCalories || overCarbs;
+            const isGood = hasEntries && !isOver;
 
-        const dotColor = !hasEntries
-          ? colors.border
-          : isGreen
-          ? colors.success
-          : colors.error;
+            const bgColor = !hasEntries
+              ? colors.sidebar
+              : isGood
+              ? colors.success + '20'
+              : colors.error + '20';
 
-        const dateObj = new Date(day.date + 'T12:00:00');
-        const dayName = format(dateObj, 'EEE');
-        const dayNum = format(dateObj, 'd');
-        const month = format(dateObj, 'MMM');
+            const borderColor = !hasEntries
+              ? colors.border
+              : isGood
+              ? colors.success
+              : colors.error;
 
-        return (
-          <Card key={day.date} style={calStyles.dayRow}>
-            <View style={calStyles.dayLeft}>
-              <View style={[calStyles.dot, { backgroundColor: dotColor }]} />
-              <View>
-                <Text style={calStyles.dayDate}>
-                  {dayName}, {month} {dayNum}
-                </Text>
-                {hasEntries ? (
-                  <Text style={calStyles.dayDetail}>
-                    {Math.round(day.totals.calories)} / {day.goals.calories} kcal
-                    {overCarbs ? '  ·  carbs over' : ''}
+            const dateObj = new Date(day.date + 'T12:00:00');
+            const dayNum = format(dateObj, 'd');
+
+            // Calorie fill percentage (capped at 100%)
+            const fill = hasEntries
+              ? Math.min(day.totals.calories / day.goals.calories, 1)
+              : 0;
+
+            return (
+              <View key={day.date} style={[calStyles.circleWrapper, { width: circleSize }]}>
+                <View
+                  style={[
+                    calStyles.circle,
+                    {
+                      width: circleSize - 8,
+                      height: circleSize - 8,
+                      borderRadius: (circleSize - 8) / 2,
+                      backgroundColor: bgColor,
+                      borderColor,
+                      borderWidth: hasEntries ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      calStyles.circleDay,
+                      {
+                        color: hasEntries
+                          ? isGood
+                            ? colors.success
+                            : colors.error
+                          : colors.textLight,
+                        fontWeight: hasEntries ? '700' : '400',
+                      },
+                    ]}
+                  >
+                    {dayNum}
                   </Text>
-                ) : (
-                  <Text style={calStyles.dayDetail}>No entries</Text>
+                </View>
+                {hasEntries && (
+                  <View style={calStyles.miniBar}>
+                    <View
+                      style={[
+                        calStyles.miniBarFill,
+                        {
+                          width: `${Math.round(fill * 100)}%`,
+                          backgroundColor: isGood ? colors.success : colors.error,
+                        },
+                      ]}
+                    />
+                  </View>
                 )}
               </View>
-            </View>
-            {hasEntries && (
-              <Text style={[calStyles.dayStatus, { color: isGreen ? colors.success : colors.error }]}>
-                {isGreen ? '✓' : '✗'}
-              </Text>
-            )}
-          </Card>
-        );
-      })}
+            );
+          })}
+        </View>
+      </Card>
+
+      {/* Legend */}
+      <View style={calStyles.legend}>
+        <View style={calStyles.legendItem}>
+          <View style={[calStyles.legendDot, { backgroundColor: colors.success }]} />
+          <Text style={calStyles.legendText}>On track</Text>
+        </View>
+        <View style={calStyles.legendItem}>
+          <View style={[calStyles.legendDot, { backgroundColor: colors.error }]} />
+          <Text style={calStyles.legendText}>Over limit</Text>
+        </View>
+        <View style={calStyles.legendItem}>
+          <View style={[calStyles.legendDot, { backgroundColor: colors.border }]} />
+          <Text style={calStyles.legendText}>No data</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -178,18 +442,45 @@ function ThirtyDayView() {
 const calStyles = StyleSheet.create({
   loading: { alignItems: 'center', paddingTop: 40, gap: 12 },
   loadingText: { fontSize: 13, color: colors.textLight },
-  summaryCard: { marginBottom: 16 },
+  summaryCard: { marginBottom: 12 },
   summaryTitle: { fontSize: 16, fontWeight: '700', color: colors.darkText, marginBottom: 12 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
   summaryItem: { alignItems: 'center' },
-  summaryValue: { fontSize: 28, fontWeight: '800' },
-  summaryLabel: { fontSize: 12, color: colors.darkTextSecondary, marginTop: 2 },
-  dayRow: { marginBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  dayLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
-  dayDate: { fontSize: 14, fontWeight: '600', color: colors.text },
-  dayDetail: { fontSize: 12, color: colors.textLight, marginTop: 1 },
-  dayStatus: { fontSize: 18, fontWeight: '700' },
+  summaryValue: { fontSize: 24, fontWeight: '800' },
+  summaryLabel: { fontSize: 11, color: colors.darkTextSecondary, marginTop: 2 },
+  gridCard: { marginBottom: 12, paddingVertical: 12, paddingHorizontal: 8 },
+  circleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  circleWrapper: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  circle: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleDay: { fontSize: 13 },
+  miniBar: {
+    width: '70%',
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: colors.border,
+    marginTop: 3,
+    overflow: 'hidden',
+  },
+  miniBarFill: { height: '100%', borderRadius: 1.5 },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginBottom: 8,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 11, color: colors.textLight },
 });
 
 // ==================== MAIN SCREEN ====================
@@ -200,6 +491,7 @@ export default function NutritionScreen() {
   const { insights: nutritionAgentInsights } = useInsights('nutrition');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('today');
+  const [selectedEntry, setSelectedEntry] = useState<NutritionEntry | null>(null);
 
   const handleAddMeal = useCallback(
     async (values: Record<string, string>) => {
@@ -240,14 +532,12 @@ export default function NutritionScreen() {
     } else {
       nutritionInsights.push({ emoji: '🟢', text: `${Math.round(caloriesRemaining)} cal remaining of ${data.goals.calories} kcal goal.`, tone: 'positive' });
     }
-    // Protein check
     const proteinPct = data.goals.protein > 0 ? data.totals.protein / data.goals.protein : 0;
     if (proteinPct < 0.5 && calorieProgress > 0.5) {
       nutritionInsights.push({ emoji: '🥩', text: `Protein is only ${Math.round(proteinPct * 100)}% of target — consider a protein-rich meal.`, tone: 'warning' });
     } else if (proteinPct >= 1) {
       nutritionInsights.push({ emoji: '💪', text: `Protein goal hit! ${Math.round(data.totals.protein)}g of ${data.goals.protein}g.`, tone: 'positive' });
     }
-    // Carbs check
     if (data.goals.carbs > 0 && data.totals.carbs > data.goals.carbs) {
       nutritionInsights.push({ emoji: '🍞', text: `Carbs over limit — ${Math.round(data.totals.carbs)}g of ${data.goals.carbs}g max.`, tone: 'warning' });
     }
@@ -333,7 +623,11 @@ export default function NutritionScreen() {
               <EmptyState icon="🍽️" title="No meals logged" subtitle="Tap + Add to log your first meal" />
             ) : (
               data.entries.map((entry) => (
-                <Pressable key={entry.id} onLongPress={() => handleDeleteEntry(entry.id, entry.name)}>
+                <Pressable
+                  key={entry.id}
+                  onPress={() => setSelectedEntry(entry)}
+                  onLongPress={() => handleDeleteEntry(entry.id, entry.name)}
+                >
                   <Card style={styles.mealCard}>
                     <View style={styles.mealRow}>
                       <Text style={styles.mealEmoji}>{getMealEmoji(entry.time)}</Text>
@@ -348,6 +642,7 @@ export default function NutritionScreen() {
                         <Text style={styles.mealCalories}>{entry.calories}</Text>
                         <Text style={styles.mealTime}>{entry.time}</Text>
                       </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                     </View>
                   </Card>
                 </Pressable>
@@ -374,6 +669,13 @@ export default function NutritionScreen() {
         fields={mealFields}
         onSubmit={handleAddMeal}
         onClose={() => setShowAddModal(false)}
+      />
+
+      <MealDetailModal
+        entry={selectedEntry}
+        visible={!!selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+        onDelete={handleDeleteEntry}
       />
     </View>
   );
@@ -415,7 +717,7 @@ const styles = StyleSheet.create({
   mealInfo: { flex: 1 },
   mealName: { fontSize: 15, fontWeight: '600', color: colors.text },
   mealMacros: { fontSize: 12, color: colors.textLight, marginTop: 2 },
-  mealRight: { alignItems: 'flex-end' },
+  mealRight: { alignItems: 'flex-end', marginRight: 4 },
   mealCalories: { fontSize: 16, fontWeight: '700', color: colors.text },
   mealTime: { fontSize: 11, color: colors.textLight, marginTop: 2 },
   fab: {
