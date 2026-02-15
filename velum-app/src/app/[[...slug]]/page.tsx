@@ -2933,7 +2933,7 @@ export default function Home() {
     date: new Date().toISOString().split('T')[0],
     entries: [],
     totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+    goals: { calories: 2600, protein: 160, carbs: 310, fat: 80 }
   })
   
   // Fetch nutrition data

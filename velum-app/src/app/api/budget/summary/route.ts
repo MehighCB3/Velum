@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { redis, useRedis } from '../../../lib/redis'
+import { sql } from '@vercel/postgres'
 import { getWeekKey } from '../../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
+
+// Storage mode detection
+const usePostgres = !!process.env.POSTGRES_URL
 
 // Budget configuration
 const WEEKLY_BUDGET = 70
@@ -52,14 +55,62 @@ function getWeekRange(endWeek?: string): string[] {
   return weeks
 }
 
-// Redis operations
-async function readFromRedis(week: string): Promise<WeekData | null> {
-  if (!redis) return null
+// Initialize Postgres tables
+async function initializePostgresTables(): Promise<void> {
   try {
-    return await redis.get<WeekData>(`budget:${week}`)
+    await sql`
+      CREATE TABLE IF NOT EXISTS budget_entries (
+        id SERIAL PRIMARY KEY,
+        entry_id VARCHAR(50) UNIQUE NOT NULL,
+        week VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        description TEXT,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    
+    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)`
   } catch (error) {
-    console.error('Redis read error:', error)
+    console.error('Failed to initialize budget tables:', error)
+    throw error
+  }
+}
+
+async function readFromPostgres(week: string): Promise<WeekData | null> {
+  const entriesResult = await sql`
+    SELECT 
+      entry_id as id,
+      amount,
+      category,
+      description,
+      date::text as date,
+      created_at::text as timestamp
+    FROM budget_entries
+    WHERE week = ${week}
+    ORDER BY date, created_at
+  `
+  
+  const entries = entriesResult.rows as BudgetEntry[]
+  
+  if (entries.length === 0) {
     return null
+  }
+  
+  const totalSpent = entries.reduce((sum, e) => sum + Number(e.amount), 0)
+  const categories = entries.reduce((acc, e) => {
+    acc[e.category] = (acc[e.category] || 0) + Number(e.amount)
+    return acc
+  }, { Food: 0, Fun: 0, Transport: 0, Subscriptions: 0, Other: 0 } as Record<Category, number>)
+  
+  return {
+    week,
+    entries,
+    totalSpent,
+    remaining: WEEKLY_BUDGET - totalSpent,
+    categories
   }
 }
 
@@ -75,8 +126,13 @@ export async function GET(request: NextRequest) {
     for (const week of weeks) {
       let data: WeekData | null = null
 
-      if (useRedis) {
-        data = await readFromRedis(week)
+      if (usePostgres) {
+        try {
+          await initializePostgresTables()
+          data = await readFromPostgres(week)
+        } catch (error) {
+          console.error('Postgres read error:', error)
+        }
       }
 
       if (!data) {

@@ -16,7 +16,7 @@ const SEED_DATA = {
       { "id": "20260201-007", "name": "Cinnamon roll", "calories": 220, "protein": 4, "carbs": 32, "fat": 8, "time": "17:00", "date": "2026-02-01" }
     ],
     "totals": { "calories": 1552, "protein": 76, "carbs": 191, "fat": 52 },
-    "goals": { "calories": 2000, "protein": 150, "carbs": 200, "fat": 65 }
+    "goals": { "calories": 2600, "protein": 160, "carbs": 310, "fat": 80 }
   }
 }
 
@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
       CREATE TABLE IF NOT EXISTS nutrition_goals (
         id SERIAL PRIMARY KEY,
         date DATE UNIQUE NOT NULL,
-        calories INTEGER NOT NULL DEFAULT 2000,
-        protein INTEGER NOT NULL DEFAULT 150,
-        carbs INTEGER NOT NULL DEFAULT 200,
-        fat INTEGER NOT NULL DEFAULT 65,
+        calories INTEGER NOT NULL DEFAULT 2600,
+        protein INTEGER NOT NULL DEFAULT 160,
+        carbs INTEGER NOT NULL DEFAULT 310,
+        fat INTEGER NOT NULL DEFAULT 80,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -120,6 +120,14 @@ export async function POST(request: NextRequest) {
       ORDER BY date DESC
     `
     results.push('✅ Created daily_nutrition_summary view')
+
+    // Add photo_url column to nutrition_entries if it doesn't exist
+    try {
+      await sql`ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT`
+      results.push('✅ Added photo_url column to nutrition_entries')
+    } catch (error) {
+      results.push('⚠️ photo_url column may already exist')
+    }
 
     // Agent memories table for persistent memory across sessions
     await sql`

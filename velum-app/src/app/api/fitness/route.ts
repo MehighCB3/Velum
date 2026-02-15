@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { redis, useRedis } from '../../lib/redis'
+import { sql } from '@vercel/postgres'
 import { getWeekKey, parseWeekKey, getWeekDates } from '../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
+
+// Storage mode detection
+const usePostgres = !!process.env.POSTGRES_URL
 
 // Default goals
 const DEFAULT_GOALS = {
@@ -185,47 +188,164 @@ function calculateWeekData(week: string, entries: FitnessEntry[]): FitnessWeek {
   }
 }
 
-// Redis operations
-async function readFromRedis(week: string): Promise<FitnessWeek | null> {
-  if (!redis) return null
+// ==================== POSTGRES FUNCTIONS ====================
+
+let tablesInitialized = false
+
+async function initializePostgresTables(): Promise<void> {
+  if (tablesInitialized) return
+  
   try {
-    const data = await redis.get<FitnessWeek>(`fitness:${week}`)
-    return data
+    // Create fitness_entries table
+    await sql`
+      CREATE TABLE IF NOT EXISTS fitness_entries (
+        id SERIAL PRIMARY KEY,
+        entry_id VARCHAR(50) UNIQUE NOT NULL,
+        week VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        entry_type VARCHAR(20) NOT NULL,
+        name VARCHAR(255),
+        steps INTEGER,
+        distance_km DECIMAL(6,2),
+        duration INTEGER,
+        distance DECIMAL(6,2),
+        pace DECIMAL(4,2),
+        calories INTEGER,
+        vo2max DECIMAL(5,2),
+        training_load INTEGER,
+        stress_level INTEGER,
+        recovery_score INTEGER,
+        hrv DECIMAL(5,2),
+        weight DECIMAL(5,2),
+        body_fat DECIMAL(4,2),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    
+    // Create fitness_goals table
+    await sql`
+      CREATE TABLE IF NOT EXISTS fitness_goals (
+        week VARCHAR(10) UNIQUE NOT NULL PRIMARY KEY,
+        steps INTEGER NOT NULL DEFAULT 10000,
+        runs INTEGER NOT NULL DEFAULT 3,
+        swims INTEGER NOT NULL DEFAULT 2
+      )
+    `
+    
+    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_week ON fitness_entries(week)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_date ON fitness_entries(date)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_type ON fitness_entries(entry_type)`
+
+    tablesInitialized = true
   } catch (error) {
-    console.error('Redis read error:', error)
+    console.error('Failed to initialize fitness tables:', error)
+    throw error
+  }
+}
+
+async function readFromPostgres(week: string): Promise<FitnessWeek | null> {
+  const entriesResult = await sql`
+    SELECT 
+      entry_id as id,
+      date::text as date,
+      entry_type as type,
+      name,
+      steps,
+      distance_km as "distanceKm",
+      duration,
+      distance,
+      pace,
+      calories,
+      vo2max,
+      training_load as "trainingLoad",
+      stress_level as "stressLevel",
+      recovery_score as "recoveryScore",
+      hrv,
+      weight,
+      body_fat as "bodyFat",
+      notes,
+      created_at as timestamp
+    FROM fitness_entries
+    WHERE week = ${week}
+    ORDER BY date, created_at
+  `
+  
+  const goalsResult = await sql`
+    SELECT steps, runs, swims 
+    FROM fitness_goals 
+    WHERE week = ${week}
+  `
+  
+  const goals = (goalsResult.rows[0] as typeof DEFAULT_GOALS) || DEFAULT_GOALS
+  const entries = entriesResult.rows as FitnessEntry[]
+  
+  if (entries.length === 0 && goalsResult.rows.length === 0) {
     return null
   }
+  
+  const weekData = calculateWeekData(week, entries)
+  weekData.goals = goals
+  
+  return weekData
 }
 
-async function writeToRedis(week: string, data: FitnessWeek): Promise<boolean> {
-  if (!redis) return false
-  try {
-    await redis.set(`fitness:${week}`, data)
-    return true
-  } catch (error) {
-    console.error('Redis write error:', error)
-    return false
+async function writeToPostgres(week: string, entry: FitnessEntry, goals?: typeof DEFAULT_GOALS) {
+  await initializePostgresTables()
+  
+  if (goals) {
+    await sql`
+      INSERT INTO fitness_goals (week, steps, runs, swims)
+      VALUES (${week}, ${goals.steps}, ${goals.runs}, ${goals.swims})
+      ON CONFLICT (week) DO UPDATE SET 
+        steps = EXCLUDED.steps,
+        runs = EXCLUDED.runs,
+        swims = EXCLUDED.swims
+    `
   }
+  
+  await sql`
+    INSERT INTO fitness_entries (
+      entry_id, week, date, entry_type, name, steps, distance_km, 
+      duration, distance, pace, calories, vo2max, training_load,
+      stress_level, recovery_score, hrv, weight, body_fat, notes
+    )
+    VALUES (
+      ${entry.id}, ${week}, ${entry.date}, ${entry.type}, ${entry.name || null}, 
+      ${entry.steps || null}, ${entry.distanceKm || null}, ${entry.duration || null}, 
+      ${entry.distance || null}, ${entry.pace || null}, ${entry.calories || null}, 
+      ${entry.vo2max || null}, ${entry.trainingLoad || null}, ${entry.stressLevel || null}, 
+      ${entry.recoveryScore || null}, ${entry.hrv || null}, ${entry.weight || null}, 
+      ${entry.bodyFat || null}, ${entry.notes || null}
+    )
+    ON CONFLICT (entry_id) DO UPDATE SET
+      entry_type = EXCLUDED.entry_type,
+      name = EXCLUDED.name,
+      steps = EXCLUDED.steps,
+      distance_km = EXCLUDED.distance_km,
+      duration = EXCLUDED.duration,
+      distance = EXCLUDED.distance,
+      pace = EXCLUDED.pace,
+      calories = EXCLUDED.calories,
+      vo2max = EXCLUDED.vo2max,
+      training_load = EXCLUDED.training_load,
+      stress_level = EXCLUDED.stress_level,
+      recovery_score = EXCLUDED.recovery_score,
+      hrv = EXCLUDED.hrv,
+      weight = EXCLUDED.weight,
+      body_fat = EXCLUDED.body_fat,
+      notes = EXCLUDED.notes
+  `
 }
 
-async function deleteFromRedis(week: string, entryId?: string): Promise<boolean> {
-  if (!redis) return false
-  try {
-    if (entryId) {
-      const data = await readFromRedis(week)
-      if (data) {
-        data.entries = data.entries.filter(e => e.id !== entryId)
-        const recalculated = calculateWeekData(week, data.entries)
-        recalculated.goals = data.goals
-        await writeToRedis(week, recalculated)
-      }
-    } else {
-      await redis.del(`fitness:${week}`)
-    }
-    return true
-  } catch (error) {
-    console.error('Redis delete error:', error)
-    return false
+async function deleteFromPostgres(week: string, entryId?: string) {
+  await initializePostgresTables()
+  
+  if (entryId) {
+    await sql`DELETE FROM fitness_entries WHERE week = ${week} AND entry_id = ${entryId}`
+  } else {
+    await sql`DELETE FROM fitness_entries WHERE week = ${week}`
+    await sql`DELETE FROM fitness_goals WHERE week = ${week}`
   }
 }
 
@@ -273,11 +393,16 @@ export async function GET(request: NextRequest) {
     const rangeParam = searchParams.get('range')
     const weekParam = searchParams.get('week')
 
-    // Helper to load a week's data from Redis or fallback
+    // Helper to load a week's data from Postgres or fallback
     const loadWeek = async (weekKey: string): Promise<FitnessWeek> => {
-      if (useRedis) {
-        const data = await readFromRedis(weekKey)
-        if (data) return data
+      if (usePostgres) {
+        try {
+          await initializePostgresTables()
+          const data = await readFromPostgres(weekKey)
+          if (data) return data
+        } catch (error) {
+          console.error('Postgres read error, falling back:', error)
+        }
       }
       return readFromFallback(weekKey)
     }
@@ -361,8 +486,13 @@ export async function POST(request: NextRequest) {
       const weekKey = week || getWeekKey(new Date())
       
       let existingData: FitnessWeek | null = null
-      if (useRedis) {
-        existingData = await readFromRedis(weekKey)
+      if (usePostgres) {
+        try {
+          await initializePostgresTables()
+          existingData = await readFromPostgres(weekKey)
+        } catch (error) {
+          console.error('Postgres read error:', error)
+        }
       }
       if (!existingData) {
         existingData = readFromFallback(weekKey)
@@ -371,9 +501,21 @@ export async function POST(request: NextRequest) {
       existingData.goals = { ...existingData.goals, ...goals }
       
       let storage = 'fallback'
-      if (useRedis) {
-        const saved = await writeToRedis(weekKey, existingData)
-        if (saved) storage = 'redis'
+      if (usePostgres) {
+        try {
+          // Write updated goals to Postgres
+          await sql`
+            INSERT INTO fitness_goals (week, steps, runs, swims)
+            VALUES (${weekKey}, ${existingData.goals.steps}, ${existingData.goals.runs}, ${existingData.goals.swims})
+            ON CONFLICT (week) DO UPDATE SET 
+              steps = EXCLUDED.steps,
+              runs = EXCLUDED.runs,
+              swims = EXCLUDED.swims
+          `
+          storage = 'postgres'
+        } catch (error) {
+          console.error('Postgres write error:', error)
+        }
       }
       writeToFallback(weekKey, existingData)
       
@@ -440,8 +582,13 @@ export async function POST(request: NextRequest) {
 
     // Get existing data
     let existingData: FitnessWeek | null = null
-    if (useRedis) {
-      existingData = await readFromRedis(weekKey)
+    if (usePostgres) {
+      try {
+        await initializePostgresTables()
+        existingData = await readFromPostgres(weekKey)
+      } catch (error) {
+        console.error('Postgres read error:', error)
+      }
     }
     if (!existingData) {
       existingData = readFromFallback(weekKey)
@@ -452,6 +599,14 @@ export async function POST(request: NextRequest) {
       existingData.entries = existingData.entries.filter(e =>
         !(e.type === 'steps' && e.date === entryDate)
       )
+      // Also delete from Postgres if using it
+      if (usePostgres) {
+        try {
+          await sql`DELETE FROM fitness_entries WHERE week = ${weekKey} AND entry_type = 'steps' AND date = ${entryDate}`
+        } catch (error) {
+          console.error('Postgres delete error:', error)
+        }
+      }
     }
 
     // Add new entry and recalculate
@@ -461,9 +616,13 @@ export async function POST(request: NextRequest) {
 
     // Save to storage
     let storage = 'fallback'
-    if (useRedis) {
-      const saved = await writeToRedis(weekKey, updatedData)
-      if (saved) storage = 'redis'
+    if (usePostgres) {
+      try {
+        await writeToPostgres(weekKey, newEntry)
+        storage = 'postgres'
+      } catch (error) {
+        console.error('Postgres write error:', error)
+      }
     }
     writeToFallback(weekKey, updatedData)
 
@@ -487,8 +646,13 @@ export async function DELETE(request: NextRequest) {
 
     // Get existing data
     let existingData: FitnessWeek | null = null
-    if (useRedis) {
-      existingData = await readFromRedis(week)
+    if (usePostgres) {
+      try {
+        await initializePostgresTables()
+        existingData = await readFromPostgres(week)
+      } catch (error) {
+        console.error('Postgres read error:', error)
+      }
     }
     if (!existingData) {
       existingData = readFromFallback(week)
@@ -501,9 +665,13 @@ export async function DELETE(request: NextRequest) {
 
     // Save to storage
     let storage = 'fallback'
-    if (useRedis) {
-      const saved = await writeToRedis(week, updatedData)
-      if (saved) storage = 'redis'
+    if (usePostgres) {
+      try {
+        await deleteFromPostgres(week, entryId)
+        storage = 'postgres'
+      } catch (error) {
+        console.error('Postgres delete error:', error)
+      }
     }
     writeToFallback(week, updatedData)
 

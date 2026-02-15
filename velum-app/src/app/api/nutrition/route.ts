@@ -50,7 +50,7 @@ const SEED_DATA: Record<string, NutritionDay> = {
       { "id": "20260201-010", "name": "Toblerone (50g)", "calories": 260, "protein": 3, "carbs": 29, "fat": 14, "time": "20:32", "date": "2026-02-01" }
     ],
     "totals": { "calories": 2802, "protein": 85, "carbs": 346, "fat": 121 },
-    "goals": { "calories": 2000, "protein": 150, "carbs": 200, "fat": 65 }
+    "goals": { "calories": 2600, "protein": 160, "carbs": 310, "fat": 80 }
   }
 }
 
@@ -80,10 +80,10 @@ async function initializePostgresTables(): Promise<void> {
     await sql`
       CREATE TABLE IF NOT EXISTS nutrition_goals (
         date DATE UNIQUE NOT NULL,
-        calories INTEGER NOT NULL DEFAULT 2000,
-        protein INTEGER NOT NULL DEFAULT 150,
-        carbs INTEGER NOT NULL DEFAULT 200,
-        fat INTEGER NOT NULL DEFAULT 65
+        calories INTEGER NOT NULL DEFAULT 2600,
+        protein INTEGER NOT NULL DEFAULT 160,
+        carbs INTEGER NOT NULL DEFAULT 310,
+        fat INTEGER NOT NULL DEFAULT 80
       )
     `
     
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
       date,
       entries: [],
       totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+      goals: { calories: 2600, protein: 160, carbs: 310, fat: 80 }
     })
   } catch (error) {
     console.error('GET error:', error)
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       date,
       entries: newEntries,
       totals: totals || { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      goals: goals || { calories: 2000, protein: 150, carbs: 200, fat: 65 },
+      goals: goals || { calories: 2600, protein: 160, carbs: 310, fat: 80 },
       storage: 'fallback'
     })
   } catch (error) {
