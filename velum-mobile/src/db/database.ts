@@ -33,10 +33,10 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     -- Nutrition goals cache
     CREATE TABLE IF NOT EXISTS nutrition_goals (
       date TEXT PRIMARY KEY,
-      calories INTEGER DEFAULT 2000,
-      protein INTEGER DEFAULT 150,
-      carbs INTEGER DEFAULT 200,
-      fat INTEGER DEFAULT 65
+      calories INTEGER DEFAULT 2600,
+      protein INTEGER DEFAULT 160,
+      carbs INTEGER DEFAULT 310,
+      fat INTEGER DEFAULT 80
     );
 
     -- Fitness entries cache
@@ -291,7 +291,7 @@ export async function getCachedNutritionDay(date: string): Promise<{
 
   return {
     entries,
-    goals: goals || { calories: 2000, protein: 150, carbs: 200, fat: 65 },
+    goals: goals || { calories: 2600, protein: 160, carbs: 310, fat: 80 },
   };
 }
 

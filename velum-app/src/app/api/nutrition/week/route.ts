@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         // Build daily summaries
         const dailyData = dates.map(date => {
           const dayEntries = entriesResult.rows.filter(e => e.date === date)
-          const dayGoal = goalsResult.rows.find(g => g.date === date) || { calories: 2000, protein: 150, carbs: 200, fat: 65 }
+          const dayGoal = goalsResult.rows.find(g => g.date === date) || { calories: 2600, protein: 160, carbs: 310, fat: 80 }
           
           const totals = dayEntries.reduce(
             (acc, entry) => ({
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       date,
       entries: [],
       totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      goals: { calories: 2000, protein: 150, carbs: 200, fat: 65 },
+      goals: { calories: 2600, protein: 160, carbs: 310, fat: 80 },
       dayName: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
       dayNumber: new Date(date).getDate()
     }))
