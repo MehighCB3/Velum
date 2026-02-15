@@ -121,6 +121,14 @@ export async function POST(request: NextRequest) {
     `
     results.push('✅ Created daily_nutrition_summary view')
 
+    // Add photo_url column to nutrition_entries if it doesn't exist
+    try {
+      await sql`ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT`
+      results.push('✅ Added photo_url column to nutrition_entries')
+    } catch (error) {
+      results.push('⚠️ photo_url column may already exist')
+    }
+
     // Agent memories table for persistent memory across sessions
     await sql`
       CREATE TABLE IF NOT EXISTS agent_memories (
