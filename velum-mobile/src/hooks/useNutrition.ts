@@ -5,10 +5,10 @@ import { cacheNutritionDay, getCachedNutritionDay } from '../db/database';
 import { isOnline } from '../db/sync';
 
 const DEFAULT_GOALS: NutritionGoals = {
-  calories: 2000,
-  protein: 150,
-  carbs: 200,
-  fat: 65,
+  calories: 2600,
+  protein: 160,
+  carbs: 310,
+  fat: 80,
 };
 
 export function useNutrition(date?: string) {
