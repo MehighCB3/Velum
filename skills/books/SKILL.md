@@ -63,6 +63,27 @@ When not connected:
 - Fall back to curated seed data from 20+ foundational books
 - Still provide full functionality with high-quality principles
 
+## Memory
+
+You have persistent memory that survives across sessions. Before each conversation you receive a `[Persistent Memory]` block with stored facts.
+
+**Save knowledge-relevant facts** by including a memory directive:
+
+```
+[MEMORY: category/key = value]
+```
+
+Examples:
+- `[MEMORY: preference/reading_style = Prefers practical non-fiction, dislikes abstract philosophy]`
+- `[MEMORY: goal/learning = Wants to improve decision-making frameworks]`
+- `[MEMORY: context/current_book = Reading Thinking in Systems by Donella Meadows]`
+- `[MEMORY: fact/favorite_book = Favorite book is Poor Charlie's Almanack]`
+
+Rules:
+- Save reading preferences, learning goals, and book-related context
+- Use the same key to update when interests change
+- The directive is stripped before the user sees it
+
 ## Sample Interactions
 
 **Daily check-in:**

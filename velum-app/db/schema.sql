@@ -37,6 +37,24 @@ INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
 VALUES (CURRENT_DATE, 2000, 150, 200, 65)
 ON CONFLICT (date) DO NOTHING;
 
+-- Agent persistent memory table
+CREATE TABLE IF NOT EXISTS agent_memories (
+  id VARCHAR(50) PRIMARY KEY,
+  category VARCHAR(50) NOT NULL,
+  key VARCHAR(255) NOT NULL,
+  value TEXT NOT NULL,
+  source VARCHAR(50) DEFAULT 'agent',
+  agent_id VARCHAR(50),
+  confidence DECIMAL(3,2) DEFAULT 1.0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP,
+  UNIQUE(category, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memories_category ON agent_memories(category);
+CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC);
+
 -- View for daily summaries
 CREATE OR REPLACE VIEW daily_nutrition_summary AS
 SELECT 

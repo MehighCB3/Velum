@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { appendMessage, getRecentContext } from '../../lib/sessionStore'
+import {
+  getMemoryContext,
+  extractMemoriesFromText,
+  saveMemory,
+} from '../../lib/memoryStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,23 +58,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const sessionKey = 'main'
+
+    // Store the user's message in session history
+    await appendMessage(sessionKey, {
+      id: `${Date.now()}-user`,
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+      source: 'gateway',
+    })
+
     // Check if gateway is configured
     if (!GATEWAY_URL || !GATEWAY_TOKEN) {
       console.warn('GATEWAY_URL or OPENCLAW_GATEWAY_TOKEN not set, using local response')
+      const localContent = generateLocalResponse(message, context)
+
+      await appendMessage(sessionKey, {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: localContent,
+        timestamp: new Date().toISOString(),
+        source: 'local',
+      })
+
       return NextResponse.json({
-        content: generateLocalResponse(message, context),
+        content: localContent,
         source: 'local'
       })
     }
 
-    // Format message with context
-    const fullMessage = context
-      ? `[Velum] Context: ${context}\n\nUser: ${message}`
-      : `[Velum] ${message}`
+    // Build enriched context: persistent memory + recent conversation + dashboard data
+    const [memoryContext, recentHistory] = await Promise.all([
+      getMemoryContext(),
+      getRecentContext(sessionKey, 8),
+    ])
+
+    const contextParts = ['[Velum]']
+    if (memoryContext) contextParts.push(memoryContext)
+    if (recentHistory) contextParts.push(`[Recent Conversation]\n${recentHistory}`)
+    if (context) contextParts.push(`[Dashboard Data]\n${context}`)
+    contextParts.push(`User: ${message}`)
+
+    const fullMessage = contextParts.join('\n\n')
 
     try {
       // OpenClaw tools/invoke HTTP API
-      // https://docs.openclaw.ai/gateway/tools-invoke-http-api
       const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
         method: 'POST',
         headers: {
@@ -89,9 +124,18 @@ export async function POST(request: NextRequest) {
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`Gateway error ${response.status}:`, errorText)
-        // Fall back to local response
+        const fallbackContent = generateLocalResponse(message, context)
+
+        await appendMessage(sessionKey, {
+          id: `${Date.now()}-assistant`,
+          role: 'assistant',
+          content: fallbackContent,
+          timestamp: new Date().toISOString(),
+          source: 'local_fallback',
+        })
+
         return NextResponse.json({
-          content: generateLocalResponse(message, context),
+          content: fallbackContent,
           source: 'local_fallback'
         })
       }
@@ -99,27 +143,59 @@ export async function POST(request: NextRequest) {
       const data = await response.json()
 
       // OpenClaw tools/invoke returns { ok: true, result: { ... } }
+      let responseContent: string
       if (data.ok && data.result) {
         const result = data.result
-        const content = result.reply || result.response || result.message || result.content || result.text || 'No response received'
-        return NextResponse.json({
-          content,
-          source: 'gateway'
-        })
+        responseContent = result.reply || result.response || result.message || result.content || result.text || 'No response received'
+      } else {
+        responseContent = data.response || data.message || data.content || data.reply || 'No response received'
       }
 
-      // Fallback: try direct fields for backward compatibility
-      const content = data.response || data.message || data.content || data.reply || 'No response received'
+      // Extract any memory directives from the agent's response
+      const { cleaned, memories } = extractMemoriesFromText(responseContent)
+
+      // Save extracted memories in the background
+      if (memories.length > 0) {
+        Promise.all(
+          memories.map(m => saveMemory({
+            category: m.category,
+            key: m.key,
+            value: m.value,
+            source: 'agent',
+          }))
+        ).catch(err => console.error('Failed to save extracted memories:', err))
+      }
+
+      // Store the assistant's response (cleaned of memory directives)
+      await appendMessage(sessionKey, {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: cleaned,
+        timestamp: new Date().toISOString(),
+        source: 'gateway',
+        metadata: memories.length > 0 ? { memoriesExtracted: memories.length } : undefined,
+      })
+
       return NextResponse.json({
-        content,
-        source: 'gateway'
+        content: cleaned,
+        source: 'gateway',
+        ...(memories.length > 0 && { memoriesSaved: memories.length }),
       })
 
     } catch (fetchError) {
       console.error('Gateway fetch error:', fetchError)
-      // Fall back to local response on network error
+      const fallbackContent = generateLocalResponse(message, context)
+
+      await appendMessage(sessionKey, {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: fallbackContent,
+        timestamp: new Date().toISOString(),
+        source: 'local_fallback',
+      })
+
       return NextResponse.json({
-        content: generateLocalResponse(message, context),
+        content: fallbackContent,
         source: 'local_fallback'
       })
     }
