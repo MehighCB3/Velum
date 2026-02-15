@@ -23,7 +23,7 @@ function generateLocalResponse(message: string, context?: string): string {
   }
 
   if (lowerMsg.includes('goal') || lowerMsg.includes('target')) {
-    return "Your daily goals are set to 2,600 calories, 160g protein, 310g carbs, and 80g fat. You're making solid progress!"
+    return "Your daily goals are set to 2600 calories, 160g protein, 310g carbs, and 80g fat. You're making solid progress!"
   }
 
   if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('hey')) {
