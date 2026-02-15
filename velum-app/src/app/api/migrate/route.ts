@@ -120,7 +120,27 @@ export async function POST(request: NextRequest) {
       ORDER BY date DESC
     `
     results.push('✅ Created daily_nutrition_summary view')
-    
+
+    // Agent memories table for persistent memory across sessions
+    await sql`
+      CREATE TABLE IF NOT EXISTS agent_memories (
+        id VARCHAR(50) PRIMARY KEY,
+        category VARCHAR(50) NOT NULL,
+        key VARCHAR(255) NOT NULL,
+        value TEXT NOT NULL,
+        source VARCHAR(50) DEFAULT 'agent',
+        agent_id VARCHAR(50),
+        confidence DECIMAL(3,2) DEFAULT 1.0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
+        UNIQUE(category, key)
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_memories_category ON agent_memories(category)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC)`
+    results.push('✅ Created agent_memories table')
+
     return NextResponse.json({
       success: true,
       results,
