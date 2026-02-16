@@ -666,24 +666,24 @@ function ProfileContent() {
   const [editCountry, setEditCountry] = useState('');
   const [editLifeExpectancy, setEditLifeExpectancy] = useState('85');
   const { status: syncStatus, sync } = useSync();
-  const { status: updateStatus, isChecking, isUpdateAvailable, checkAndUpdate, applyUpdate, releaseNotes, error: updateError, currentVersion, remoteVersion } = useAppUpdate();
-
-  const handleUpdateApp = useCallback(() => {
-    if (isUpdateAvailable) {
-      Alert.alert(
-        'Update Available',
-        releaseNotes
-          ? `${releaseNotes}\n\nDownload and install the new APK?`
-          : 'A new version is available. Download and install?',
-        [
-          { text: 'Later', style: 'cancel' },
-          { text: 'Download', onPress: applyUpdate },
-        ],
-      );
-    } else {
-      checkAndUpdate();
-    }
-  }, [isUpdateAvailable, checkAndUpdate, applyUpdate, releaseNotes]);
+  const {
+    status: updateStatus,
+    isChecking,
+    isUpdateAvailable,
+    isDownloading,
+    isDownloaded,
+    isInstalling,
+    checkAndUpdate,
+    downloadAndInstall,
+    installUpdate,
+    releaseNotes,
+    error: updateError,
+    currentVersion,
+    remoteVersion,
+    downloadProgress,
+    apkSizeBytes,
+    formatBytes,
+  } = useAppUpdate();
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -841,43 +841,126 @@ function ProfileContent() {
         <Text style={styles.syncButtonText}>Force Sync Now</Text>
       </Pressable>
 
-      {/* Update App */}
-      <Pressable
-        style={[
-          styles.updateButton,
-          isUpdateAvailable && styles.updateButtonReady,
-        ]}
-        onPress={handleUpdateApp}
-        disabled={isChecking}
-      >
-        <Ionicons
-          name={
-            isUpdateAvailable
-              ? 'download-outline'
-              : isChecking
-              ? 'hourglass-outline'
-              : 'cloud-download-outline'
-          }
-          size={18}
-          color={isUpdateAvailable ? colors.darkText : colors.accent}
-        />
-        <Text
-          style={[
-            styles.updateButtonText,
-            isUpdateAvailable && styles.updateButtonTextReady,
-          ]}
-        >
-          {isChecking
-            ? 'Checking for Updates...'
-            : isUpdateAvailable
-            ? `Download v${remoteVersion}`
-            : updateStatus === 'up-to-date'
-            ? `v${currentVersion} — Up to Date`
-            : updateStatus === 'error'
-            ? `Update Failed — Tap to Retry`
-            : 'Check for Updates'}
+      {/* App Update Section */}
+      <Card style={styles.updateCard}>
+        <SectionHeader title="App Updates" />
+        <Text style={styles.updateSource}>
+          Auto-updates via GitHub Releases
         </Text>
-      </Pressable>
+
+        {/* Update available — show release notes + download */}
+        {isUpdateAvailable && (
+          <View style={styles.updateAvailableBox}>
+            <View style={styles.updateVersionRow}>
+              <Ionicons name="arrow-up-circle" size={20} color={colors.success} />
+              <Text style={styles.updateVersionText}>
+                v{remoteVersion} available
+              </Text>
+              {apkSizeBytes ? (
+                <Text style={styles.updateSizeText}>
+                  {formatBytes(apkSizeBytes)}
+                </Text>
+              ) : null}
+            </View>
+            {releaseNotes ? (
+              <Text style={styles.releaseNotes} numberOfLines={4}>
+                {releaseNotes}
+              </Text>
+            ) : null}
+            <Pressable
+              style={styles.downloadBtn}
+              onPress={downloadAndInstall}
+            >
+              <Ionicons name="download-outline" size={18} color={colors.darkText} />
+              <Text style={styles.downloadBtnText}>Download & Install</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Downloading — progress bar */}
+        {isDownloading && (
+          <View style={styles.downloadingBox}>
+            <View style={styles.downloadingHeader}>
+              <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
+              <Text style={styles.downloadingText}>
+                Downloading v{remoteVersion}...
+              </Text>
+              <Text style={styles.downloadingPct}>
+                {Math.round(downloadProgress * 100)}%
+              </Text>
+            </View>
+            <View style={styles.progressBarTrack}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${Math.min(downloadProgress * 100, 100)}%` },
+                ]}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Downloaded — install button */}
+        {isDownloaded && (
+          <View style={styles.updateAvailableBox}>
+            <View style={styles.updateVersionRow}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Text style={styles.updateVersionText}>
+                v{remoteVersion} downloaded
+              </Text>
+            </View>
+            <Pressable
+              style={styles.downloadBtn}
+              onPress={installUpdate}
+            >
+              <Ionicons name="open-outline" size={18} color={colors.darkText} />
+              <Text style={styles.downloadBtnText}>Install Now</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Installing */}
+        {isInstalling && (
+          <View style={styles.downloadingBox}>
+            <View style={styles.downloadingHeader}>
+              <Ionicons name="hourglass-outline" size={18} color={colors.accent} />
+              <Text style={styles.downloadingText}>Opening installer...</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Error */}
+        {updateStatus === 'error' && updateError && (
+          <View style={styles.updateErrorBox}>
+            <Ionicons name="warning-outline" size={16} color={colors.error} />
+            <Text style={styles.updateErrorText}>{updateError}</Text>
+          </View>
+        )}
+
+        {/* Check / up-to-date button */}
+        {!isUpdateAvailable && !isDownloading && !isDownloaded && !isInstalling && (
+          <Pressable
+            style={styles.checkUpdateBtn}
+            onPress={checkAndUpdate}
+            disabled={isChecking}
+          >
+            <Ionicons
+              name={isChecking ? 'hourglass-outline' : 'refresh-outline'}
+              size={18}
+              color={colors.accent}
+            />
+            <Text style={styles.checkUpdateText}>
+              {isChecking
+                ? 'Checking...'
+                : updateStatus === 'up-to-date'
+                ? `v${currentVersion} — Up to Date`
+                : updateStatus === 'error'
+                ? 'Retry Update Check'
+                : 'Check for Updates'}
+            </Text>
+          </Pressable>
+        )}
+      </Card>
     </>
   );
 }
@@ -994,21 +1077,77 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   syncButtonText: { fontSize: 14, fontWeight: '600', color: colors.accent },
-  updateButton: {
+  updateCard: { marginTop: 12, marginBottom: 12 },
+  updateSource: { fontSize: 12, color: colors.textLight, marginBottom: 10 },
+  updateAvailableBox: {
+    backgroundColor: colors.success + '10',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  updateVersionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  updateVersionText: { fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
+  updateSizeText: { fontSize: 12, color: colors.textLight },
+  releaseNotes: { fontSize: 13, color: colors.textLight, marginBottom: 10, lineHeight: 18 },
+  downloadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.dark,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  downloadBtnText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
+  downloadingBox: {
+    backgroundColor: colors.accent + '10',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  downloadingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  downloadingText: { fontSize: 14, fontWeight: '600', color: colors.text, flex: 1 },
+  downloadingPct: { fontSize: 14, fontWeight: '700', color: colors.accent },
+  progressBarTrack: {
+    height: 8,
+    backgroundColor: colors.hover,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.accent,
+    borderRadius: 4,
+  },
+  updateErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.error + '10',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  updateErrorText: { fontSize: 13, color: colors.error, flex: 1 },
+  checkUpdateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.accent,
-    gap: 8,
-    marginTop: 10,
+    borderColor: colors.border,
   },
-  updateButtonReady: {
-    backgroundColor: colors.dark,
-    borderColor: colors.dark,
-  },
-  updateButtonText: { fontSize: 14, fontWeight: '600', color: colors.accent },
-  updateButtonTextReady: { color: colors.darkText },
+  checkUpdateText: { fontSize: 14, fontWeight: '600', color: colors.accent },
 });

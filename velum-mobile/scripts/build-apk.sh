@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# build-apk.sh — Build Velum Mobile APK (arm64)
+# build-apk.sh — Build Velum Mobile APK (arm64) + GitHub Release
 #
 # Usage:
 #   ./scripts/build-apk.sh           # uses version from app.json
-#   ./scripts/build-apk.sh 1.2.0     # override version
+#   ./scripts/build-apk.sh 1.3.0     # override version
 #
 # Prerequisites:
 #   - Node.js & npm (with project deps installed)
 #   - Java 17+ (JAVA_HOME set)
 #   - Android SDK (ANDROID_HOME set, or at /opt/android-sdk)
 #   - NDK 27.x installed via SDK manager
+#   - gh CLI (optional, for auto-publishing GitHub Release)
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -88,8 +89,42 @@ echo "BUILD SUCCESSFUL"
 echo "  APK: $APK_DST ($APK_SIZE)"
 echo "  Version: $VERSION"
 echo "  Arch: arm64-v8a"
-echo ""
-echo "Next steps:"
-echo "  1. Update velum-app/src/app/api/app-version/route.ts with version $VERSION"
-echo "  2. git add $APK_DST && git commit && git push"
-echo "  3. Merge to main so the download URL works"
+
+# ── Step 6: Create GitHub Release (if gh CLI available) ──────
+if command -v gh &>/dev/null; then
+  echo ""
+  echo "Publishing GitHub Release..."
+
+  TAG="v${VERSION}"
+
+  # Check if release already exists
+  if gh release view "$TAG" &>/dev/null 2>&1; then
+    echo "Release $TAG already exists — uploading APK asset..."
+    gh release upload "$TAG" "$APK_DST" --clobber
+  else
+    gh release create "$TAG" "$APK_DST" \
+      --title "Velum Mobile $TAG" \
+      --notes "Velum Mobile v${VERSION}
+
+## What's new
+- Auto-update system: checks GitHub Releases for new versions
+- In-app APK download with progress bar
+- One-tap install after download
+- Background update checks with 6-hour cooldown
+
+## Install
+Download \`${APK_DST}\` and install on your Android device.
+" \
+      --latest
+
+    echo "GitHub Release $TAG published!"
+  fi
+  echo "  URL: https://github.com/MehighCB3/Velum/releases/tag/$TAG"
+else
+  echo ""
+  echo "Next steps (gh CLI not found — publish manually):"
+  echo "  1. git add $APK_DST && git commit && git push"
+  echo "  2. Create a GitHub Release tagged v$VERSION"
+  echo "  3. Upload $APK_DST as a release asset"
+  echo "  4. The app will auto-detect the new version on next check"
+fi
