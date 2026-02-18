@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-app: #faf8f5;
+  --bg-dark: #1e1c19;
+  --bg-dark-inner: #2a2825;
+  --bg-card: #ffffff;
+  --border-card: #f0ece6;
+  --border-subtle: #f5f3ef;
+  --accent: #c4956a;
+  --text-primary: #2d2a26;
+  --text-secondary: #b5b0a8;
+  --text-muted: #a09b93;
+  --text-dark-muted: #706b63;
+  --success: #6ec87a;
+  --error: #e85c5c;
+  --protein: #6ba3d6;
+  --carbs: #6ec87a;
+  --fat: #e8a85c;
+  --purple: #9b8ed6;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  color: var(--text-primary);
+  background: var(--bg-app);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d3d1cb;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b4b4b4;
+}
+
+input, textarea, button {
+  font-family: inherit;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+}
