@@ -26,25 +26,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ── Reclaim disk space (saves ~12GB) ──
       - name: Free disk space
-        working-directory: .
-        run: |
-          sudo rm -rf /usr/local/lib/android/sdk/ndk/26.* || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /opt/ghc || true
-          echo "Free space after cleanup:"
-          df -h /
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false          # Keep Android SDK
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false     # We set up our own swap
 
+      - name: Report disk space
+        run: df -h /
+
+      # ── Setup swap (6GB — critical for Gradle on 7GB RAM runners) ──
       - name: Setup swap space
         working-directory: .
         run: |
-          sudo fallocate -l 4G /swapfile
+          sudo fallocate -l 6G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
           echo "Swap enabled:"
           free -h
 
+      # ── Toolchain ──
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -57,13 +65,16 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      # ── Dependencies ──
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      # ── Version ──
       - name: Determine version
         id: version
         run: |
@@ -78,6 +89,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
+      # ── Native project ──
       - name: Generate native Android project
         run: npx expo prebuild --platform android --clean --no-install
         env:
@@ -87,6 +99,13 @@ jobs:
       - name: Setup Gradle
         run: chmod +x android/gradlew
 
+      # ── C++ build cache (40-50% faster subsequent builds) ──
+      - name: Setup buildcache
+        uses: mikehardy/buildcache-action@v2
+        with:
+          cache_key: android-arm64
+
+      # ── Gradle caches ──
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
@@ -94,20 +113,27 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             velum-mobile/android/.gradle
-          key: gradle-${{ runner.os }}-${{ hashFiles('velum-mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-${{ hashFiles('velum-mobile/android/gradle/wrapper/gradle-wrapper.properties', 'velum-mobile/android/build.gradle', 'velum-mobile/android/app/build.gradle') }}
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      # ── Build APK (arm64 only, constrained for CI) ──
       - name: Build release APK (arm64)
         run: |
           cd android
           ./gradlew assembleRelease \
             --no-daemon \
             --max-workers=2 \
-            -PreactNativeArchitectures=arm64-v8a
+            -PreactNativeArchitectures=arm64-v8a \
+            -Dorg.gradle.caching=true
         env:
-          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError'
+          GRADLE_OPTS: >-
+            -Xmx4g
+            -XX:MaxMetaspaceSize=512m
+            -XX:+HeapDumpOnOutOfMemoryError
+            -Dfile.encoding=UTF-8
 
+      # ── Artifact ──
       - name: Rename APK
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -122,6 +148,7 @@ jobs:
           path: velum-mobile/velum-v*-arm64.apk
           retention-days: 30
 
+      # ── GitHub Release ──
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -133,6 +160,10 @@ jobs:
 
             ### Install
             Download `velum-v${{ steps.version.outputs.version }}-arm64.apk` and install on your Android device.
+
+            ### Update System
+            - **JS changes** are delivered instantly via OTA (no APK download needed)
+            - **Native changes** require this APK update
 
             Built automatically via GitHub Actions.
           draft: false
