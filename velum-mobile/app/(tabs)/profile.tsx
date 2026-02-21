@@ -26,6 +26,23 @@ import { useOTAUpdate } from '../../src/hooks/useOTAUpdate';
 
 type SubTab = 'profile' | 'goals';
 
+const MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** Format an ISO date string (e.g. "1993-09-23T00:00:00.000Z") as "Sep 23, 1993" */
+function formatBirthDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+/** Safe number formatter — avoids toLocaleString() which can crash on Hermes */
+function fmt(n: number, decimals = 0): string {
+  return decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
+}
+
 // ==================== GOALS CONTENT ====================
 
 const HORIZONS: { key: GoalHorizon; label: string; icon: string }[] = [
@@ -796,7 +813,7 @@ function ProfileContent() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Birth Date</Text>
               <Text style={styles.detailValue}>
-                {profile?.birth_date || 'Not set'}
+                {profile?.birth_date ? formatBirthDate(profile.birth_date) : 'Not set'}
               </Text>
             </View>
             <View style={styles.detailRow}>
@@ -845,11 +862,23 @@ function ProfileContent() {
         </View>
       </Card>
 
-      {/* Manual Sync */}
-      <Pressable style={styles.syncButton} onPress={sync}>
-        <Ionicons name="sync" size={18} color={colors.accent} />
-        <Text style={styles.syncButtonText}>Force Sync Now</Text>
-      </Pressable>
+      {/* Action Buttons */}
+      <View style={styles.actionRow}>
+        <Pressable style={styles.syncButton} onPress={sync}>
+          <Ionicons name="sync" size={18} color={colors.accent} />
+          <Text style={styles.syncButtonText}>Force Sync</Text>
+        </Pressable>
+        <Pressable
+          style={styles.updateButton}
+          onPress={() => { checkAndUpdate(); otaManualCheck(); }}
+          disabled={isChecking || otaChecking}
+        >
+          <Ionicons name="download-outline" size={18} color={colors.textLight} />
+          <Text style={styles.updateButtonText}>
+            {isChecking || otaChecking ? 'Checking...' : 'Update App'}
+          </Text>
+        </Pressable>
+      </View>
 
       {/* OTA Updates (JS-only, instant) */}
       {(otaReady || otaDownloading) && (
@@ -1047,7 +1076,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
   tabBar: {
@@ -1109,7 +1138,13 @@ const styles = StyleSheet.create({
   infoCard: { marginBottom: 12 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   infoText: { fontSize: 13, color: colors.textLight },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 4,
+  },
   syncButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1120,6 +1155,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   syncButtonText: { fontSize: 14, fontWeight: '600', color: colors.accent },
+  updateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  updateButtonText: { fontSize: 14, fontWeight: '600', color: colors.textLight },
   updateCard: { marginTop: 12, marginBottom: 12 },
   updateSource: { fontSize: 12, color: colors.textLight, marginBottom: 10 },
   updateAvailableBox: {

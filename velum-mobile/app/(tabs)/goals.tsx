@@ -49,6 +49,8 @@ export default function GoalsScreen() {
     useGoals();
   const [activeHorizon, setActiveHorizon] = useState<GoalHorizon>('year');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [inlineValue, setInlineValue] = useState('');
 
   // Cross-platform progress input modal (replaces iOS-only Alert.prompt)
   const [progressGoal, setProgressGoal] = useState<Goal | null>(null);
@@ -206,7 +208,7 @@ export default function GoalsScreen() {
                   <View style={styles.progressContainer}>
                     <View style={styles.progressRow}>
                       <Text style={styles.progressText}>
-                        {goal.currentValue} / {goal.targetValue} {goal.unit}
+                        {goal.unit === '€' ? `€${goal.currentValue} / €${goal.targetValue}` : `${goal.currentValue} / ${goal.targetValue} ${goal.unit}`}
                       </Text>
                       <Text style={styles.progressPercent}>
                         {Math.round(Math.min(progress, 1) * 100)}%
@@ -225,10 +227,73 @@ export default function GoalsScreen() {
                     </View>
                   </View>
                 )}
+
+                {/* Inline action buttons per v2 spec */}
+                {!isComplete && (
+                  editingGoalId === goal.id ? (
+                    <View style={styles.inlineEditRow}>
+                      <TextInput
+                        style={styles.inlineInput}
+                        value={inlineValue}
+                        onChangeText={setInlineValue}
+                        keyboardType="decimal-pad"
+                        placeholder={`Current ${goal.unit}`}
+                        placeholderTextColor={colors.textLight}
+                        autoFocus
+                        onSubmitEditing={() => {
+                          const num = Number(inlineValue);
+                          if (!isNaN(num)) updateProgress(goal.id, num);
+                          setEditingGoalId(null);
+                          setInlineValue('');
+                        }}
+                      />
+                      <Pressable
+                        style={styles.inlineSaveBtn}
+                        onPress={() => {
+                          const num = Number(inlineValue);
+                          if (!isNaN(num)) updateProgress(goal.id, num);
+                          setEditingGoalId(null);
+                          setInlineValue('');
+                        }}
+                      >
+                        <Text style={styles.inlineSaveText}>Save</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.inlineCancelBtn}
+                        onPress={() => { setEditingGoalId(null); setInlineValue(''); }}
+                      >
+                        <Text style={styles.inlineCancelText}>✕</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={styles.goalActions}>
+                      <Pressable
+                        style={styles.updateBtn}
+                        onPress={() => {
+                          setEditingGoalId(goal.id);
+                          setInlineValue(String(goal.currentValue));
+                        }}
+                      >
+                        <Text style={styles.updateBtnText}>Update Progress</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.editBtn}
+                        onPress={() => handleGoalAction(goal)}
+                      >
+                        <Text style={styles.editBtnText}>Edit Goal</Text>
+                      </Pressable>
+                    </View>
+                  )
+                )}
               </Card>
             );
           })
         )}
+
+        {/* Dashed Add Goal button per v2 spec */}
+        <Pressable style={styles.addGoalDashed} onPress={() => setShowAddModal(true)}>
+          <Text style={styles.addGoalDashedText}>+ Add Goal</Text>
+        </Pressable>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -284,7 +349,7 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
   tabsContainer: { marginBottom: 12 },
@@ -404,4 +469,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressSubmitText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
+  // Inline v2 goal action buttons
+  goalActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  updateBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  updateBtnText: { fontSize: 11, fontWeight: '600', color: '#ffffff' },
+  editBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  editBtnText: { fontSize: 11, fontWeight: '600', color: colors.textLight },
+  inlineEditRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 12 },
+  inlineInput: {
+    flex: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    fontSize: 13,
+    color: colors.text,
+    backgroundColor: colors.bg,
+  },
+  inlineSaveBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  inlineSaveText: { fontSize: 11, fontWeight: '600', color: '#ffffff' },
+  inlineCancelBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  inlineCancelText: { fontSize: 11, fontWeight: '600', color: colors.textLight },
+  addGoalDashed: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  addGoalDashedText: { fontSize: 13, fontWeight: '600', color: colors.textLight },
 });

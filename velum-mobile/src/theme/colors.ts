@@ -1,60 +1,66 @@
-// Velum design system — Notion-inspired palette adapted for mobile
-// Matches the web app's tailwind.config.js color scheme
+// Velum v2 design system — warm palette from redesign spec
+// Reference: VELUM-V2-SPEC.md + velum-redesign.jsx
 
 export const colors = {
-  // Core Notion palette
-  bg: '#ffffff',
-  sidebar: '#f7f6f3',
-  hover: '#ebebea',
-  border: '#e3e2e0',
-  text: '#37352f',
-  textLight: '#9b9a97',
-  accent: '#c8956a',
+  // Core v2 palette
+  bg: '#faf8f5',
+  card: '#ffffff',
+  sidebar: '#faf8f5',
+  hover: '#f5f3ef',
+  border: '#f0ece6',
+  borderSubtle: '#f5f3ef',
+  text: '#2d2a26',
+  textLight: '#b5b0a8',
+  textMuted: '#a09b93',
+  accent: '#c4956a',
 
-  // Dark surfaces (hero cards, headers)
-  dark: '#141416',
-  darkSecondary: '#1e1e22',
-  darkTertiary: '#2a2a30',
+  // Dark surfaces (hero cards)
+  dark: '#1e1c19',
+  darkInner: '#2a2825',
+  darkSecondary: '#2a2825',
+  darkTertiary: '#2a2825',
   darkText: '#ffffff',
-  darkTextSecondary: '#a8a29e',
+  darkTextSecondary: '#a09b93',
+  darkTextMuted: '#706b63',
 
   // Semantic colors
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  info: '#3b82f6',
+  success: '#6ec87a',
+  warning: '#e8a85c',
+  error: '#e85c5c',
+  info: '#6ba3d6',
+  purple: '#9b8ed6',
 
   // Macro colors (nutrition)
-  calories: '#f59e0b',
-  protein: '#3b82f6',
-  carbs: '#10b981',
-  fat: '#f97316',
+  calories: '#c4956a',
+  protein: '#6ba3d6',
+  carbs: '#6ec87a',
+  fat: '#e8a85c',
 
   // Category colors (budget)
-  food: '#f97316',
-  fun: '#8b5cf6',
-  transport: '#3b82f6',
-  subscriptions: '#06b6d4',
-  other: '#6b7280',
+  food: '#e8a85c',
+  fun: '#9b8ed6',
+  transport: '#6ba3d6',
+  subscriptions: '#6ec87a',
+  other: '#b5b0a8',
 
   // Fitness extra
-  gym: '#a855f7',
+  gym: '#9b8ed6',
 
   // Fitness colors
-  steps: '#10b981',
-  run: '#3b82f6',
-  swim: '#06b6d4',
-  cycle: '#f59e0b',
-  jiujitsu: '#ef4444',
+  steps: '#c4956a',
+  run: '#6ba3d6',
+  swim: '#6ec87a',
+  cycle: '#e8a85c',
+  jiujitsu: '#e85c5c',
 
   // Recovery status
-  recoveryGood: '#10b981',
-  recoveryFair: '#f59e0b',
-  recoveryPoor: '#ef4444',
+  recoveryGood: '#6ec87a',
+  recoveryFair: '#e8a85c',
+  recoveryPoor: '#e85c5c',
 
   // Tab bar
-  tabActive: '#c8956a',
-  tabInactive: '#9b9a97',
+  tabActive: '#c4956a',
+  tabInactive: '#b5b0a8',
 } as const;
 
 export type ColorKey = keyof typeof colors;
