@@ -22,6 +22,7 @@ import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { useSync } from '../../src/hooks/useSync';
 import { useGoals } from '../../src/hooks/useGoals';
 import { useAppUpdate } from '../../src/hooks/useAppUpdate';
+import { useOTAUpdate } from '../../src/hooks/useOTAUpdate';
 
 type SubTab = 'profile' | 'goals';
 
@@ -684,6 +685,15 @@ function ProfileContent() {
     apkSizeBytes,
     formatBytes,
   } = useAppUpdate();
+  const {
+    status: otaStatus,
+    isReady: otaReady,
+    isChecking: otaChecking,
+    isDownloading: otaDownloading,
+    manualCheck: otaManualCheck,
+    restart: otaRestart,
+    error: otaError,
+  } = useOTAUpdate();
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -841,11 +851,44 @@ function ProfileContent() {
         <Text style={styles.syncButtonText}>Force Sync Now</Text>
       </Pressable>
 
-      {/* App Update Section */}
+      {/* OTA Updates (JS-only, instant) */}
+      {(otaReady || otaDownloading) && (
+        <Card style={styles.updateCard}>
+          <SectionHeader title="Instant Update" />
+          {otaDownloading && (
+            <View style={styles.downloadingBox}>
+              <View style={styles.downloadingHeader}>
+                <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
+                <Text style={styles.downloadingText}>Downloading update...</Text>
+              </View>
+            </View>
+          )}
+          {otaReady && (
+            <View style={styles.updateAvailableBox}>
+              <View style={styles.updateVersionRow}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={styles.updateVersionText}>Update ready</Text>
+              </View>
+              <Text style={styles.releaseNotes}>
+                A new version is downloaded and will apply on next restart.
+              </Text>
+              <Pressable style={styles.downloadBtn} onPress={otaRestart}>
+                <Ionicons name="refresh-outline" size={18} color={colors.darkText} />
+                <Text style={styles.downloadBtnText}>Restart Now</Text>
+              </Pressable>
+            </View>
+          )}
+        </Card>
+      )}
+
+      {/* App Update Section (APK — native changes only) */}
       <Card style={styles.updateCard}>
         <SectionHeader title="App Updates" />
         <Text style={styles.updateSource}>
-          Auto-updates via GitHub Releases
+          JS updates: automatic via OTA  {otaChecking ? '(checking...)' : otaStatus === 'up-to-date' ? '(up to date)' : otaError ? '(EAS not configured)' : ''}
+        </Text>
+        <Text style={[styles.updateSource, { marginBottom: 10 }]}>
+          Native updates: via GitHub Releases
         </Text>
 
         {/* Update available — show release notes + download */}
@@ -941,16 +984,16 @@ function ProfileContent() {
         {!isUpdateAvailable && !isDownloading && !isDownloaded && !isInstalling && (
           <Pressable
             style={styles.checkUpdateBtn}
-            onPress={checkAndUpdate}
-            disabled={isChecking}
+            onPress={() => { checkAndUpdate(); otaManualCheck(); }}
+            disabled={isChecking || otaChecking}
           >
             <Ionicons
-              name={isChecking ? 'hourglass-outline' : 'refresh-outline'}
+              name={isChecking || otaChecking ? 'hourglass-outline' : 'refresh-outline'}
               size={18}
               color={colors.accent}
             />
             <Text style={styles.checkUpdateText}>
-              {isChecking
+              {isChecking || otaChecking
                 ? 'Checking...'
                 : updateStatus === 'up-to-date'
                 ? `v${currentVersion} — Up to Date`
