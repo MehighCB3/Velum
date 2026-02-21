@@ -182,7 +182,7 @@ export default function FitnessScreen() {
         </DarkCard>
 
         {/* Insights */}
-        {computedInsights.length > 0 && <InsightBanner items={computedInsights} />}
+        {computedInsights.length > 0 && <InsightBanner insights={computedInsights} />}
         {fitnessInsights.map((insight) => (
           <AgentInsightCard key={insight.agentId} insight={insight} />
         ))}

@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.velum.mobile",
       "infoPlist": {
         "NSHealthShareUsageDescription": "Velum uses health data to track your fitness metrics.",
-        "NSMicrophoneUsageDescription": "Velum uses the microphone for Spanish pronunciation practice."
+        "NSMicrophoneUsageDescription": "Velum uses the microphone for Spanish pronunciation practice.",
+        "NSCameraUsageDescription": "Velum uses the camera to identify food and log nutrition automatically.",
+        "NSPhotoLibraryUsageDescription": "Velum accesses photos to identify food for nutrition logging."
       }
     },
     "android": {
@@ -32,7 +34,9 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.RECORD_AUDIO",
         "android.permission.REQUEST_INSTALL_PACKAGES",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
       ]
     },
     "updates": {
@@ -52,6 +56,13 @@
         "expo-av",
         {
           "microphonePermission": "Velum uses the microphone for Spanish pronunciation practice."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Velum accesses photos to identify food for nutrition logging.",
+          "cameraPermission": "Velum uses the camera to identify food and log nutrition automatically."
         }
       ]
     ],
