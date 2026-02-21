@@ -16,6 +16,7 @@ import { Audio } from 'expo-av';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { colors } from '../../src/theme/colors';
 import { spanishApi } from '../../src/api/client';
+import { API_BASE } from '../../src/api/config';
 import { SpanishCard, SpanishDeckStats } from '../../src/types';
 import { Card, DarkCard, EmptyState } from '../../src/components/Card';
 import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
@@ -98,9 +99,7 @@ function ExercisesView() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(
-          `${__DEV__ ? 'http://localhost:3000' : 'https://velum-five.vercel.app'}/api/spanish/exercises`,
-        );
+        const res = await fetch(`${API_BASE}/api/spanish/exercises`);
         const data = await res.json();
         setExercises(data.exercises || []);
       } catch {
@@ -378,10 +377,6 @@ const exStyles = StyleSheet.create({
 });
 
 // ==================== PRONUNCIATION PRACTICE ====================
-
-const API_BASE = __DEV__
-  ? 'http://localhost:3000'
-  : 'https://velum-five.vercel.app';
 
 function PronunciationView({ cards }: { cards: SpanishCard[] }) {
   const [currentIdx, setCurrentIdx] = useState(0);

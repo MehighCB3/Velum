@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
               id,
               type: 'weight',
               date,
-              value: weight,
+              weight,
               notes: description || '',
               name: 'Weight',
             },
