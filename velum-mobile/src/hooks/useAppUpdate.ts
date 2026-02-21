@@ -161,7 +161,18 @@ export function useAppUpdate() {
           await setSyncMeta('lastUpdateCheck', new Date().toISOString());
           return;
         }
-        throw new Error(`GitHub API returned ${res.status}`);
+        if (res.status === 401 || res.status === 403) {
+          // Private repo or auth required — silently treat as up-to-date
+          setState((s) => ({
+            ...s,
+            status: 'up-to-date',
+            lastChecked: new Date().toISOString(),
+            remoteVersion: getCurrentVersion(),
+          }));
+          await setSyncMeta('lastUpdateCheck', new Date().toISOString());
+          return;
+        }
+        throw new Error(`Update check failed (${res.status})`);
       }
 
       const release = await res.json();

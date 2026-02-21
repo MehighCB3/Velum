@@ -11,8 +11,12 @@ import {
   Modal,
   Image,
   Dimensions,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { format, subDays } from 'date-fns';
 import { colors } from '../../src/theme/colors';
 import { useNutrition } from '../../src/hooks/useNutrition';
@@ -24,6 +28,7 @@ import { MacroBar } from '../../src/components/MacroBar';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { nutritionApi } from '../../src/api/client';
+import { API_BASE } from '../../src/api/config';
 import { NutritionDay, NutritionEntry } from '../../src/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -489,6 +494,210 @@ const calStyles = StyleSheet.create({
   legendText: { fontSize: 11, color: colors.textLight },
 });
 
+// ==================== FOOD SCAN MODAL ====================
+
+interface ScanResult {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  serving: string;
+  confidence: 'high' | 'medium' | 'low';
+  note?: string;
+}
+
+function FoodScanModal({
+  visible,
+  scanning,
+  result,
+  onClose,
+  onConfirm,
+}: {
+  visible: boolean;
+  scanning: boolean;
+  result: ScanResult | null;
+  onClose: () => void;
+  onConfirm: (r: ScanResult) => void;
+}) {
+  const [name, setName] = useState('');
+  const [calories, setCalories] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
+
+  useEffect(() => {
+    if (result) {
+      setName(result.name);
+      setCalories(String(result.calories));
+      setProtein(String(result.protein));
+      setCarbs(String(result.carbs));
+      setFat(String(result.fat));
+    }
+  }, [result]);
+
+  const handleConfirm = () => {
+    onConfirm({
+      name: name || 'Unknown food',
+      calories: Number(calories) || 0,
+      protein: Number(protein) || 0,
+      carbs: Number(carbs) || 0,
+      fat: Number(fat) || 0,
+      serving: result?.serving || '1 serving',
+      confidence: result?.confidence || 'medium',
+    });
+  };
+
+  const confidenceColor =
+    result?.confidence === 'high'
+      ? colors.success
+      : result?.confidence === 'medium'
+      ? colors.warning
+      : colors.error;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <KeyboardAvoidingView
+        style={scanStyles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable style={scanStyles.backdrop} onPress={onClose} />
+        <View style={scanStyles.sheet}>
+          <View style={scanStyles.handle} />
+
+          {scanning ? (
+            <View style={scanStyles.loadingBox}>
+              <ActivityIndicator size="large" color={colors.accent} />
+              <Text style={scanStyles.loadingText}>Identifying food...</Text>
+              <Text style={scanStyles.loadingSubtext}>AI is analyzing your photo</Text>
+            </View>
+          ) : result ? (
+            <>
+              <View style={scanStyles.header}>
+                <Text style={scanStyles.headerTitle}>Food Detected</Text>
+                <View style={[scanStyles.confidenceBadge, { backgroundColor: confidenceColor + '20' }]}>
+                  <Text style={[scanStyles.confidenceText, { color: confidenceColor }]}>
+                    {result.confidence === 'high'
+                      ? '✓ High'
+                      : result.confidence === 'medium'
+                      ? '~ Medium'
+                      : '? Low'}
+                  </Text>
+                </View>
+              </View>
+
+              {result.note ? <Text style={scanStyles.note}>{result.note}</Text> : null}
+              <Text style={scanStyles.serving}>{result.serving}</Text>
+
+              <View style={scanStyles.fieldRow}>
+                <Text style={scanStyles.fieldLabel}>Name</Text>
+                <TextInput
+                  style={[scanStyles.fieldInput, { flex: 1 }]}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Food name"
+                  placeholderTextColor={colors.textLight}
+                />
+              </View>
+
+              <View style={scanStyles.macroGrid}>
+                {[
+                  { label: 'Calories', value: calories, set: setCalories, unit: 'kcal', color: colors.accent },
+                  { label: 'Protein', value: protein, set: setProtein, unit: 'g', color: colors.protein },
+                  { label: 'Carbs', value: carbs, set: setCarbs, unit: 'g', color: colors.carbs },
+                  { label: 'Fat', value: fat, set: setFat, unit: 'g', color: colors.fat },
+                ].map((f) => (
+                  <View key={f.label} style={scanStyles.macroItem}>
+                    <Text style={[scanStyles.macroLabel, { color: f.color }]}>{f.label}</Text>
+                    <View style={scanStyles.macroInputRow}>
+                      <TextInput
+                        style={scanStyles.macroInput}
+                        value={f.value}
+                        onChangeText={f.set}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={colors.textLight}
+                      />
+                      <Text style={scanStyles.macroUnit}>{f.unit}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={scanStyles.buttons}>
+                <Pressable style={scanStyles.cancelBtn} onPress={onClose}>
+                  <Text style={scanStyles.cancelText}>Discard</Text>
+                </Pressable>
+                <Pressable style={scanStyles.confirmBtn} onPress={handleConfirm}>
+                  <Ionicons name="add-circle-outline" size={18} color={colors.darkText} />
+                  <Text style={scanStyles.confirmText}>Log Meal</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const scanStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16,
+  },
+  loadingBox: { alignItems: 'center', paddingVertical: 40, gap: 12 },
+  loadingText: { fontSize: 17, fontWeight: '700', color: colors.text },
+  loadingSubtext: { fontSize: 13, color: colors.textLight },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 6,
+  },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
+  confidenceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  confidenceText: { fontSize: 11, fontWeight: '600' },
+  note: { fontSize: 12, color: colors.warning, marginBottom: 4, fontStyle: 'italic' },
+  serving: { fontSize: 12, color: colors.textLight, marginBottom: 16 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.text, width: 60 },
+  fieldInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8, fontSize: 14,
+    color: colors.text, backgroundColor: colors.sidebar,
+  },
+  macroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  macroItem: { width: '47%' },
+  macroLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  macroInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  macroInput: {
+    flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, fontWeight: '700',
+    color: colors.text, backgroundColor: colors.sidebar, textAlign: 'center',
+  },
+  macroUnit: { fontSize: 11, color: colors.textLight, width: 24 },
+  buttons: { flexDirection: 'row', gap: 10 },
+  cancelBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
+  },
+  cancelText: { fontSize: 15, fontWeight: '600', color: colors.textLight },
+  confirmBtn: {
+    flex: 2, paddingVertical: 13, borderRadius: 10, backgroundColor: colors.dark,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  confirmText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
+});
+
 // ==================== MAIN SCREEN ====================
 
 export default function NutritionScreen() {
@@ -498,6 +707,70 @@ export default function NutritionScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const [selectedEntry, setSelectedEntry] = useState<NutritionEntry | null>(null);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+
+  const handleScanFood = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Camera permission required', 'Please allow camera access in Settings to scan food.');
+      return;
+    }
+
+    const picked = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 0.6,
+      allowsEditing: false,
+    });
+
+    if (picked.canceled || !picked.assets?.[0]?.base64) return;
+
+    setShowScanModal(true);
+    setScanning(true);
+    setScanResult(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/nutrition/photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: picked.assets[0].base64,
+          mimeType: picked.assets[0].mimeType || 'image/jpeg',
+        }),
+      });
+      const json = await res.json();
+      if (json.result) {
+        setScanResult(json.result as ScanResult);
+      } else {
+        throw new Error(json.error || 'No result');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to analyze photo';
+      Alert.alert('Scan Failed', msg);
+      setShowScanModal(false);
+    } finally {
+      setScanning(false);
+    }
+  }, []);
+
+  const handleConfirmScan = useCallback(
+    async (result: ScanResult) => {
+      await addEntry({
+        id: `${Date.now()}`,
+        name: result.name,
+        calories: result.calories,
+        protein: result.protein,
+        carbs: result.carbs,
+        fat: result.fat,
+        time: format(new Date(), 'HH:mm'),
+      });
+      setShowScanModal(false);
+      setScanResult(null);
+    },
+    [addEntry],
+  );
 
   const handleAddMeal = useCallback(
     async (values: Record<string, string>) => {
@@ -660,10 +933,18 @@ export default function NutritionScreen() {
             </Card>
 
             {/* Meal Log */}
-            <SectionHeader
-              title="Meal Log"
-              action={{ label: '+ Add', onPress: () => setShowAddModal(true) }}
-            />
+            <View style={styles.mealLogHeader}>
+              <Text style={styles.mealLogTitle}>Meal Log</Text>
+              <View style={styles.mealLogActions}>
+                <Pressable style={styles.scanBtn} onPress={handleScanFood}>
+                  <Ionicons name="camera-outline" size={18} color={colors.accent} />
+                  <Text style={styles.scanBtnText}>Scan</Text>
+                </Pressable>
+                <Pressable style={styles.addBtn} onPress={() => setShowAddModal(true)}>
+                  <Text style={styles.addBtnText}>+ Add</Text>
+                </Pressable>
+              </View>
+            </View>
 
             {data.entries.length === 0 ? (
               <EmptyState icon="🍽️" title="No meals logged" subtitle="Tap + Add to log your first meal" />
@@ -724,6 +1005,14 @@ export default function NutritionScreen() {
         visible={!!selectedEntry}
         onClose={() => setSelectedEntry(null)}
         onDelete={handleDeleteEntry}
+      />
+
+      <FoodScanModal
+        visible={showScanModal}
+        scanning={scanning}
+        result={scanResult}
+        onClose={() => { setShowScanModal(false); setScanResult(null); }}
+        onConfirm={handleConfirmScan}
       />
     </View>
   );
@@ -801,4 +1090,31 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
+  mealLogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  mealLogTitle: { fontSize: 13, fontWeight: '700', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 0.8 },
+  mealLogActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  scanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  scanBtnText: { fontSize: 12, fontWeight: '600', color: colors.accent },
+  addBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.dark,
+  },
+  addBtnText: { fontSize: 12, fontWeight: '700', color: colors.darkText },
 });
