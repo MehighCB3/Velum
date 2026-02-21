@@ -188,10 +188,12 @@ const styles = StyleSheet.create({
   },
   selectRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   selectOption: {
-    flex: 1,
+    minWidth: 70,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,

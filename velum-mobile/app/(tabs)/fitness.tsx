@@ -20,6 +20,15 @@ import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { FitnessEntryType } from '../../src/types';
 
+// Safe number formatter — avoids Hermes toLocaleString() crashes on Android
+function fmt(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  if (n >= 1000) {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  return String(n);
+}
+
 const activityIcons: Record<string, { icon: string; color: string }> = {
   steps: { icon: '🚶', color: colors.steps },
   run: { icon: '🏃', color: colors.run },
@@ -101,7 +110,11 @@ export default function FitnessScreen() {
     [deleteEntry],
   );
 
-  const stepsToday = data.entries
+  const entries = data?.entries ?? [];
+  const totals = data?.totals ?? { steps: 0, runs: 0, swims: 0, cycles: 0, jiujitsu: 0, totalDistance: 0, totalCalories: 0 };
+  const goals = data?.goals ?? { steps: 10000, runs: 3, swims: 2 };
+
+  const stepsToday = entries
     .filter((e) => e.type === 'steps' && e.date === new Date().toISOString().split('T')[0])
     .reduce((sum, e) => sum + (e.steps || 0), 0);
 
@@ -113,17 +126,17 @@ export default function FitnessScreen() {
 
   // Compute insights from current data
   const computedInsights: InsightItem[] = [];
-  const stepsPercent = data.goals.steps > 0 ? stepsToday / data.goals.steps : 0;
+  const stepsPercent = goals.steps > 0 ? stepsToday / goals.steps : 0;
   if (stepsPercent >= 1) {
-    computedInsights.push({ emoji: '🎉', text: `Step goal smashed! ${stepsToday.toLocaleString()} steps today.`, tone: 'positive' });
+    computedInsights.push({ emoji: '🎉', text: `Step goal smashed! ${fmt(stepsToday)} steps today.`, tone: 'positive' });
   } else if (stepsToday > 0) {
-    computedInsights.push({ emoji: '🚶', text: `${stepsToday.toLocaleString()} steps today — ${Math.round(stepsPercent * 100)}% of your ${(data.goals.steps / 1000).toFixed(0)}k goal.`, tone: 'neutral' });
+    computedInsights.push({ emoji: '🚶', text: `${fmt(stepsToday)} steps today — ${Math.round(stepsPercent * 100)}% of your ${(goals.steps / 1000).toFixed(0)}k goal.`, tone: 'neutral' });
   }
-  const totalSessions = data.totals.runs + data.totals.swims + data.totals.cycles + data.totals.jiujitsu;
+  const totalSessions = totals.runs + totals.swims + totals.cycles + totals.jiujitsu;
   if (totalSessions >= 5) {
     computedInsights.push({ emoji: '💪', text: `${totalSessions} workouts this week — outstanding consistency!`, tone: 'positive' });
   } else if (totalSessions > 0) {
-    computedInsights.push({ emoji: '📊', text: `${totalSessions} workout${totalSessions !== 1 ? 's' : ''} this week · ${data.totals.totalDistance.toFixed(1)} km total distance.`, tone: 'neutral' });
+    computedInsights.push({ emoji: '📊', text: `${totalSessions} workout${totalSessions !== 1 ? 's' : ''} this week · ${totals.totalDistance.toFixed(1)} km total distance.`, tone: 'neutral' });
   }
   if (data.advanced?.recoveryStatus === 'poor') {
     computedInsights.push({ emoji: '⚠️', text: 'Recovery is low — consider a rest day or light activity.', tone: 'warning' });
@@ -144,38 +157,38 @@ export default function FitnessScreen() {
         <DarkCard style={styles.heroCard}>
           <View style={styles.ringRow}>
             <ProgressRing
-              progress={stepsToday / data.goals.steps}
+              progress={goals.steps > 0 ? stepsToday / goals.steps : 0}
               size={70}
               strokeWidth={6}
               color={colors.steps}
               value={stepsToday >= 1000 ? `${(stepsToday / 1000).toFixed(1)}k` : `${stepsToday}`}
               label="Steps"
-              subLabel={`/ ${(data.goals.steps / 1000).toFixed(0)}k`}
+              subLabel={`/ ${(goals.steps / 1000).toFixed(0)}k`}
             />
             <ProgressRing
-              progress={data.totals.runs / data.goals.runs}
+              progress={goals.runs > 0 ? totals.runs / goals.runs : 0}
               size={70}
               strokeWidth={6}
               color={colors.run}
-              value={`${data.totals.runs}`}
+              value={`${totals.runs}`}
               label="Runs"
-              subLabel={`/ ${data.goals.runs}`}
+              subLabel={`/ ${goals.runs}`}
             />
             <ProgressRing
-              progress={data.totals.swims / data.goals.swims}
+              progress={goals.swims > 0 ? totals.swims / goals.swims : 0}
               size={70}
               strokeWidth={6}
               color={colors.swim}
-              value={`${data.totals.swims}`}
+              value={`${totals.swims}`}
               label="Swims"
-              subLabel={`/ ${data.goals.swims}`}
+              subLabel={`/ ${goals.swims}`}
             />
             <ProgressRing
-              progress={data.totals.cycles > 0 ? 1 : 0}
+              progress={totals.cycles > 0 ? 1 : 0}
               size={70}
               strokeWidth={6}
               color={colors.cycle}
-              value={`${data.totals.cycles}`}
+              value={`${totals.cycles}`}
               label="Cycles"
             />
           </View>
@@ -196,15 +209,15 @@ export default function FitnessScreen() {
           <SectionHeader title="Week Summary" />
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{data.totals.totalDistance.toFixed(1)} km</Text>
+              <Text style={styles.statValue}>{totals.totalDistance.toFixed(1)} km</Text>
               <Text style={styles.statLabel}>Total Distance</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{data.totals.totalCalories}</Text>
+              <Text style={styles.statValue}>{totals.totalCalories}</Text>
               <Text style={styles.statLabel}>Calories Burned</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{data.totals.jiujitsu}</Text>
+              <Text style={styles.statValue}>{totals.jiujitsu}</Text>
               <Text style={styles.statLabel}>BJJ Sessions</Text>
             </View>
             <View style={styles.statItem}>
@@ -259,14 +272,14 @@ export default function FitnessScreen() {
           action={{ label: '+ Add', onPress: () => setShowAddModal(true) }}
         />
 
-        {data.entries.length === 0 ? (
+        {entries.length === 0 ? (
           <EmptyState
             icon="🏃"
             title="No activities logged"
             subtitle="Tap + Add to log your workout"
           />
         ) : (
-          data.entries.map((entry) => {
+          entries.map((entry) => {
             const info = activityIcons[entry.type] || { icon: '🏋️', color: colors.textLight };
             return (
               <Pressable key={entry.id} onLongPress={() => handleDeleteEntry(entry.id)}>
@@ -279,7 +292,7 @@ export default function FitnessScreen() {
                       </Text>
                       <Text style={styles.activityMeta}>
                         {entry.type === 'steps'
-                          ? `${(entry.steps || 0).toLocaleString()} steps`
+                          ? `${fmt(entry.steps || 0)} steps`
                           : entry.duration
                           ? `${entry.duration} min`
                           : ''}
