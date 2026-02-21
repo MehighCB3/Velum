@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OAuth from 'oauth-1.0a'
-import CryptoJS from 'crypto-js'
 
 export const dynamic = 'force-dynamic'
 
-const FATSECRET_URL = 'https://platform.fatsecret.com/rest/server.api'
-const CONSUMER_KEY = process.env.FATSECRET_CONSUMER_KEY
-const CONSUMER_SECRET = process.env.FATSECRET_CONSUMER_SECRET
+const FATSECRET_TOKEN_URL = 'https://oauth.fatsecret.com/connect/token'
+const FATSECRET_API_URL = 'https://platform.fatsecret.com/rest/server.api'
+const CLIENT_ID = process.env.FATSECRET_CONSUMER_KEY
+const CLIENT_SECRET = process.env.FATSECRET_CONSUMER_SECRET
 
 // Food lookup result type
 interface FoodResult {
@@ -45,64 +44,99 @@ const LOCAL_DB: Record<string, Omit<FoodResult, 'name'>> = {
   'carrot': { calories: 41, protein: 0.9, carbs: 10, fat: 0.2, serving: '100g' },
 }
 
-// Try FatSecret API first
-async function searchFatSecret(query: string): Promise<FoodResult[] | null> {
-  if (!CONSUMER_KEY || !CONSUMER_SECRET) {
+// ── OAuth 2.0 token cache ──────────────────────────────────
+let cachedToken: string | null = null
+let tokenExpiresAt = 0
+
+async function getAccessToken(): Promise<string | null> {
+  if (!CLIENT_ID || !CLIENT_SECRET) {
     console.log('FatSecret credentials not configured')
     return null
   }
-  
+
+  // Return cached token if still valid (with 60s buffer)
+  if (cachedToken && Date.now() < tokenExpiresAt - 60_000) {
+    return cachedToken
+  }
+
   try {
-    const oauth = new OAuth({
-      consumer: { key: CONSUMER_KEY, secret: CONSUMER_SECRET },
-      signature_method: 'HMAC-SHA1',
-      hash_function(base_string: string, key: string) {
-        return CryptoJS.HmacSHA1(base_string, key).toString(CryptoJS.enc.Base64)
-      }
-    })
-    
-    const requestData = {
-      url: FATSECRET_URL,
-      method: 'POST' as const,
-      data: {
-        method: 'foods.search',
-        search_expression: query,
-        format: 'json',
-        max_results: '3'
-      }
-    }
-    
-    const authHeader = oauth.toHeader(oauth.authorize(requestData))
-    
-    const response = await fetch(FATSECRET_URL, {
+    const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')
+
+    const response = await fetch(FATSECRET_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': authHeader.Authorization
+        'Authorization': `Basic ${credentials}`,
       },
-      body: new URLSearchParams(requestData.data)
+      body: 'grant_type=client_credentials&scope=basic',
     })
-    
+
     if (!response.ok) {
-      console.error('FatSecret API error:', response.status)
+      const errorText = await response.text()
+      console.error('FatSecret token error:', response.status, errorText)
       return null
     }
-    
+
     const data = await response.json()
-    
+    cachedToken = data.access_token
+    tokenExpiresAt = Date.now() + (data.expires_in || 86400) * 1000
+
+    return cachedToken
+  } catch (error) {
+    console.error('FatSecret token fetch error:', error)
+    return null
+  }
+}
+
+// ── FatSecret API search (OAuth 2.0) ───────────────────────
+async function searchFatSecret(query: string): Promise<FoodResult[] | null> {
+  const token = await getAccessToken()
+  if (!token) return null
+
+  try {
+    const params = new URLSearchParams({
+      method: 'foods.search',
+      search_expression: query,
+      format: 'json',
+      max_results: '3',
+    })
+
+    const response = await fetch(`${FATSECRET_API_URL}?${params}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('FatSecret API error:', response.status, errorText)
+      // Invalidate token on auth errors so next call gets a fresh one
+      if (response.status === 401 || response.status === 403) {
+        cachedToken = null
+        tokenExpiresAt = 0
+      }
+      return null
+    }
+
+    const data = await response.json()
+
     if (!data.foods || !data.foods.food) {
       return null
     }
-    
+
     const foods = Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]
-    
+
     return foods.map((f: { food_name?: string; food_description?: string; serving?: { serving_description?: string }; brand_name?: string }) => {
-      // Parse nutrition from description
+      // Parse nutrition from description (format: "Per 100g - Calories: 89kcal | Fat: 0.33g | Carbs: 22.84g | Protein: 1.09g")
       const desc = f.food_description || ''
       const calories = parseInt(desc.match(/Calories:\s*(\d+)/)?.[1] || '0')
       const fat = parseFloat(desc.match(/Fat:\s*([\d.]+)g/)?.[1] || '0')
       const carbs = parseFloat(desc.match(/Carbs:\s*([\d.]+)g/)?.[1] || '0')
       const protein = parseFloat(desc.match(/Protein:\s*([\d.]+)g/)?.[1] || '0')
+      // Extract serving size from the "Per ..." prefix
+      const servingMatch = desc.match(/^Per\s+(.+?)\s*-/)
+      const serving = servingMatch?.[1] || '100g'
 
       return {
         name: f.food_name || 'Unknown',
@@ -110,12 +144,12 @@ async function searchFatSecret(query: string): Promise<FoodResult[] | null> {
         protein,
         carbs,
         fat,
-        serving: f.serving?.serving_description || '100g',
+        serving,
         brand: f.brand_name || 'Generic',
         source: 'fatsecret'
       }
     })
-    
+
   } catch (error) {
     console.error('FatSecret error:', error)
     return null
@@ -125,10 +159,10 @@ async function searchFatSecret(query: string): Promise<FoodResult[] | null> {
 // Search local database
 function searchLocal(query: string): FoodResult | null {
   const searchTerm = query.toLowerCase()
-  const match = Object.entries(LOCAL_DB).find(([key]) => 
+  const match = Object.entries(LOCAL_DB).find(([key]) =>
     key.includes(searchTerm) || searchTerm.includes(key)
   )
-  
+
   if (match) {
     return {
       name: match[0],
@@ -136,24 +170,24 @@ function searchLocal(query: string): FoodResult | null {
       source: 'local'
     }
   }
-  
+
   return null
 }
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
-  
+
   try {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('query')
-    
+
     if (!query) {
       return NextResponse.json({ error: 'Query parameter required' }, { status: 400 })
     }
-    
+
     // 1. Try FatSecret API first
     const fatsecretResults = await searchFatSecret(query)
-    
+
     if (fatsecretResults && fatsecretResults.length > 0) {
       return NextResponse.json({
         source: 'fatsecret',
@@ -162,10 +196,10 @@ export async function GET(request: NextRequest) {
         duration: Date.now() - startTime
       })
     }
-    
+
     // 2. Fallback to local database
     const localResult = searchLocal(query)
-    
+
     if (localResult) {
       return NextResponse.json({
         source: 'local',
@@ -174,7 +208,7 @@ export async function GET(request: NextRequest) {
         duration: Date.now() - startTime
       })
     }
-    
+
     // 3. Final fallback: estimate
     return NextResponse.json({
       source: 'estimate',
@@ -190,7 +224,7 @@ export async function GET(request: NextRequest) {
       }],
       duration: Date.now() - startTime
     })
-    
+
   } catch (error) {
     console.error('Lookup error:', error)
     return NextResponse.json({ error: 'Failed to lookup' }, { status: 500 })

@@ -81,8 +81,23 @@ export default function FitnessScreen() {
   );
 
   const entries = data?.entries ?? [];
-  const totals = data?.totals ?? { steps: 0, runs: 0, swims: 0, cycles: 0, jiujitsu: 0, totalDistance: 0, totalCalories: 0 };
-  const goals = data?.goals ?? { steps: 10000, runs: 3, swims: 2 };
+  // Merge with defaults — protects against partial API responses where individual fields are null/undefined
+  const rawTotals = data?.totals;
+  const totals = {
+    steps: Number(rawTotals?.steps) || 0,
+    runs: Number(rawTotals?.runs) || 0,
+    swims: Number(rawTotals?.swims) || 0,
+    cycles: Number(rawTotals?.cycles) || 0,
+    jiujitsu: Number(rawTotals?.jiujitsu) || 0,
+    totalDistance: Number(rawTotals?.totalDistance) || 0,
+    totalCalories: Number(rawTotals?.totalCalories) || 0,
+  };
+  const rawGoals = data?.goals;
+  const goals = {
+    steps: Number(rawGoals?.steps) || 10000,
+    runs: Number(rawGoals?.runs) || 3,
+    swims: Number(rawGoals?.swims) || 2,
+  };
 
   const stepsToday = entries
     .filter((e) => e.type === 'steps' && e.date === new Date().toISOString().split('T')[0])
@@ -103,14 +118,15 @@ export default function FitnessScreen() {
     computedInsights.push({ emoji: '📊', text: `${totalSessions} workout${totalSessions !== 1 ? 's' : ''} this week · ${totals.totalDistance.toFixed(1)} km total distance.`, tone: 'neutral' });
   }
 
-  // Health data tiles
+  // Health data tiles — safely access advanced metrics
+  const adv = data?.advanced;
   const healthTiles = [
-    ...(data.advanced?.avgVo2max ? [{ icon: '🫁', label: 'VO₂ Max', val: `${data.advanced.avgVo2max} ml/kg`, color: colors.info }] : []),
-    ...(data.advanced?.latestHrv ? [{ icon: '💓', label: 'HRV', val: `${data.advanced.latestHrv}ms`, color: colors.warning }] : []),
-    ...(data.advanced?.avgRecovery ? [{ icon: '⚡', label: 'Recovery', val: data.advanced.recoveryStatus || 'Good', color: colors.success }] : []),
-    ...(data.advanced?.totalTrainingLoad ? [{ icon: '🏋️', label: 'Training Load', val: data.advanced.totalTrainingLoad > 6 ? 'High' : 'Moderate', color: colors.accent }] : []),
-    ...(data.advanced?.latestWeight ? [{ icon: '⚖️', label: 'Weight', val: `${data.advanced.latestWeight}kg`, color: colors.textLight }] : []),
-    ...(data.advanced?.latestBodyFat ? [{ icon: '📏', label: 'Body Fat', val: `${data.advanced.latestBodyFat}%`, color: colors.textLight }] : []),
+    ...(adv?.avgVo2max ? [{ icon: '🫁', label: 'VO2 Max', val: `${adv.avgVo2max} ml/kg`, color: colors.info }] : []),
+    ...(adv?.latestHrv ? [{ icon: '💓', label: 'HRV', val: `${adv.latestHrv}ms`, color: colors.warning }] : []),
+    ...(adv?.avgRecovery ? [{ icon: '⚡', label: 'Recovery', val: adv.recoveryStatus || 'Good', color: colors.success }] : []),
+    ...(adv?.totalTrainingLoad ? [{ icon: '🏋️', label: 'Training Load', val: adv.totalTrainingLoad > 6 ? 'High' : 'Moderate', color: colors.accent }] : []),
+    ...(adv?.latestWeight ? [{ icon: '⚖️', label: 'Weight', val: `${adv.latestWeight}kg`, color: colors.textLight }] : []),
+    ...(adv?.latestBodyFat ? [{ icon: '📏', label: 'Body Fat', val: `${adv.latestBodyFat}%`, color: colors.textLight }] : []),
   ];
 
   return (
@@ -244,7 +260,7 @@ const styles = StyleSheet.create({
   ringRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 18 },
   ringItem: { alignItems: 'center' },
   ringLabel: { fontSize: 9, color: colors.textMuted, marginTop: 4 },
-  divider: { height: 1, backgroundColor: colors.text, marginBottom: 14 },
+  divider: { height: 1, backgroundColor: colors.border, marginBottom: 14 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around' },
   statItem: { alignItems: 'center' },
   statValue: { fontSize: 18, fontWeight: '700', color: colors.darkText },
