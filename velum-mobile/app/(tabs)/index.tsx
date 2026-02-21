@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
+  Pressable,
 } from 'react-native';
 import { colors } from '../../src/theme/colors';
 import { DarkCard, Card, SectionHeader } from '../../src/components/Card';
@@ -13,6 +14,14 @@ import { useInsights } from '../../src/hooks/useInsights';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { profileApi } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
+
+// Safe number formatting (avoids Hermes toLocaleString crash)
+function fmt(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  return n >= 1000
+    ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+    : String(n);
+}
 
 // ==================== YEAR CALCULATIONS ====================
 
@@ -24,76 +33,120 @@ function getWeekOfYear(date: Date): number {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-function getDaysLeftInYear(date: Date): number {
+function getWeeksLeftInYear(date: Date): number {
   const endOfYear = new Date(date.getFullYear(), 11, 31);
   const diff = endOfYear.getTime() - date.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function getWeeksLeftInYear(date: Date): number {
-  return Math.floor(getDaysLeftInYear(date) / 7);
+  return Math.floor(diff / (1000 * 60 * 60 * 24) / 7);
 }
 
 function getDayOfYear(date: Date): number {
   const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
+  return Math.floor((date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function getTotalDaysInYear(year: number): number {
   return ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) ? 366 : 365;
 }
 
-// ==================== WEEK GRID ====================
+// ==================== EVENT MARKERS ====================
 
-function WeekGrid({ currentWeek, totalWeeks }: { currentWeek: number; totalWeeks: number }) {
-  const rows = [];
-  let week = 1;
-  const cols = 13; // 4 rows of 13 = 52
-  const rowCount = Math.ceil(totalWeeks / cols);
+interface YearEvent {
+  week: number;
+  label: string;
+  color: string;
+}
 
-  for (let r = 0; r < rowCount; r++) {
-    const cells = [];
-    for (let c = 0; c < cols && week <= totalWeeks; c++) {
-      const isPast = week < currentWeek;
-      const isCurrent = week === currentWeek;
-      cells.push(
-        <View
-          key={week}
-          style={[
-            gridStyles.cell,
-            isPast && gridStyles.cellPast,
-            isCurrent && gridStyles.cellCurrent,
-          ]}
-        />,
-      );
-      week++;
-    }
-    rows.push(
-      <View key={r} style={gridStyles.row}>
-        {cells}
-      </View>,
-    );
-  }
+const YEAR_EVENTS: YearEvent[] = [
+  { week: 12, label: 'Barcelona Marathon', color: '#e85c5c' },
+  { week: 24, label: 'Wedding Anniversary', color: '#9b8ed6' },
+  { week: 30, label: 'Ironman Training Camp', color: '#e8a85c' },
+  { week: 36, label: 'Product Hunt Launch', color: '#6ba3d6' },
+  { week: 48, label: 'Christmas in Romania', color: '#6ec87a' },
+];
 
-  return <View style={gridStyles.container}>{rows}</View>;
+// ==================== WEEK GRID WITH EVENTS ====================
+
+function WeekGrid({
+  currentWeek,
+  selectedEvent,
+  onSelectEvent,
+}: {
+  currentWeek: number;
+  selectedEvent: YearEvent | null;
+  onSelectEvent: (event: YearEvent | null) => void;
+}) {
+  const weeks = Array.from({ length: 52 }, (_, i) => i + 1);
+
+  return (
+    <View style={gridStyles.container}>
+      <View style={gridStyles.grid}>
+        {weeks.map((weekNum) => {
+          const event = YEAR_EVENTS.find((e) => e.week === weekNum);
+          const isSelected = selectedEvent?.week === weekNum;
+          const isPast = weekNum < currentWeek;
+          const isCurrent = weekNum === currentWeek;
+
+          let bg = colors.border; // future — #f0ece6
+          if (isPast) bg = colors.text; // #2d2a26
+          else if (isCurrent) bg = colors.accent; // #c4956a
+          else if (event) bg = event.color;
+
+          return (
+            <Pressable
+              key={weekNum}
+              onPress={() => event && onSelectEvent(event)}
+              style={[
+                gridStyles.cell,
+                { backgroundColor: bg },
+                isSelected && { borderWidth: 2, borderColor: event!.color, transform: [{ scale: 1.4 }] },
+              ]}
+            />
+          );
+        })}
+      </View>
+
+      {/* Legend */}
+      <View style={gridStyles.legend}>
+        <View style={gridStyles.legendItem}>
+          <View style={[gridStyles.legendDot, { backgroundColor: colors.text }]} />
+          <Text style={gridStyles.legendText}>Done</Text>
+        </View>
+        <View style={gridStyles.legendItem}>
+          <View style={[gridStyles.legendDot, { backgroundColor: colors.accent }]} />
+          <Text style={gridStyles.legendText}>Now</Text>
+        </View>
+        {YEAR_EVENTS.map((e) => (
+          <Pressable
+            key={e.label}
+            style={gridStyles.legendItem}
+            onPress={() => onSelectEvent(e)}
+          >
+            <View style={[gridStyles.legendDot, { backgroundColor: e.color }]} />
+            <Text style={gridStyles.legendText}>{e.label.split(' ')[0]}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 const gridStyles = StyleSheet.create({
-  container: { gap: 3 },
-  row: { flexDirection: 'row', gap: 3, justifyContent: 'center' },
+  container: {},
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
   cell: {
-    width: 18,
-    height: 18,
-    borderRadius: 3,
-    backgroundColor: colors.hover,
+    width: 10,
+    height: 10,
+    borderRadius: 2,
   },
-  cellPast: {
-    backgroundColor: colors.darkTertiary,
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
   },
-  cellCurrent: {
-    backgroundColor: colors.accent,
-  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  legendDot: { width: 7, height: 7, borderRadius: 2 },
+  legendText: { fontSize: 10, color: colors.textLight },
 });
 
 // ==================== HOME SCREEN ====================
@@ -101,17 +154,16 @@ const gridStyles = StyleSheet.create({
 export default function HomeScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<YearEvent | null>(null);
   const { insights } = useInsights();
 
   const now = new Date();
   const year = now.getFullYear();
   const currentWeek = getWeekOfYear(now);
   const weeksLeft = getWeeksLeftInYear(now);
-  const daysLeft = getDaysLeftInYear(now);
   const dayOfYear = getDayOfYear(now);
   const totalDays = getTotalDaysInYear(year);
   const yearProgress = dayOfYear / totalDays;
-  const totalWeeks = Math.ceil(totalDays / 7);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -132,6 +184,13 @@ export default function HomeScreen() {
   const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
   const monthDay = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
+  const heroNumber = selectedEvent
+    ? selectedEvent.week - currentWeek
+    : weeksLeft;
+  const heroSubtitle = selectedEvent
+    ? `weeks to ${selectedEvent.label}`
+    : `weeks left in ${year}`;
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -141,80 +200,68 @@ export default function HomeScreen() {
           <RefreshControl refreshing={loading} onRefresh={fetchProfile} tintColor={colors.accent} />
         }
       >
-        {/* Hero: Weeks Left */}
+        {/* Hero Card */}
         <DarkCard style={styles.heroCard}>
-          <Text style={styles.heroDate}>{dayName}, {monthDay}</Text>
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
-              <Text style={styles.weeksValue}>{weeksLeft}</Text>
-              <Text style={styles.weeksLabel}>weeks left in {year}</Text>
+              <Text style={styles.heroDate}>{dayName}, {monthDay}</Text>
+              <Text style={styles.heroNumber}>{heroNumber}</Text>
+              <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
             </View>
             <ProgressRing
               progress={yearProgress}
-              size={90}
-              strokeWidth={8}
+              size={56}
+              strokeWidth={5}
               color={colors.accent}
               value={`W${currentWeek}`}
-              label={`of ${totalWeeks}`}
             />
           </View>
-          <View style={styles.daysRow}>
-            <Text style={styles.daysText}>{daysLeft} days remaining</Text>
-            <Text style={styles.daysText}>{Math.round(yearProgress * 100)}% of {year} elapsed</Text>
-          </View>
+          {selectedEvent && (
+            <Pressable onPress={() => setSelectedEvent(null)} style={styles.backLink}>
+              <Text style={styles.backLinkText}>← Back to year view</Text>
+            </Pressable>
+          )}
         </DarkCard>
 
-        {/* Week Grid */}
+        {/* Year in Weeks Grid */}
+        <SectionHeader title={`${year} in Weeks`} />
         <Card style={styles.gridCard}>
-          <SectionHeader title={`${year} in Weeks`} />
-          <WeekGrid currentWeek={currentWeek} totalWeeks={totalWeeks} />
-          <View style={styles.gridLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.darkTertiary }]} />
-              <Text style={styles.legendText}>Elapsed</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
-              <Text style={styles.legendText}>This week</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.hover }]} />
-              <Text style={styles.legendText}>Remaining</Text>
-            </View>
-          </View>
+          <WeekGrid
+            currentWeek={currentWeek}
+            selectedEvent={selectedEvent}
+            onSelectEvent={(e) =>
+              setSelectedEvent((prev) => (prev?.week === e?.week ? null : e))
+            }
+          />
         </Card>
 
-        {/* Life Stats (if profile loaded) */}
+        {/* Life in Weeks */}
         {profile && profile.weeksRemaining !== undefined && (
-          <Card style={styles.lifeCard}>
+          <>
             <SectionHeader title="Life in Weeks" />
-            <View style={styles.lifeRow}>
-              <View style={styles.lifeItem}>
-                <Text style={styles.lifeValue}>{profile.currentAge}</Text>
-                <Text style={styles.lifeLabel}>Age</Text>
+            <Card style={styles.lifeCard}>
+              <View style={styles.lifeRow}>
+                {[
+                  { val: String(profile.currentAge), label: 'Age' },
+                  { val: fmt(profile.weeksRemaining || 0), label: 'Weeks Left' },
+                  { val: String(profile.yearsRemaining), label: 'Years Left' },
+                ].map((d) => (
+                  <View key={d.label} style={styles.lifeItem}>
+                    <Text style={styles.lifeValue}>{d.val}</Text>
+                    <Text style={styles.lifeLabel}>{d.label}</Text>
+                  </View>
+                ))}
               </View>
-              <View style={styles.lifeItem}>
-                <Text style={styles.lifeValue}>
-                  {(profile.weeksRemaining || 0).toLocaleString()}
-                </Text>
-                <Text style={styles.lifeLabel}>Weeks Left</Text>
-              </View>
-              <View style={styles.lifeItem}>
-                <Text style={styles.lifeValue}>{profile.yearsRemaining}</Text>
-                <Text style={styles.lifeLabel}>Years Left</Text>
-              </View>
-            </View>
-            <View style={styles.lifeProgressContainer}>
-              <View style={styles.lifeProgressBar}>
+              <View style={styles.barTrack}>
                 <View
-                  style={[styles.lifeProgressFill, { width: `${profile.percentLived || 0}%` }]}
+                  style={[styles.barFill, { width: `${Math.min(profile.percentLived || 0, 100)}%` }]}
                 />
               </View>
-              <Text style={styles.lifeProgressText}>
-                {profile.percentLived}% of life expectancy ({profile.life_expectancy} yrs)
+              <Text style={styles.barCaption}>
+                {profile.percentLived}% of {profile.life_expectancy || 85} yr expectancy
               </Text>
-            </View>
-          </Card>
+            </Card>
+          </>
         )}
 
         {/* Agent Insights */}
@@ -234,78 +281,62 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
-  heroCard: { marginBottom: 12 },
-  heroDate: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.darkTextSecondary,
-    marginBottom: 12,
-  },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+  heroCard: { marginBottom: 8 },
   heroRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   heroLeft: { flex: 1 },
-  weeksValue: {
-    fontSize: 64,
-    fontWeight: '900',
-    color: colors.darkText,
-    lineHeight: 70,
+  heroDate: {
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
-  weeksLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.darkTextSecondary,
+  heroNumber: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: colors.darkText,
+    lineHeight: 56,
+    marginTop: 8,
+  },
+  heroSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
     marginTop: 2,
   },
-  daysRow: {
+  backLink: { marginTop: 12 },
+  backLinkText: { fontSize: 11, color: colors.accent, fontWeight: '500' },
+  gridCard: { padding: 14, marginBottom: 8 },
+  lifeCard: { padding: 16, marginBottom: 8 },
+  lifeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.darkTertiary,
+    marginBottom: 12,
   },
-  daysText: {
-    fontSize: 12,
-    color: colors.darkTextSecondary,
-  },
-  gridCard: { marginBottom: 12 },
-  gridLegend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 12,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 10, height: 10, borderRadius: 2 },
-  legendText: { fontSize: 11, color: colors.textLight },
-  lifeCard: { marginBottom: 12 },
-  lifeRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
   lifeItem: { alignItems: 'center' },
-  lifeValue: { fontSize: 22, fontWeight: '800', color: colors.text },
-  lifeLabel: { fontSize: 11, color: colors.textLight, marginTop: 4 },
-  lifeProgressContainer: { marginTop: 4 },
-  lifeProgressBar: {
-    height: 6,
-    backgroundColor: colors.hover,
-    borderRadius: 3,
+  lifeValue: { fontSize: 20, fontWeight: '700', color: colors.text },
+  lifeLabel: { fontSize: 10, color: colors.textLight, marginTop: 2 },
+  barTrack: {
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
     overflow: 'hidden',
   },
-  lifeProgressFill: {
+  barFill: {
     height: '100%',
     backgroundColor: colors.accent,
-    borderRadius: 3,
+    borderRadius: 2,
   },
-  lifeProgressText: {
-    fontSize: 12,
+  barCaption: {
+    fontSize: 10,
     color: colors.textLight,
     textAlign: 'center',
     marginTop: 6,
   },
-  insightsSection: { marginBottom: 12 },
+  insightsSection: { marginBottom: 8 },
 });

@@ -45,6 +45,12 @@ function getMealEmoji(time: string): string {
   return '🌙';
 }
 
+function fmt(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  if (n >= 1000) return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return String(n);
+}
+
 type Tab = 'today' | '30days';
 
 // ==================== MEAL DETAIL MODAL ====================
@@ -575,12 +581,12 @@ export default function NutritionScreen() {
               <View style={styles.heroRow}>
                 <View style={styles.heroLeft}>
                   <Text style={styles.heroLabel}>Calories</Text>
-                  <Text style={styles.heroValue}>{Math.round(data.totals.calories)}</Text>
-                  <Text style={styles.heroSub}>of {data.goals.calories} kcal goal</Text>
+                  <Text style={styles.heroValue}>{fmt(Math.round(data.totals.calories))}</Text>
+                  <Text style={styles.heroSub}>of {fmt(data.goals.calories)} kcal goal</Text>
                   <Text style={[styles.heroRemaining, caloriesRemaining < 0 && { color: colors.error }]}>
                     {caloriesRemaining >= 0
-                      ? `${Math.round(caloriesRemaining)} remaining`
-                      : `${Math.round(Math.abs(caloriesRemaining))} over`}
+                      ? `${fmt(Math.round(caloriesRemaining))} remaining`
+                      : `${fmt(Math.round(Math.abs(caloriesRemaining)))} over`}
                   </Text>
                 </View>
                 <ProgressRing
@@ -596,6 +602,46 @@ export default function NutritionScreen() {
                   }
                   value={`${Math.round(calorieProgress * 100)}%`}
                 />
+              </View>
+
+              {/* Protein & Carbs bars */}
+              <View style={styles.heroMacros}>
+                <View style={styles.heroMacroRow}>
+                  <Text style={styles.heroMacroLabel}>Protein</Text>
+                  <Text style={styles.heroMacroValue}>
+                    {fmt(Math.round(data.totals.protein))}
+                    <Text style={styles.heroMacroUnit}> / {fmt(data.goals.protein)}g</Text>
+                  </Text>
+                </View>
+                <View style={styles.heroBarTrack}>
+                  <View
+                    style={[
+                      styles.heroBarFill,
+                      {
+                        backgroundColor: colors.protein,
+                        width: `${Math.min((data.goals.protein > 0 ? data.totals.protein / data.goals.protein : 0) * 100, 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={[styles.heroMacroRow, { marginTop: 10 }]}>
+                  <Text style={styles.heroMacroLabel}>Carbs</Text>
+                  <Text style={styles.heroMacroValue}>
+                    {fmt(Math.round(data.totals.carbs))}
+                    <Text style={styles.heroMacroUnit}> / {fmt(data.goals.carbs)}g</Text>
+                  </Text>
+                </View>
+                <View style={styles.heroBarTrack}>
+                  <View
+                    style={[
+                      styles.heroBarFill,
+                      {
+                        backgroundColor: colors.carbs,
+                        width: `${Math.min((data.goals.carbs > 0 ? data.totals.carbs / data.goals.carbs : 0) * 100, 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
               </View>
             </DarkCard>
 
@@ -630,17 +676,19 @@ export default function NutritionScreen() {
                 >
                   <Card style={styles.mealCard}>
                     <View style={styles.mealRow}>
-                      <Text style={styles.mealEmoji}>{getMealEmoji(entry.time)}</Text>
+                      <View style={styles.mealThumb}>
+                        <Text style={styles.mealThumbEmoji}>{getMealEmoji(entry.time)}</Text>
+                      </View>
                       <View style={styles.mealInfo}>
                         <Text style={styles.mealName}>{entry.name}</Text>
-                        <Text style={styles.mealMacros}>
-                          P: {Math.round(entry.protein)}g · C: {Math.round(entry.carbs)}g · F:{' '}
-                          {Math.round(entry.fat)}g
-                        </Text>
+                        <Text style={styles.mealTime}>{entry.time}</Text>
                       </View>
                       <View style={styles.mealRight}>
-                        <Text style={styles.mealCalories}>{entry.calories}</Text>
-                        <Text style={styles.mealTime}>{entry.time}</Text>
+                        <Text style={styles.mealCalories}>{fmt(Math.round(entry.calories))}</Text>
+                        <View style={styles.mealMacroRow}>
+                          <Text style={styles.mealMacroP}>{Math.round(entry.protein)}g P</Text>
+                          <Text style={styles.mealMacroC}>{Math.round(entry.carbs)}g C</Text>
+                        </View>
                       </View>
                       <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                     </View>
@@ -682,7 +730,7 @@ export default function NutritionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
   tabBar: {
@@ -710,16 +758,33 @@ const styles = StyleSheet.create({
   heroValue: { fontSize: 36, fontWeight: '800', color: colors.darkText, marginTop: 2 },
   heroSub: { fontSize: 13, color: colors.darkTextSecondary, marginTop: 2 },
   heroRemaining: { fontSize: 14, fontWeight: '600', color: colors.success, marginTop: 4 },
+  heroMacros: { marginTop: 14 },
+  heroMacroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  heroMacroLabel: { fontSize: 12, fontWeight: '500', color: colors.darkTextMuted },
+  heroMacroValue: { fontSize: 13, fontWeight: '700', color: colors.darkText },
+  heroMacroUnit: { fontSize: 12, fontWeight: '500', color: colors.darkTextMuted },
+  heroBarTrack: { height: 6, borderRadius: 3, backgroundColor: colors.darkInner, overflow: 'hidden' as const },
+  heroBarFill: { height: '100%', borderRadius: 3 },
   macroCard: { marginBottom: 12 },
   mealCard: { marginBottom: 8 },
   mealRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  mealEmoji: { fontSize: 24 },
+  mealThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: colors.borderSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mealThumbEmoji: { fontSize: 22 },
   mealInfo: { flex: 1 },
   mealName: { fontSize: 15, fontWeight: '600', color: colors.text },
-  mealMacros: { fontSize: 12, color: colors.textLight, marginTop: 2 },
+  mealTime: { fontSize: 11, color: colors.textLight, marginTop: 2 },
   mealRight: { alignItems: 'flex-end', marginRight: 4 },
   mealCalories: { fontSize: 16, fontWeight: '700', color: colors.text },
-  mealTime: { fontSize: 11, color: colors.textLight, marginTop: 2 },
+  mealMacroRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  mealMacroP: { fontSize: 11, fontWeight: '600', color: colors.protein },
+  mealMacroC: { fontSize: 11, fontWeight: '600', color: colors.carbs },
   fab: {
     position: 'absolute',
     bottom: 24,

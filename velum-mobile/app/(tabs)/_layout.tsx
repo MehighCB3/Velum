@@ -76,12 +76,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="learn"
+        name="feed"
         options={{
-          title: 'Spanish',
-          headerTitle: 'Spanish',
+          title: 'Feed',
+          headerTitle: 'Feed',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
+            <Ionicons name="reader-outline" size={size} color={color} />
           ),
         }}
       />
@@ -95,13 +95,9 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* Goals is now a subtab inside Profile — hide from tab bar */}
-      <Tabs.Screen
-        name="goals"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Hidden tabs — accessible from other screens but not in tab bar */}
+      <Tabs.Screen name="goals" options={{ href: null }} />
+      <Tabs.Screen name="learn" options={{ href: null }} />
     </Tabs>
   );
 }
