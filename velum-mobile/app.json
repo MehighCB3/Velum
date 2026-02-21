@@ -31,14 +31,20 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.RECORD_AUDIO",
-        "android.permission.REQUEST_INSTALL_PACKAGES"
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/velum-mobile"
+      "url": "https://u.expo.dev/f0325054-208a-45ff-81d0-867c8fb032d5"
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -57,7 +63,11 @@
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "f0325054-208a-45ff-81d0-867c8fb032d5"
       }
-    }
+    },
+    "owner": "mihai233"
   }
 }
