@@ -448,10 +448,10 @@ function generateFitnessInsight(parsed: ParsedFitnessEntry, weekData: SavedWeekD
   if (parsed.type === 'steps') {
     const steps = parsed.steps || 0
     const goal = goals?.steps || 10000
-    if (steps >= goal) return `Daily step goal hit! ${steps.toLocaleString()} steps today.`
+    if (steps >= goal) return `Daily step goal hit! ${steps.toLocaleString('en-US')} steps today.`
     const pct = Math.round((steps / goal) * 100)
-    if (pct >= 80) return `Almost there — ${pct}% of step goal (${steps.toLocaleString()}/${goal.toLocaleString()}).`
-    return `${steps.toLocaleString()} steps logged. ${(goal - steps).toLocaleString()} more to hit your daily goal.`
+    if (pct >= 80) return `Almost there — ${pct}% of step goal (${steps.toLocaleString('en-US')}/${goal.toLocaleString('en-US')}).`
+    return `${steps.toLocaleString('en-US')} steps logged. ${(goal - steps).toLocaleString('en-US')} more to hit your daily goal.`
   }
 
   if (parsed.type === 'run') {
@@ -665,7 +665,7 @@ export async function POST(request: NextRequest) {
     let successMessage = ''
     if (parsed.type === 'steps') {
       const distance = calculateDistanceFromSteps(parsed.steps || 0)
-      successMessage = `✅ Logged: ${parsed.steps?.toLocaleString()} steps (${distance}km) - ${entryDate}`
+      successMessage = `✅ Logged: ${(parsed.steps || 0).toLocaleString('en-US')} steps (${distance}km) - ${entryDate}`
     } else if (parsed.type === 'run' || parsed.type === 'swim') {
       const pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
       successMessage = `✅ Logged: ${parsed.type} - ${parsed.distance}km in ${parsed.duration}min`

@@ -13,17 +13,14 @@
   "dependencies": {
     "@upstash/redis": "^1.36.1",
     "@vercel/postgres": "^0.9.0",
-    "crypto-js": "^4.2.0",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.263.1",
     "next": "14.2.5",
-    "oauth-1.0a": "^2.2.6",
     "react": "^18",
     "react-dom": "^18"
   },
   "devDependencies": {
     "@types/bn.js": "^5.2.0",
-    "@types/crypto-js": "^4.2.2",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

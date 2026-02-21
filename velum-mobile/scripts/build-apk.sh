@@ -23,6 +23,25 @@ cd "$PROJECT_DIR"
 VERSION="${1:-$(node -p "require('./app.json').expo.version")}"
 echo "Building Velum Mobile v${VERSION} (arm64)"
 
+# ── Update version in app.json and package.json ─────────────
+# Ensures Constants.expoConfig.version matches the built APK
+CURRENT_APP_VERSION=$(node -p "require('./app.json').expo.version")
+if [ "$VERSION" != "$CURRENT_APP_VERSION" ]; then
+  echo "Updating app.json version: $CURRENT_APP_VERSION → $VERSION"
+  node -e "
+    const fs = require('fs');
+    const app = JSON.parse(fs.readFileSync('./app.json', 'utf8'));
+    app.expo.version = '$VERSION';
+    fs.writeFileSync('./app.json', JSON.stringify(app, null, 2) + '\n');
+  "
+  node -e "
+    const fs = require('fs');
+    const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+    pkg.version = '$VERSION';
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+  "
+fi
+
 # ── Ensure ANDROID_HOME ──────────────────────────────────────
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
