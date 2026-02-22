@@ -14,210 +14,229 @@ import { colors } from '../../src/theme/colors';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
-import { booksApi } from '../../src/api/client';
+import { booksApi, bookmarksApi, XBookmark } from '../../src/api/client';
 import { DailyWisdom, BookPrinciple } from '../../src/types';
 
 type TopTab = 'bookmarks' | 'knowledge';
 
-// ==================== X BOOKMARKS ====================
+// ==================== HELPERS ====================
 
-type FeedSource = 'x' | 'mymind';
-
-interface FeedItem {
-  id: string;
-  source: FeedSource;
-  author?: string;
-  time: string;
-  title: string;
-  tags: string[];
-  note?: string;
-  url?: string;
+function timeAgo(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
 }
 
-// Placeholder feed -- will be replaced with real API data
-const MOCK_FEED: FeedItem[] = [
-  {
-    id: '1',
-    source: 'x',
-    author: '@levelsio',
-    time: '2h ago',
-    title: 'Built a $2M ARR product as a solo founder. Here\'s my stack in 2026...',
-    tags: ['Indie', 'SaaS'],
-  },
-  {
-    id: '2',
-    source: 'mymind',
-    time: 'Yesterday',
-    title: 'The Psychology of Habit Loops in Product Design',
-    tags: ['Product', 'UX'],
-    note: 'Saved from Pocket',
-  },
-  {
-    id: '3',
-    source: 'x',
-    author: '@naval',
-    time: '5h ago',
-    title: 'Specific knowledge is knowledge that you cannot be trained for.',
-    tags: ['Philosophy'],
-  },
-  {
-    id: '4',
-    source: 'mymind',
-    time: '2 days ago',
-    title: 'Minimal dashboard inspiration -- dark mode wellness tracker',
-    tags: ['Design', 'Inspo'],
-    note: 'Saved from Dribbble',
-  },
-  {
-    id: '5',
-    source: 'x',
-    author: '@paulg',
-    time: '8h ago',
-    title: 'The best founders I know all share one trait: they\'re relentlessly resourceful.',
-    tags: ['Startups'],
-  },
-  {
-    id: '6',
-    source: 'mymind',
-    time: '3 days ago',
-    title: 'How Stripe Thinks About Developer Experience',
-    tags: ['Product', 'DevEx'],
-    note: 'Saved from blog.stripe.com',
-  },
-  {
-    id: '7',
-    source: 'x',
-    author: '@andreasklinger',
-    time: '1d ago',
-    title: 'Hot take: Most PMs should learn to code. Not to ship code, but to understand constraints.',
-    tags: ['Product', 'Career'],
-  },
-];
+// ==================== X BOOKMARKS ====================
 
-function SourceIcon({ source }: { source: FeedSource }) {
-  if (source === 'x') {
+function BookmarksView({ onRefreshDone }: { onRefreshDone?: () => void }) {
+  const [bookmarks, setBookmarks] = useState<XBookmark[]>([]);
+  const [total, setTotal] = useState(0);
+  const [active, setActive] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const fetchBookmarks = useCallback(async () => {
+    try {
+      const data = await bookmarksApi.getAll({ limit: 100 });
+      setBookmarks(data.bookmarks);
+      setTotal(data.total);
+      setActive(data.active);
+    } catch {
+      // silently fail — empty state will show
+    } finally {
+      setLoading(false);
+      onRefreshDone?.();
+    }
+  }, [onRefreshDone]);
+
+  useEffect(() => {
+    fetchBookmarks();
+  }, [fetchBookmarks]);
+
+  const handleDismiss = useCallback(async (tweetId: string) => {
+    // Optimistic UI update
+    setBookmarks((prev) => prev.filter((b) => b.tweet_id !== tweetId));
+    setActive((prev) => prev - 1);
+    try {
+      await bookmarksApi.dismiss(tweetId);
+    } catch {
+      // revert on error
+      fetchBookmarks();
+    }
+  }, [fetchBookmarks]);
+
+  if (loading) {
     return (
-      <View style={[bkStyles.sourceIcon, { backgroundColor: '#1a1a1a' }]}>
-        <Text style={bkStyles.sourceIconText}>{'\u{1D54F}'}</Text>
+      <View style={bkStyles.loadingContainer}>
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
-  return (
-    <View style={[bkStyles.sourceIcon, { backgroundColor: '#c44dff' }]}>
-      <Text style={[bkStyles.sourceIconText, { fontSize: 10 }]}>m</Text>
-    </View>
-  );
-}
 
-function BookmarksView() {
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState<'all' | 'x' | 'mymind'>('all');
+  if (bookmarks.length === 0) {
+    return (
+      <View>
+        <DarkCard style={bkStyles.heroCard}>
+          <View style={bkStyles.heroRow}>
+            <View style={bkStyles.heroStat}>
+              <Text style={bkStyles.heroNumber}>{total}</Text>
+              <Text style={bkStyles.heroLabel}>Total</Text>
+            </View>
+            <View style={[bkStyles.heroStat, bkStyles.heroStatCenter]}>
+              <Text style={bkStyles.heroNumber}>{active}</Text>
+              <Text style={bkStyles.heroLabel}>Unread</Text>
+            </View>
+            <View style={bkStyles.heroStat}>
+              <Text style={[bkStyles.heroNumber, { color: colors.success }]}>
+                {total - active}
+              </Text>
+              <Text style={bkStyles.heroLabel}>Read</Text>
+            </View>
+          </View>
+        </DarkCard>
 
-  const allItems = MOCK_FEED.filter((item) => !dismissed.has(item.id));
-  const filtered = filter === 'all' ? allItems : allItems.filter((item) => item.source === filter);
+        <EmptyState
+          icon="📚"
+          title="No bookmarks yet"
+          subtitle={'Run the sync script to import\nyour X bookmarks'}
+        />
+      </View>
+    );
+  }
 
   return (
     <View>
-      {/* Filter pills */}
-      <View style={bkStyles.filterRow}>
-        {(['all', 'x', 'mymind'] as const).map((f) => (
-          <Pressable
-            key={f}
-            style={[bkStyles.pill, filter === f && bkStyles.pillActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[bkStyles.pillText, filter === f && bkStyles.pillTextActive]}>
-              {f === 'all' ? 'All' : f === 'x' ? '\u{1D54F} Posts' : 'MyMind'}
+      {/* Hero stats */}
+      <DarkCard style={bkStyles.heroCard}>
+        <View style={bkStyles.heroRow}>
+          <View style={bkStyles.heroStat}>
+            <Text style={bkStyles.heroNumber}>{total}</Text>
+            <Text style={bkStyles.heroLabel}>Total</Text>
+          </View>
+          <View style={[bkStyles.heroStat, bkStyles.heroStatCenter]}>
+            <Text style={[bkStyles.heroNumber, { color: colors.accent }]}>{active}</Text>
+            <Text style={bkStyles.heroLabel}>Unread</Text>
+          </View>
+          <View style={bkStyles.heroStat}>
+            <Text style={[bkStyles.heroNumber, { color: colors.success }]}>
+              {total - active}
             </Text>
+            <Text style={bkStyles.heroLabel}>Read</Text>
+          </View>
+        </View>
+      </DarkCard>
+
+      {/* Bookmarks list — flat card */}
+      <Card style={bkStyles.listCard}>
+        {bookmarks.map((bk, idx) => (
+          <Pressable
+            key={bk.tweet_id}
+            style={[
+              bkStyles.bookmarkRow,
+              idx < bookmarks.length - 1 && bkStyles.bookmarkRowBorder,
+            ]}
+            onPress={() => bk.url && Linking.openURL(bk.url)}
+          >
+            {/* X icon */}
+            <View style={bkStyles.xIcon}>
+              <Text style={bkStyles.xIconText}>{'\u{1D54F}'}</Text>
+            </View>
+
+            {/* Content */}
+            <View style={bkStyles.bookmarkContent}>
+              <View style={bkStyles.bookmarkHeader}>
+                <Text style={bkStyles.authorHandle}>{bk.author_handle}</Text>
+                <Text style={bkStyles.bookmarkTime}>
+                  {timeAgo(bk.bookmarked_at)}
+                </Text>
+              </View>
+              <Text style={bkStyles.bookmarkText} numberOfLines={3}>
+                {bk.text}
+              </Text>
+              {bk.tags.length > 0 && (
+                <View style={bkStyles.tagRow}>
+                  {bk.tags.map((tag) => (
+                    <View key={tag} style={bkStyles.tag}>
+                      <Text style={bkStyles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Dismiss button */}
+            <Pressable
+              style={bkStyles.dismissBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDismiss(bk.tweet_id);
+              }}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={16} color={colors.textLight} />
+            </Pressable>
           </Pressable>
         ))}
-      </View>
-
-      <Text style={bkStyles.countText}>{allItems.length} saved items</Text>
-
-      {filtered.length === 0 ? (
-        <EmptyState icon="All caught up!" title="No bookmarks" subtitle="Your saved articles will appear here" />
-      ) : (
-        filtered.map((item) => (
-          <Card key={item.id} style={bkStyles.feedCard}>
-            <View style={bkStyles.cardHeader}>
-              <View style={bkStyles.authorRow}>
-                <SourceIcon source={item.source} />
-                <Text style={bkStyles.authorText}>{item.author || 'mymind'}</Text>
-              </View>
-              <Text style={bkStyles.timeText}>{item.time}</Text>
-            </View>
-            <Text style={bkStyles.cardTitle}>{item.title}</Text>
-            {item.note && <Text style={bkStyles.noteText}>{item.note}</Text>}
-            <View style={bkStyles.tagRow}>
-              {item.tags.map((tag) => (
-                <View key={tag} style={bkStyles.tag}>
-                  <Text style={bkStyles.tagText}>{tag}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={bkStyles.actionBar}>
-              <Pressable onPress={() => item.url && Linking.openURL(item.url)}>
-                <Text style={bkStyles.actionRead}>Read</Text>
-              </Pressable>
-              <Pressable onPress={() => setDismissed((prev) => new Set(prev).add(item.id))}>
-                <Text style={bkStyles.actionMuted}>Dismiss</Text>
-              </Pressable>
-            </View>
-          </Card>
-        ))
-      )}
+      </Card>
     </View>
   );
 }
 
 const bkStyles = StyleSheet.create({
-  filterRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.border,
-    borderRadius: 8,
-    padding: 2,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
+  loadingContainer: { alignItems: 'center', paddingTop: 40 },
+
+  // Hero
+  heroCard: { padding: 16, marginBottom: 10 },
+  heroRow: { flexDirection: 'row', alignItems: 'center' },
+  heroStat: { flex: 1, alignItems: 'center' },
+  heroStatCenter: {
+    borderLeftWidth: 1, borderRightWidth: 1,
+    borderLeftColor: colors.darkInner, borderRightColor: colors.darkInner,
   },
-  pill: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 6 },
-  pillActive: { backgroundColor: colors.text },
-  pillText: { fontSize: 11, fontWeight: '600', color: colors.textLight },
-  pillTextActive: { color: '#ffffff' },
-  countText: { fontSize: 12, color: colors.textLight, marginBottom: 12 },
-  feedCard: { marginBottom: 8, padding: 14 },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
+  heroNumber: { fontSize: 24, fontWeight: '700', color: colors.darkText },
+  heroLabel: { fontSize: 10, color: colors.darkTextMuted, marginTop: 2, letterSpacing: 0.3 },
+
+  // List
+  listCard: { padding: 0, overflow: 'hidden' },
+  bookmarkRow: {
+    flexDirection: 'row', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
   },
-  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sourceIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+  bookmarkRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
+
+  xIcon: {
+    width: 24, height: 24, borderRadius: 6, backgroundColor: '#1a1a1a',
+    alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
-  sourceIconText: { fontSize: 11, color: '#ffffff', fontWeight: '700' },
-  authorText: { fontSize: 12, fontWeight: '600', color: colors.text },
-  timeText: { fontSize: 10, color: colors.textLight },
-  cardTitle: { fontSize: 13, color: colors.text, lineHeight: 20, marginBottom: 8 },
-  noteText: { fontSize: 11, color: colors.textLight, fontStyle: 'italic', marginBottom: 8 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tag: { backgroundColor: colors.hover, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  xIconText: { fontSize: 11, color: '#ffffff', fontWeight: '700' },
+
+  bookmarkContent: { flex: 1 },
+  bookmarkHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 4,
+  },
+  authorHandle: { fontSize: 12, fontWeight: '600', color: colors.text },
+  bookmarkTime: { fontSize: 10, color: colors.textLight },
+  bookmarkText: { fontSize: 13, color: colors.text, lineHeight: 19 },
+
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
+  tag: {
+    backgroundColor: colors.hover, paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: 4,
+  },
   tagText: { fontSize: 10, fontWeight: '500', color: colors.textLight },
-  actionBar: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  actionRead: { fontSize: 11, color: colors.accent, fontWeight: '500' },
-  actionMuted: { fontSize: 11, color: colors.textLight },
+
+  dismissBtn: { paddingTop: 2 },
 });
 
 // ==================== BOOKS / KNOWLEDGE ====================
@@ -258,7 +277,7 @@ function KnowledgeView() {
   }
 
   if (!wisdom) {
-    return <EmptyState icon="Unable to load" title="No wisdom today" subtitle="Pull to refresh" />;
+    return <EmptyState icon="📖" title="No wisdom today" subtitle="Pull to refresh" />;
   }
 
   const filteredPrinciples = activeDomain
@@ -345,7 +364,7 @@ function KnowledgeView() {
 
       {filteredPrinciples.length === 0 && (
         <EmptyState
-          icon="No principles"
+          icon="📚"
           title="No principles"
           subtitle={`No principles found for ${activeDomain || wisdom.currentDomain}`}
         />
@@ -367,13 +386,8 @@ const kStyles = StyleSheet.create({
   principleText: { fontSize: 14, color: colors.text, lineHeight: 22 },
   principleSource: { fontSize: 12, color: colors.textLight, marginTop: 8, fontStyle: 'italic' },
   actionPromptBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: colors.accent + '10',
-    borderRadius: 8,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    marginTop: 12, padding: 12, backgroundColor: colors.accent + '10', borderRadius: 8,
   },
   actionPromptText: { fontSize: 13, color: colors.accent, flex: 1, lineHeight: 20, fontWeight: '500' },
   quoteCard: { marginBottom: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: colors.accent },
@@ -382,12 +396,8 @@ const kStyles = StyleSheet.create({
   domainScroll: { marginBottom: 12 },
   domainRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   domainPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16,
+    backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
   },
   domainPillActive: { backgroundColor: colors.dark, borderColor: colors.dark },
   domainPillText: { fontSize: 12, fontWeight: '600', color: colors.textLight },
@@ -403,12 +413,17 @@ const kStyles = StyleSheet.create({
 export default function FeedScreen() {
   const [activeTab, setActiveTab] = useState<TopTab>('knowledge');
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setRefreshing(false);
-  }, []);
+    setRefreshKey((k) => k + 1);
+    // Knowledge tab refresh handled by remount; bookmarks by onRefreshDone
+    if (activeTab === 'knowledge') {
+      await new Promise((r) => setTimeout(r, 800));
+      setRefreshing(false);
+    }
+  }, [activeTab]);
 
   return (
     <View style={styles.container}>
@@ -449,7 +464,14 @@ export default function FeedScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
         }
       >
-        {activeTab === 'knowledge' ? <KnowledgeView /> : <BookmarksView />}
+        {activeTab === 'knowledge' ? (
+          <KnowledgeView key={`k-${refreshKey}`} />
+        ) : (
+          <BookmarksView
+            key={`b-${refreshKey}`}
+            onRefreshDone={() => setRefreshing(false)}
+          />
+        )}
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -459,7 +481,7 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.sidebar },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: colors.bg,
@@ -470,13 +492,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   tabBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.sidebar,
-    gap: 6,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 20, backgroundColor: colors.sidebar, gap: 6,
   },
   tabBtnActive: { backgroundColor: colors.dark },
   tabBtnText: { fontSize: 14, fontWeight: '600', color: colors.textLight },
