@@ -78,10 +78,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="feed"
         options={{
-          title: 'Feed',
-          headerTitle: 'Feed',
+          title: 'Library',
+          headerTitle: 'Library',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="reader-outline" size={size} color={color} />
+            <Ionicons name="library-outline" size={size} color={color} />
           ),
         }}
       />

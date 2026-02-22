@@ -7,6 +7,8 @@ import {
   RefreshControl,
   Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors } from '../../src/theme/colors';
 import { DarkCard, Card, SectionHeader } from '../../src/components/Card';
 import { ProgressRing } from '../../src/components/ProgressRing';
@@ -149,6 +151,64 @@ const gridStyles = StyleSheet.create({
   legendText: { fontSize: 10, color: colors.textLight },
 });
 
+// ==================== SHORTCUTS ====================
+
+const SHORTCUTS = [
+  { icon: 'nutrition-outline' as const, label: 'Log Meal', route: '/nutrition', color: '#6ec87a' },
+  { icon: 'barbell-outline' as const, label: 'Log Workout', route: '/fitness', color: '#e8a85c' },
+  { icon: 'card-outline' as const, label: 'Log Expense', route: '/budget', color: '#6ba3d6' },
+  { icon: 'book-outline' as const, label: 'Daily Wisdom', route: '/feed', color: '#c4956a' },
+  { icon: 'flag-outline' as const, label: 'Goals', route: '/goals', color: '#9b8ed6' },
+  { icon: 'language-outline' as const, label: 'Spanish', route: '/learn', color: '#e85c5c' },
+];
+
+function ShortcutGrid() {
+  const router = useRouter();
+  return (
+    <View style={shortcutStyles.grid}>
+      {SHORTCUTS.map((s) => (
+        <Pressable
+          key={s.label}
+          style={shortcutStyles.item}
+          onPress={() => router.push(s.route as any)}
+        >
+          <View style={[shortcutStyles.iconCircle, { backgroundColor: s.color + '18' }]}>
+            <Ionicons name={s.icon} size={20} color={s.color} />
+          </View>
+          <Text style={shortcutStyles.label}>{s.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+const shortcutStyles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+    gap: 8,
+  },
+  item: {
+    width: '31%',
+    alignItems: 'center',
+    paddingVertical: 14,
+    backgroundColor: colors.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  label: { fontSize: 11, fontWeight: '600', color: colors.text },
+});
+
 // ==================== HOME SCREEN ====================
 
 export default function HomeScreen() {
@@ -264,10 +324,14 @@ export default function HomeScreen() {
           </>
         )}
 
+        {/* Quick Shortcuts */}
+        <SectionHeader title="Quick Actions" />
+        <ShortcutGrid />
+
         {/* Agent Insights */}
         {insights.length > 0 && (
           <View style={styles.insightsSection}>
-            <SectionHeader title="Insights" />
+            <SectionHeader title="Agent Insights" />
             {insights.map((insight) => (
               <AgentInsightCard key={insight.agentId} insight={insight} />
             ))}

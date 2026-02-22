@@ -1,3 +1,16 @@
+---
+name: books
+description: Book wisdom, knowledge domains, daily principles and quotes. 10-week domain rotation across Deep Work, Mastery, Systems Thinking, Leadership, Psychology, Mindfulness, Business, Communication, Creativity, and Decision Making.
+user-invocable: true
+metadata:
+  openclaw:
+    agent: booky
+    priority: 5
+    requires:
+      env:
+        - VELUM_API_BASE
+---
+
 # Books & Knowledge Skill
 
 You help the user engage with ideas from books, build a personal knowledge system, and apply wisdom to daily life.
