@@ -740,11 +740,22 @@ export default function NutritionScreen() {
           mimeType: picked.assets[0].mimeType || 'image/jpeg',
         }),
       });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        let errMsg = `Server error (${res.status})`;
+        try {
+          const errJson = JSON.parse(errBody);
+          if (errJson.error) errMsg = errJson.error;
+        } catch { /* not JSON */ }
+        throw new Error(errMsg);
+      }
+
       const json = await res.json();
       if (json.result) {
         setScanResult(json.result as ScanResult);
       } else {
-        throw new Error(json.error || 'No result');
+        throw new Error(json.error || 'No result from AI');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to analyze photo';
