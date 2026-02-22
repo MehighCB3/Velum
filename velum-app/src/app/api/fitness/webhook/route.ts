@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FitnessEntry } from '../route'
+import { FitnessEntry, buildEntry, addFitnessEntry } from '../../../lib/fitnessStore'
 import { saveInsight } from '../../../lib/insightsStore'
 import { getWeekKey } from '../../../lib/weekUtils'
 
@@ -588,56 +588,44 @@ export async function POST(request: NextRequest) {
     const entryDate = parsed.date || new Date().toISOString().split('T')[0]
     const weekKey = getWeekKey(new Date(entryDate))
     
-    // Create entry
-    const entry: Partial<FitnessEntry> = {
+    // Build entry using shared store (no self-referencing fetch)
+    const entryData: Record<string, unknown> = {
       date: entryDate,
       timestamp: new Date().toISOString(),
       type: parsed.type,
-      name: parsed.name,
+      name: parsed.type === 'jiujitsu' ? 'Jiu-Jitsu' : parsed.name,
       notes: parsed.notes,
     }
 
     // Add type-specific fields
     if (parsed.type === 'steps') {
-      entry.steps = parsed.steps
-      entry.distanceKm = calculateDistanceFromSteps(parsed.steps || 0)
+      entryData.steps = parsed.steps
     } else if (parsed.type === 'run' || parsed.type === 'swim' || parsed.type === 'cycle') {
-      entry.distance = parsed.distance
-      entry.duration = parsed.duration
-      entry.calories = parsed.calories
-      entry.pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
+      entryData.distance = parsed.distance
+      entryData.duration = parsed.duration
+      entryData.calories = parsed.calories
     } else if (parsed.type === 'vo2max') {
-      entry.vo2max = parsed.vo2max
+      entryData.vo2max = parsed.vo2max
     } else if (parsed.type === 'training_load') {
-      entry.trainingLoad = parsed.trainingLoad
+      entryData.trainingLoad = parsed.trainingLoad
     } else if (parsed.type === 'stress') {
-      entry.stressLevel = parsed.stressLevel
+      entryData.stressLevel = parsed.stressLevel
     } else if (parsed.type === 'recovery') {
-      entry.recoveryScore = parsed.recoveryScore
+      entryData.recoveryScore = parsed.recoveryScore
     } else if (parsed.type === 'hrv') {
-      entry.hrv = parsed.hrv
+      entryData.hrv = parsed.hrv
     } else if (parsed.type === 'weight') {
-      entry.weight = parsed.weight
+      entryData.weight = parsed.weight
     } else if (parsed.type === 'body_fat') {
-      entry.bodyFat = parsed.bodyFat
+      entryData.bodyFat = parsed.bodyFat
     } else if (parsed.type === 'jiujitsu') {
-      entry.duration = parsed.duration
-      entry.name = 'Jiu-Jitsu'
+      entryData.duration = parsed.duration
     }
 
-    // Call the fitness API to save
-    const fitnessApiUrl = new URL('/api/fitness', request.url)
-    const response = await fetch(fitnessApiUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week: weekKey, entry })
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to save to fitness API')
-    }
-    
-    const savedData = await response.json()
+    // Save directly to storage — eliminates the self-referencing fetch
+    // that was causing Vercel serverless timeouts
+    const newEntry = buildEntry(entryData)
+    const savedData = await addFitnessEntry(weekKey, newEntry)
 
     // ==================== PUSH INSIGHT TO FITY AGENT ====================
     // Generate a contextual insight and save directly to the shared store

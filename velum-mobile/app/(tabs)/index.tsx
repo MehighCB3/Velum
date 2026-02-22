@@ -151,62 +151,56 @@ const gridStyles = StyleSheet.create({
   legendText: { fontSize: 10, color: colors.textLight },
 });
 
-// ==================== SHORTCUTS ====================
+// ==================== QUICK LOG BAR ====================
+// Single row of 3 data-input actions — replaces the 6-button grid
 
-const SHORTCUTS = [
-  { icon: 'nutrition-outline' as const, label: 'Log Meal', route: '/nutrition', color: '#6ec87a' },
-  { icon: 'barbell-outline' as const, label: 'Log Workout', route: '/fitness', color: '#e8a85c' },
-  { icon: 'card-outline' as const, label: 'Log Expense', route: '/budget', color: '#6ba3d6' },
-  { icon: 'book-outline' as const, label: 'Daily Wisdom', route: '/feed', color: '#c4956a' },
-  { icon: 'flag-outline' as const, label: 'Goals', route: '/goals', color: '#9b8ed6' },
-  { icon: 'language-outline' as const, label: 'Spanish', route: '/learn', color: '#e85c5c' },
+const LOG_ACTIONS = [
+  { icon: 'nutrition-outline' as const, label: 'Meal', route: '/nutrition', color: '#6ec87a' },
+  { icon: 'barbell-outline' as const, label: 'Workout', route: '/fitness', color: '#e8a85c' },
+  { icon: 'card-outline' as const, label: 'Expense', route: '/budget', color: '#6ba3d6' },
 ];
 
-function ShortcutGrid() {
+function QuickLogBar() {
   const router = useRouter();
   return (
-    <View style={shortcutStyles.grid}>
-      {SHORTCUTS.map((s) => (
-        <Pressable
-          key={s.label}
-          style={shortcutStyles.item}
-          onPress={() => router.push(s.route as any)}
-        >
-          <View style={[shortcutStyles.iconCircle, { backgroundColor: s.color + '18' }]}>
-            <Ionicons name={s.icon} size={20} color={s.color} />
-          </View>
-          <Text style={shortcutStyles.label}>{s.label}</Text>
-        </Pressable>
+    <Card style={shortcutStyles.bar}>
+      {LOG_ACTIONS.map((a, i) => (
+        <React.Fragment key={a.label}>
+          {i > 0 && <View style={shortcutStyles.divider} />}
+          <Pressable
+            style={shortcutStyles.action}
+            onPress={() => router.push(a.route as any)}
+          >
+            <Ionicons name={a.icon} size={20} color={a.color} />
+            <Text style={shortcutStyles.label}>{a.label}</Text>
+          </Pressable>
+        </React.Fragment>
       ))}
-    </View>
+    </Card>
   );
 }
 
 const shortcutStyles = StyleSheet.create({
-  grid: {
+  bar: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     marginBottom: 8,
-    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
   },
-  item: {
-    width: '31%',
-    alignItems: 'center',
-    paddingVertical: 14,
-    backgroundColor: colors.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  action: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    gap: 8,
+    paddingVertical: 12,
   },
-  label: { fontSize: 11, fontWeight: '600', color: colors.text },
+  divider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  label: { fontSize: 13, fontWeight: '600', color: colors.text },
 });
 
 // ==================== HOME SCREEN ====================
@@ -324,9 +318,9 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* Quick Shortcuts */}
-        <SectionHeader title="Quick Actions" />
-        <ShortcutGrid />
+        {/* Quick Log — single unified data input */}
+        <SectionHeader title="Quick Log" />
+        <QuickLogBar />
 
         {/* Agent Insights */}
         {insights.length > 0 && (

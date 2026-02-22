@@ -203,13 +203,10 @@ export default function FitnessScreen() {
         ))}
 
         {/* Activity Log */}
-        <SectionHeader
-          title="Activities"
-          action={{ label: '+ Add', onPress: () => setShowAddModal(true) }}
-        />
+        <SectionHeader title="Activities" />
 
         {entries.length === 0 ? (
-          <EmptyState icon="🏃" title="No activities logged" subtitle="Tap + Add to log your workout" />
+          <EmptyState icon="🏃" title="No activities logged" subtitle="Tap + to log your workout" />
         ) : (
           entries.map((entry) => (
             <Pressable key={entry.id} onLongPress={() => handleDeleteEntry(entry.id)}>

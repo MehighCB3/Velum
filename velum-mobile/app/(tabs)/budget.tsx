@@ -394,16 +394,13 @@ export default function BudgetScreen() {
         </Card>
 
         {/* Spending Log */}
-        <SectionHeader
-          title="Spending Log"
-          action={{ label: '+ Add', onPress: () => setShowAddModal(true) }}
-        />
+        <SectionHeader title="Spending Log" />
 
         {data.entries.length === 0 ? (
           <EmptyState
             icon="💰"
             title="No spending logged"
-            subtitle="Tap + Add to log an expense"
+            subtitle="Tap + to log an expense"
           />
         ) : (
           [...data.entries].reverse().map((entry) => (
