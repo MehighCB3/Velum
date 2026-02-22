@@ -15,407 +15,33 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
-import { UserProfile, GoalHorizon, Goal } from '../../src/types';
-import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
+import { UserProfile } from '../../src/types';
+import { DarkCard, Card } from '../../src/components/Card';
 import { SyncIndicator } from '../../src/components/SyncIndicator';
-import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { useSync } from '../../src/hooks/useSync';
-import { useGoals } from '../../src/hooks/useGoals';
 import { useAppUpdate } from '../../src/hooks/useAppUpdate';
 import { useOTAUpdate } from '../../src/hooks/useOTAUpdate';
-
-type SubTab = 'profile' | 'goals';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-/** Format an ISO date string (e.g. "1993-09-23T00:00:00.000Z") as "Sep 23, 1993" */
 function formatBirthDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
 
-/** Safe number formatter — avoids toLocaleString() which can crash on Hermes */
-function fmt(n: number, decimals = 0): string {
-  return decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
+function getAge(iso: string): number {
+  const birth = new Date(iso);
+  if (isNaN(birth.getTime())) return 0;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age;
 }
-
-// ==================== GOALS CONTENT ====================
-
-const HORIZONS: { key: GoalHorizon; label: string; icon: string }[] = [
-  { key: 'year', label: 'This Year', icon: '🎯' },
-  { key: '3years', label: '3 Years', icon: '🗓️' },
-  { key: '5years', label: '5 Years', icon: '🌟' },
-  { key: '10years', label: '10 Years', icon: '🏔️' },
-  { key: 'bucket', label: 'Bucket List', icon: '✨' },
-];
-
-const goalFields: FormField[] = [
-  { key: 'title', label: 'Goal Title', placeholder: 'e.g. Run a marathon', type: 'text', required: true },
-  { key: 'area', label: 'Area', placeholder: 'e.g. Health, Career, Skills', type: 'text', required: true },
-  { key: 'objective', label: 'Objective', placeholder: 'What does success look like?', type: 'text' },
-  { key: 'keyMetric', label: 'Key Metric', placeholder: 'e.g. Distance, Revenue', type: 'text' },
-  { key: 'targetValue', label: 'Target Value', placeholder: '0', type: 'number' },
-  { key: 'unit', label: 'Unit', placeholder: 'e.g. km, €, hours', type: 'text' },
-  {
-    key: 'horizon',
-    label: 'Horizon',
-    placeholder: '',
-    type: 'select',
-    required: true,
-    options: HORIZONS.map((h) => ({ label: h.label, value: h.key })),
-  },
-];
-
-function GoalsContent() {
-  const { goals, loading, refresh, createGoal, updateProgress, markComplete, removeGoal } =
-    useGoals();
-  const [activeHorizon, setActiveHorizon] = useState<GoalHorizon>('year');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [progressGoal, setProgressGoal] = useState<Goal | null>(null);
-  const [progressValue, setProgressValue] = useState('');
-
-  const filteredGoals = goals.filter((g) => g.horizon === activeHorizon);
-
-  const handleAddGoal = useCallback(
-    async (values: Record<string, string>) => {
-      await createGoal({
-        title: values.title,
-        area: values.area,
-        objective: values.objective || '',
-        keyMetric: values.keyMetric || '',
-        targetValue: Number(values.targetValue) || 0,
-        unit: values.unit || '',
-        horizon: (values.horizon as GoalHorizon) || activeHorizon,
-      });
-      setShowAddModal(false);
-    },
-    [createGoal, activeHorizon],
-  );
-
-  const handleGoalAction = useCallback(
-    (goal: Goal) => {
-      const isComplete = goal.completedAt || (goal.targetValue > 0 && goal.currentValue >= goal.targetValue);
-      Alert.alert(goal.title, goal.objective || 'Choose an action', [
-        { text: 'Cancel', style: 'cancel' },
-        ...(isComplete
-          ? []
-          : [
-              {
-                text: 'Update Progress',
-                onPress: () => {
-                  setProgressGoal(goal);
-                  setProgressValue(String(goal.currentValue));
-                },
-              },
-              {
-                text: 'Mark Complete',
-                onPress: () => markComplete(goal.id),
-              },
-            ]),
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => removeGoal(goal.id),
-        },
-      ]);
-    },
-    [markComplete, removeGoal],
-  );
-
-  const handleProgressSubmit = useCallback(() => {
-    if (!progressGoal) return;
-    const num = Number(progressValue);
-    if (!isNaN(num)) {
-      updateProgress(progressGoal.id, num);
-    }
-    setProgressGoal(null);
-    setProgressValue('');
-  }, [progressGoal, progressValue, updateProgress]);
-
-  return (
-    <>
-      {/* Horizon Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={goalStyles.tabsContainer}>
-        <View style={goalStyles.tabsRow}>
-          {HORIZONS.map((h) => (
-            <Pressable
-              key={h.key}
-              style={[goalStyles.tab, activeHorizon === h.key && goalStyles.tabActive]}
-              onPress={() => setActiveHorizon(h.key)}
-            >
-              <Text style={goalStyles.tabIcon}>{h.icon}</Text>
-              <Text
-                style={[
-                  goalStyles.tabLabel,
-                  activeHorizon === h.key && goalStyles.tabLabelActive,
-                ]}
-              >
-                {h.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Stats */}
-      <View style={goalStyles.statsRow}>
-        <Text style={goalStyles.statsText}>
-          {filteredGoals.length} goal{filteredGoals.length !== 1 ? 's' : ''}
-        </Text>
-        <Text style={goalStyles.statsText}>
-          {filteredGoals.filter((g) => g.completedAt).length} completed
-        </Text>
-      </View>
-
-      {/* Goals List */}
-      {filteredGoals.length === 0 ? (
-        <EmptyState
-          icon={HORIZONS.find((h) => h.key === activeHorizon)?.icon || '🎯'}
-          title="No goals yet"
-          subtitle="Tap + to add your first goal"
-        />
-      ) : (
-        filteredGoals.map((goal) => {
-          const progress =
-            goal.targetValue > 0 ? goal.currentValue / goal.targetValue : 0;
-          const isComplete =
-            !!goal.completedAt || (goal.targetValue > 0 && goal.currentValue >= goal.targetValue);
-
-          return (
-            <Card
-              key={goal.id}
-              style={[goalStyles.goalCard, isComplete && goalStyles.goalCardComplete]}
-              onPress={() => handleGoalAction(goal)}
-            >
-              <View style={goalStyles.goalHeader}>
-                <View style={goalStyles.goalTitleRow}>
-                  {isComplete && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={18}
-                      color={colors.success}
-                      style={{ marginRight: 6 }}
-                    />
-                  )}
-                  <Text
-                    style={[goalStyles.goalTitle, isComplete && goalStyles.goalTitleComplete]}
-                    numberOfLines={1}
-                  >
-                    {goal.title}
-                  </Text>
-                </View>
-                <View style={goalStyles.areaBadge}>
-                  <Text style={goalStyles.areaText}>{goal.area}</Text>
-                </View>
-              </View>
-
-              {goal.objective ? (
-                <Text style={goalStyles.goalObjective} numberOfLines={2}>
-                  {goal.objective}
-                </Text>
-              ) : null}
-
-              {goal.targetValue > 0 && (
-                <View style={goalStyles.progressContainer}>
-                  <View style={goalStyles.progressRow}>
-                    <Text style={goalStyles.progressText}>
-                      {goal.currentValue} / {goal.targetValue} {goal.unit}
-                    </Text>
-                    <Text style={goalStyles.progressPercent}>
-                      {Math.round(Math.min(progress, 1) * 100)}%
-                    </Text>
-                  </View>
-                  <View style={goalStyles.progressBar}>
-                    <View
-                      style={[
-                        goalStyles.progressBarFill,
-                        {
-                          width: `${Math.min(progress * 100, 100)}%`,
-                          backgroundColor: isComplete ? colors.success : colors.accent,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              )}
-            </Card>
-          );
-        })
-      )}
-
-      {/* FAB */}
-      <Pressable style={goalStyles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color={colors.darkText} />
-      </Pressable>
-
-      <AddEntryModal
-        visible={showAddModal}
-        title="New Goal"
-        fields={goalFields}
-        onSubmit={handleAddGoal}
-        onClose={() => setShowAddModal(false)}
-      />
-
-      {/* Progress update modal */}
-      <Modal visible={!!progressGoal} animationType="fade" transparent>
-        <KeyboardAvoidingView
-          style={goalStyles.progressOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={goalStyles.progressSheet}>
-            <Text style={goalStyles.progressTitle}>Update Progress</Text>
-            <Text style={goalStyles.progressSub}>
-              {progressGoal?.title} — {progressGoal?.currentValue} / {progressGoal?.targetValue} {progressGoal?.unit}
-            </Text>
-            <TextInput
-              style={goalStyles.progressInput}
-              value={progressValue}
-              onChangeText={setProgressValue}
-              keyboardType="decimal-pad"
-              placeholder="New value"
-              placeholderTextColor={colors.textLight}
-              autoFocus
-            />
-            <View style={goalStyles.progressButtons}>
-              <Pressable
-                style={goalStyles.progressCancel}
-                onPress={() => { setProgressGoal(null); setProgressValue(''); }}
-              >
-                <Text style={goalStyles.progressCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={goalStyles.progressSubmit} onPress={handleProgressSubmit}>
-                <Text style={goalStyles.progressSubmitText}>Update</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </>
-  );
-}
-
-const goalStyles = StyleSheet.create({
-  tabsContainer: { marginBottom: 12 },
-  tabsRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 6,
-  },
-  tabActive: { backgroundColor: colors.dark, borderColor: colors.dark },
-  tabIcon: { fontSize: 14 },
-  tabLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
-  tabLabelActive: { color: colors.darkText },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginBottom: 12,
-  },
-  statsText: { fontSize: 13, color: colors.textLight },
-  goalCard: { marginBottom: 10 },
-  goalCardComplete: { opacity: 0.75 },
-  goalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  goalTitleRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  goalTitle: { fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
-  goalTitleComplete: { textDecorationLine: 'line-through', color: colors.textLight },
-  areaBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: colors.hover,
-  },
-  areaText: { fontSize: 11, color: colors.textLight, fontWeight: '500' },
-  goalObjective: { fontSize: 13, color: colors.textLight, marginBottom: 8 },
-  progressContainer: { marginTop: 8 },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  progressText: { fontSize: 12, color: colors.textLight },
-  progressPercent: { fontSize: 12, fontWeight: '600', color: colors.text },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.hover,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: { height: '100%', borderRadius: 3 },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.dark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  progressOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    padding: 24,
-  },
-  progressSheet: {
-    backgroundColor: colors.bg,
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 340,
-  },
-  progressTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  progressSub: { fontSize: 13, color: colors.textLight, marginBottom: 16 },
-  progressInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 18,
-    color: colors.text,
-    backgroundColor: colors.sidebar,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  progressButtons: { flexDirection: 'row', gap: 10 },
-  progressCancel: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  progressCancelText: { fontSize: 15, fontWeight: '600', color: colors.textLight },
-  progressSubmit: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: colors.dark,
-    alignItems: 'center',
-  },
-  progressSubmitText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
-});
 
 // ==================== QUICK ACTIONS ====================
 
@@ -438,245 +64,9 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: 'weight', icon: 'scale-outline', label: 'Weight', color: colors.info, placeholder: '78.5', unit: 'kg' },
 ];
 
-function QuickActionsSection() {
-  const [activeAction, setActiveAction] = useState<QuickAction | null>(null);
-  const [inputValue, setInputValue] = useState('');
-  const [inputDesc, setInputDesc] = useState('');
-  const [inputCategory, setInputCategory] = useState('Food');
-  const [submitting, setSubmitting] = useState(false);
-  const [lastResult, setLastResult] = useState<{ type: string; success: boolean } | null>(null);
+// ==================== MAIN SCREEN ====================
 
-  const handleSubmit = useCallback(async () => {
-    if (!activeAction || !inputValue.trim()) return;
-    setSubmitting(true);
-    try {
-      await quickLogApi.log({
-        type: activeAction.key,
-        value: Number(inputValue) || 0,
-        description: inputDesc || undefined,
-        category: activeAction.hasCategory ? inputCategory : undefined,
-      });
-      setLastResult({ type: activeAction.label, success: true });
-      setActiveAction(null);
-      setInputValue('');
-      setInputDesc('');
-      setTimeout(() => setLastResult(null), 3000);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      Alert.alert('Log Failed', msg);
-      setLastResult({ type: activeAction.label, success: false });
-    } finally {
-      setSubmitting(false);
-    }
-  }, [activeAction, inputValue, inputDesc, inputCategory]);
-
-  return (
-    <>
-      <Card style={qaStyles.card}>
-        <SectionHeader title="Quick Actions" />
-        <Text style={qaStyles.subtitle}>One-tap logging — skip the full flow</Text>
-
-        <View style={qaStyles.grid}>
-          {QUICK_ACTIONS.map((action) => (
-            <Pressable
-              key={action.key}
-              style={qaStyles.actionBtn}
-              onPress={() => {
-                setActiveAction(action);
-                setInputValue('');
-                setInputDesc('');
-                setInputCategory('Food');
-              }}
-            >
-              <View style={[qaStyles.actionIcon, { backgroundColor: action.color + '15' }]}>
-                <Ionicons name={action.icon as keyof typeof Ionicons.glyphMap} size={24} color={action.color} />
-              </View>
-              <Text style={qaStyles.actionLabel}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {lastResult && (
-          <View style={[qaStyles.toast, { backgroundColor: lastResult.success ? colors.success + '15' : colors.error + '15' }]}>
-            <Ionicons
-              name={lastResult.success ? 'checkmark-circle' : 'close-circle'}
-              size={16}
-              color={lastResult.success ? colors.success : colors.error}
-            />
-            <Text style={[qaStyles.toastText, { color: lastResult.success ? colors.success : colors.error }]}>
-              {lastResult.type} {lastResult.success ? 'logged!' : 'failed'}
-            </Text>
-          </View>
-        )}
-      </Card>
-
-      {/* Quick-log input modal */}
-      <Modal visible={!!activeAction} animationType="fade" transparent>
-        <KeyboardAvoidingView
-          style={qaStyles.overlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={qaStyles.sheet}>
-            <View style={qaStyles.sheetHeader}>
-              <Ionicons
-                name={activeAction?.icon as keyof typeof Ionicons.glyphMap || 'add'}
-                size={22}
-                color={activeAction?.color || colors.accent}
-              />
-              <Text style={qaStyles.sheetTitle}>Log {activeAction?.label}</Text>
-            </View>
-
-            <TextInput
-              style={qaStyles.input}
-              value={inputValue}
-              onChangeText={setInputValue}
-              placeholder={activeAction?.placeholder || '0'}
-              placeholderTextColor={colors.textLight}
-              keyboardType="decimal-pad"
-              autoFocus
-            />
-            <Text style={qaStyles.unitHint}>{activeAction?.unit}</Text>
-
-            {activeAction?.hasDescription && (
-              <TextInput
-                style={[qaStyles.input, { marginTop: 10 }]}
-                value={inputDesc}
-                onChangeText={setInputDesc}
-                placeholder={activeAction.key === 'meal' ? 'What did you eat?' : 'Description'}
-                placeholderTextColor={colors.textLight}
-              />
-            )}
-
-            {activeAction?.hasCategory && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={qaStyles.catRow}>
-                {(activeAction.categories || []).map((cat) => (
-                  <Pressable
-                    key={cat}
-                    style={[qaStyles.catBtn, inputCategory === cat && qaStyles.catBtnActive]}
-                    onPress={() => setInputCategory(cat)}
-                  >
-                    <Text style={[qaStyles.catText, inputCategory === cat && qaStyles.catTextActive]}>
-                      {cat}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-
-            <View style={qaStyles.buttons}>
-              <Pressable
-                style={qaStyles.cancelBtn}
-                onPress={() => setActiveAction(null)}
-              >
-                <Text style={qaStyles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[qaStyles.submitBtn, submitting && { opacity: 0.5 }]}
-                onPress={handleSubmit}
-                disabled={submitting || !inputValue.trim()}
-              >
-                <Text style={qaStyles.submitText}>{submitting ? 'Saving...' : 'Log'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </>
-  );
-}
-
-const qaStyles = StyleSheet.create({
-  card: { marginBottom: 12 },
-  subtitle: { fontSize: 13, color: colors.textLight, marginBottom: 16 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  actionBtn: { alignItems: 'center', width: '22%' },
-  actionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  actionLabel: { fontSize: 12, fontWeight: '600', color: colors.text },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  toastText: { fontSize: 13, fontWeight: '600' },
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    padding: 24,
-  },
-  sheet: {
-    backgroundColor: colors.bg,
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 340,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 18,
-    color: colors.text,
-    backgroundColor: colors.sidebar,
-    textAlign: 'center',
-  },
-  unitHint: { fontSize: 13, color: colors.textLight, textAlign: 'center', marginTop: 4 },
-  catRow: { marginTop: 12, flexGrow: 0 },
-  catBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginRight: 8,
-  },
-  catBtnActive: { backgroundColor: colors.dark, borderColor: colors.dark },
-  catText: { fontSize: 13, fontWeight: '600', color: colors.textLight },
-  catTextActive: { color: colors.darkText },
-  buttons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  cancelText: { fontSize: 15, fontWeight: '600', color: colors.textLight },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: colors.dark,
-    alignItems: 'center',
-  },
-  submitText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
-});
-
-// ==================== PROFILE CONTENT ====================
-
-function ProfileContent() {
+export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -712,6 +102,14 @@ function ProfileContent() {
     error: otaError,
   } = useOTAUpdate();
 
+  // Quick actions state
+  const [activeAction, setActiveAction] = useState<QuickAction | null>(null);
+  const [inputValue, setInputValue] = useState('');
+  const [inputDesc, setInputDesc] = useState('');
+  const [inputCategory, setInputCategory] = useState('Food');
+  const [submitting, setSubmitting] = useState(false);
+  const [lastResult, setLastResult] = useState<{ type: string; success: boolean } | null>(null);
+
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
@@ -746,331 +144,448 @@ function ProfileContent() {
       });
       setEditing(false);
       fetchProfile();
-    } catch (err) {
+    } catch {
       Alert.alert('Error', 'Failed to save profile');
     }
   }, [editBirthDate, editCountry, editLifeExpectancy, fetchProfile]);
 
-  return (
-    <>
-      {/* Sync Status */}
-      <View style={styles.syncRow}>
-        <SyncIndicator status={syncStatus} onSync={sync} />
-      </View>
+  const handleQuickLog = useCallback(async () => {
+    if (!activeAction || !inputValue.trim()) return;
+    setSubmitting(true);
+    try {
+      await quickLogApi.log({
+        type: activeAction.key,
+        value: Number(inputValue) || 0,
+        description: inputDesc || undefined,
+        category: activeAction.hasCategory ? inputCategory : undefined,
+      });
+      setLastResult({ type: activeAction.label, success: true });
+      setActiveAction(null);
+      setInputValue('');
+      setInputDesc('');
+      setTimeout(() => setLastResult(null), 3000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      Alert.alert('Log Failed', msg);
+      setLastResult({ type: activeAction.label, success: false });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [activeAction, inputValue, inputDesc, inputCategory]);
 
-      {/* Profile Details */}
-      <Card style={styles.profileCard}>
-        <View style={styles.profileHeader}>
-          <SectionHeader title="Profile" />
-          <Pressable onPress={() => setEditing(!editing)} hitSlop={12}>
-            <Ionicons
-              name={editing ? 'close' : 'create-outline'}
-              size={20}
-              color={colors.accent}
-            />
-          </Pressable>
-        </View>
-
-        {editing ? (
-          <View style={styles.editForm}>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>Birth Date (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.input}
-                value={editBirthDate}
-                onChangeText={setEditBirthDate}
-                placeholder="1990-01-01"
-                placeholderTextColor={colors.textLight}
-              />
-            </View>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>Country</Text>
-              <TextInput
-                style={styles.input}
-                value={editCountry}
-                onChangeText={setEditCountry}
-                placeholder="e.g. Spain"
-                placeholderTextColor={colors.textLight}
-              />
-            </View>
-            <View style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>Life Expectancy (years)</Text>
-              <TextInput
-                style={styles.input}
-                value={editLifeExpectancy}
-                onChangeText={setEditLifeExpectancy}
-                placeholder="85"
-                placeholderTextColor={colors.textLight}
-                keyboardType="number-pad"
-              />
-            </View>
-            <Pressable style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Save Profile</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.profileDetails}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Birth Date</Text>
-              <Text style={styles.detailValue}>
-                {profile?.birth_date ? formatBirthDate(profile.birth_date) : 'Not set'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Country</Text>
-              <Text style={styles.detailValue}>
-                {profile?.country || 'Not set'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Life Expectancy</Text>
-              <Text style={styles.detailValue}>
-                {profile?.life_expectancy || 85} years
-              </Text>
-            </View>
-          </View>
-        )}
-      </Card>
-
-      {/* Quick Actions */}
-      <QuickActionsSection />
-
-      {/* App Info */}
-      <Card style={styles.infoCard}>
-        <SectionHeader title="About Velum" />
-        <View style={styles.infoRow}>
-          <Ionicons name="phone-portrait-outline" size={16} color={colors.textLight} />
-          <Text style={styles.infoText}>Velum Mobile v{currentVersion}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="sync-outline" size={16} color={colors.textLight} />
-          <Text style={styles.infoText}>
-            Syncs with Velum web app via shared API
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="server-outline" size={16} color={colors.textLight} />
-          <Text style={styles.infoText}>
-            Database: Vercel Postgres + Upstash Redis
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="hardware-chip-outline" size={16} color={colors.textLight} />
-          <Text style={styles.infoText}>
-            Local cache: SQLite (offline-first)
-          </Text>
-        </View>
-      </Card>
-
-      {/* Action Buttons */}
-      <View style={styles.actionRow}>
-        <Pressable style={styles.syncButton} onPress={sync}>
-          <Ionicons name="sync" size={18} color={colors.accent} />
-          <Text style={styles.syncButtonText}>Force Sync</Text>
-        </Pressable>
-        <Pressable
-          style={styles.updateButton}
-          onPress={() => { checkAndUpdate(); otaManualCheck(); }}
-          disabled={isChecking || otaChecking}
-        >
-          <Ionicons name="download-outline" size={18} color={colors.textLight} />
-          <Text style={styles.updateButtonText}>
-            {isChecking || otaChecking ? 'Checking...' : 'Update App'}
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* OTA Updates (JS-only, instant) */}
-      {(otaReady || otaDownloading) && (
-        <Card style={styles.updateCard}>
-          <SectionHeader title="Instant Update" />
-          {otaDownloading && (
-            <View style={styles.downloadingBox}>
-              <View style={styles.downloadingHeader}>
-                <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
-                <Text style={styles.downloadingText}>Downloading update...</Text>
-              </View>
-            </View>
-          )}
-          {otaReady && (
-            <View style={styles.updateAvailableBox}>
-              <View style={styles.updateVersionRow}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={styles.updateVersionText}>Update ready</Text>
-              </View>
-              <Text style={styles.releaseNotes}>
-                A new version is downloaded and will apply on next restart.
-              </Text>
-              <Pressable style={styles.downloadBtn} onPress={otaRestart}>
-                <Ionicons name="refresh-outline" size={18} color={colors.darkText} />
-                <Text style={styles.downloadBtnText}>Restart Now</Text>
-              </Pressable>
-            </View>
-          )}
-        </Card>
-      )}
-
-      {/* App Update Section (APK — native changes only) */}
-      <Card style={styles.updateCard}>
-        <SectionHeader title="App Updates" />
-        <Text style={styles.updateSource}>
-          JS updates: automatic via OTA  {otaChecking ? '(checking...)' : otaStatus === 'up-to-date' ? '(up to date)' : otaError ? '(EAS not configured)' : ''}
-        </Text>
-        <Text style={[styles.updateSource, { marginBottom: 10 }]}>
-          Native updates: via GitHub Releases
-        </Text>
-
-        {/* Update available — show release notes + download */}
-        {isUpdateAvailable && (
-          <View style={styles.updateAvailableBox}>
-            <View style={styles.updateVersionRow}>
-              <Ionicons name="arrow-up-circle" size={20} color={colors.success} />
-              <Text style={styles.updateVersionText}>
-                v{remoteVersion} available
-              </Text>
-              {apkSizeBytes ? (
-                <Text style={styles.updateSizeText}>
-                  {formatBytes(apkSizeBytes)}
-                </Text>
-              ) : null}
-            </View>
-            {releaseNotes ? (
-              <Text style={styles.releaseNotes} numberOfLines={4}>
-                {releaseNotes}
-              </Text>
-            ) : null}
-            <Pressable
-              style={styles.downloadBtn}
-              onPress={downloadAndInstall}
-            >
-              <Ionicons name="download-outline" size={18} color={colors.darkText} />
-              <Text style={styles.downloadBtnText}>Download & Install</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Downloading — progress bar */}
-        {isDownloading && (
-          <View style={styles.downloadingBox}>
-            <View style={styles.downloadingHeader}>
-              <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
-              <Text style={styles.downloadingText}>
-                Downloading v{remoteVersion}...
-              </Text>
-              <Text style={styles.downloadingPct}>
-                {Math.round(downloadProgress * 100)}%
-              </Text>
-            </View>
-            <View style={styles.progressBarTrack}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${Math.min(downloadProgress * 100, 100)}%` },
-                ]}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Downloaded — install button */}
-        {isDownloaded && (
-          <View style={styles.updateAvailableBox}>
-            <View style={styles.updateVersionRow}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              <Text style={styles.updateVersionText}>
-                v{remoteVersion} downloaded
-              </Text>
-            </View>
-            <Pressable
-              style={styles.downloadBtn}
-              onPress={installUpdate}
-            >
-              <Ionicons name="open-outline" size={18} color={colors.darkText} />
-              <Text style={styles.downloadBtnText}>Install Now</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Installing */}
-        {isInstalling && (
-          <View style={styles.downloadingBox}>
-            <View style={styles.downloadingHeader}>
-              <Ionicons name="hourglass-outline" size={18} color={colors.accent} />
-              <Text style={styles.downloadingText}>Opening installer...</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Error */}
-        {updateStatus === 'error' && updateError && (
-          <View style={styles.updateErrorBox}>
-            <Ionicons name="warning-outline" size={16} color={colors.error} />
-            <Text style={styles.updateErrorText}>{updateError}</Text>
-          </View>
-        )}
-
-        {/* Check / up-to-date button */}
-        {!isUpdateAvailable && !isDownloading && !isDownloaded && !isInstalling && (
-          <Pressable
-            style={styles.checkUpdateBtn}
-            onPress={() => { checkAndUpdate(); otaManualCheck(); }}
-            disabled={isChecking || otaChecking}
-          >
-            <Ionicons
-              name={isChecking || otaChecking ? 'hourglass-outline' : 'refresh-outline'}
-              size={18}
-              color={colors.accent}
-            />
-            <Text style={styles.checkUpdateText}>
-              {isChecking || otaChecking
-                ? 'Checking...'
-                : updateStatus === 'up-to-date'
-                ? `v${currentVersion} — Up to Date`
-                : updateStatus === 'error'
-                ? 'Retry Update Check'
-                : 'Check for Updates'}
-            </Text>
-          </Pressable>
-        )}
-      </Card>
-    </>
-  );
-}
-
-// ==================== MAIN SCREEN ====================
-
-export default function ProfileScreen() {
-  const [activeTab, setActiveTab] = useState<SubTab>('profile');
+  const age = profile?.birth_date ? getAge(profile.birth_date) : null;
+  const lifeExp = profile?.life_expectancy || 85;
 
   return (
     <View style={styles.container}>
-      {/* Sub-tabs */}
-      <View style={styles.tabBar}>
-        <Pressable
-          style={[styles.tabBtn, activeTab === 'profile' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('profile')}
-        >
-          <Text style={[styles.tabBtnText, activeTab === 'profile' && styles.tabBtnTextActive]}>
-            Profile
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabBtn, activeTab === 'goals' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('goals')}
-        >
-          <Text style={[styles.tabBtnText, activeTab === 'goals' && styles.tabBtnTextActive]}>
-            Goals
-          </Text>
-        </Pressable>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={fetchProfile} tintColor={colors.accent} />
+        }
       >
-        {activeTab === 'profile' ? <ProfileContent /> : <GoalsContent />}
+        {/* Sync indicator */}
+        <View style={styles.syncRow}>
+          <SyncIndicator status={syncStatus} onSync={sync} />
+        </View>
+
+        {/* Hero — Profile Card */}
+        <DarkCard style={styles.heroCard}>
+          {!editing ? (
+            <>
+              <View style={styles.heroTop}>
+                <View>
+                  {age !== null && (
+                    <Text style={styles.heroAge}>{age}</Text>
+                  )}
+                  <Text style={styles.heroLabel}>
+                    {profile?.birth_date ? formatBirthDate(profile.birth_date) : 'Birth date not set'}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setEditing(true)} hitSlop={12}>
+                  <Ionicons name="create-outline" size={20} color={colors.darkTextMuted} />
+                </Pressable>
+              </View>
+
+              <View style={styles.heroDivider} />
+
+              <View style={styles.heroStatsRow}>
+                <View style={styles.heroStat}>
+                  <Ionicons name="location-outline" size={14} color={colors.darkTextMuted} />
+                  <Text style={styles.heroStatText}>
+                    {profile?.country || 'Not set'}
+                  </Text>
+                </View>
+                <View style={styles.heroStat}>
+                  <Ionicons name="hourglass-outline" size={14} color={colors.darkTextMuted} />
+                  <Text style={styles.heroStatText}>{lifeExp} yrs expectancy</Text>
+                </View>
+              </View>
+
+              {/* Life progress bar */}
+              {age !== null && (
+                <View style={styles.lifeBarWrap}>
+                  <View style={styles.lifeBarTrack}>
+                    <View
+                      style={[
+                        styles.lifeBarFill,
+                        { width: `${Math.min((age / lifeExp) * 100, 100)}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.lifeBarLabel}>
+                    {Math.round((age / lifeExp) * 100)}% of {lifeExp} years
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View>
+              <View style={styles.editHeader}>
+                <Text style={styles.editTitle}>Edit Profile</Text>
+                <Pressable onPress={() => setEditing(false)} hitSlop={12}>
+                  <Ionicons name="close" size={22} color={colors.darkTextMuted} />
+                </Pressable>
+              </View>
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Birth Date (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editBirthDate}
+                  onChangeText={setEditBirthDate}
+                  placeholder="1990-01-01"
+                  placeholderTextColor={colors.darkTextMuted}
+                />
+              </View>
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Country</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editCountry}
+                  onChangeText={setEditCountry}
+                  placeholder="e.g. Spain"
+                  placeholderTextColor={colors.darkTextMuted}
+                />
+              </View>
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Life Expectancy</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editLifeExpectancy}
+                  onChangeText={setEditLifeExpectancy}
+                  placeholder="85"
+                  placeholderTextColor={colors.darkTextMuted}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <Pressable style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.saveBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          )}
+        </DarkCard>
+
+        {/* Quick Actions */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quick Log</Text>
+        </View>
+
+        <View style={styles.quickRow}>
+          {QUICK_ACTIONS.map((action) => (
+            <Pressable
+              key={action.key}
+              style={styles.quickBtn}
+              onPress={() => {
+                setActiveAction(action);
+                setInputValue('');
+                setInputDesc('');
+                setInputCategory('Food');
+              }}
+            >
+              <View style={[styles.quickIcon, { backgroundColor: action.color + '15' }]}>
+                <Ionicons
+                  name={action.icon as keyof typeof Ionicons.glyphMap}
+                  size={22}
+                  color={action.color}
+                />
+              </View>
+              <Text style={styles.quickLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {lastResult && (
+          <View
+            style={[
+              styles.toast,
+              { backgroundColor: lastResult.success ? colors.success + '15' : colors.error + '15' },
+            ]}
+          >
+            <Ionicons
+              name={lastResult.success ? 'checkmark-circle' : 'close-circle'}
+              size={16}
+              color={lastResult.success ? colors.success : colors.error}
+            />
+            <Text
+              style={[
+                styles.toastText,
+                { color: lastResult.success ? colors.success : colors.error },
+              ]}
+            >
+              {lastResult.type} {lastResult.success ? 'logged!' : 'failed'}
+            </Text>
+          </View>
+        )}
+
+        {/* Settings / Info — flat list */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Settings</Text>
+        </View>
+
+        <Card style={styles.settingsList}>
+          {/* Force Sync */}
+          <Pressable style={styles.settingsRow} onPress={sync}>
+            <Ionicons name="sync-outline" size={18} color={colors.accent} />
+            <Text style={styles.settingsLabel}>Force Sync</Text>
+            <Text style={styles.settingsHint}>
+              {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced' : 'Tap to sync'}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+          </Pressable>
+
+          <View style={styles.settingsDivider} />
+
+          {/* Check Updates */}
+          <Pressable
+            style={styles.settingsRow}
+            onPress={() => { checkAndUpdate(); otaManualCheck(); }}
+            disabled={isChecking || otaChecking}
+          >
+            <Ionicons name="download-outline" size={18} color={colors.info} />
+            <Text style={styles.settingsLabel}>Check for Updates</Text>
+            <Text style={styles.settingsHint}>
+              {isChecking || otaChecking
+                ? 'Checking...'
+                : updateStatus === 'up-to-date'
+                ? 'Up to date'
+                : ''}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+          </Pressable>
+
+          <View style={styles.settingsDivider} />
+
+          {/* Version */}
+          <View style={styles.settingsRow}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.textLight} />
+            <Text style={styles.settingsLabel}>Version</Text>
+            <Text style={styles.settingsValue}>v{currentVersion}</Text>
+          </View>
+
+          <View style={styles.settingsDivider} />
+
+          {/* Database */}
+          <View style={styles.settingsRow}>
+            <Ionicons name="server-outline" size={18} color={colors.textLight} />
+            <Text style={styles.settingsLabel}>Database</Text>
+            <Text style={styles.settingsValue}>Postgres + Redis</Text>
+          </View>
+
+          <View style={styles.settingsDivider} />
+
+          {/* Cache */}
+          <View style={styles.settingsRow}>
+            <Ionicons name="hardware-chip-outline" size={18} color={colors.textLight} />
+            <Text style={styles.settingsLabel}>Local Cache</Text>
+            <Text style={styles.settingsValue}>SQLite</Text>
+          </View>
+        </Card>
+
+        {/* OTA Update banner — only when ready */}
+        {(otaReady || otaDownloading) && (
+          <Card style={styles.updateBanner}>
+            {otaDownloading && (
+              <View style={styles.updateRow}>
+                <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
+                <Text style={styles.updateText}>Downloading update...</Text>
+              </View>
+            )}
+            {otaReady && (
+              <>
+                <View style={styles.updateRow}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  <Text style={styles.updateText}>Update ready to install</Text>
+                </View>
+                <Pressable style={styles.updateBtn} onPress={otaRestart}>
+                  <Text style={styles.updateBtnText}>Restart Now</Text>
+                </Pressable>
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* APK Update — only when available/downloading/downloaded */}
+        {(isUpdateAvailable || isDownloading || isDownloaded || isInstalling) && (
+          <Card style={styles.updateBanner}>
+            {isUpdateAvailable && !isDownloading && !isDownloaded && (
+              <>
+                <View style={styles.updateRow}>
+                  <Ionicons name="arrow-up-circle" size={18} color={colors.success} />
+                  <Text style={styles.updateText}>
+                    v{remoteVersion} available
+                  </Text>
+                  {apkSizeBytes ? (
+                    <Text style={styles.updateSize}>{formatBytes(apkSizeBytes)}</Text>
+                  ) : null}
+                </View>
+                {releaseNotes ? (
+                  <Text style={styles.releaseNotes} numberOfLines={3}>
+                    {releaseNotes}
+                  </Text>
+                ) : null}
+                <Pressable style={styles.updateBtn} onPress={downloadAndInstall}>
+                  <Ionicons name="download-outline" size={16} color="#fff" />
+                  <Text style={styles.updateBtnText}>Download & Install</Text>
+                </Pressable>
+              </>
+            )}
+
+            {isDownloading && (
+              <>
+                <View style={styles.updateRow}>
+                  <Ionicons name="cloud-download-outline" size={18} color={colors.accent} />
+                  <Text style={styles.updateText}>Downloading v{remoteVersion}...</Text>
+                  <Text style={styles.updatePct}>{Math.round(downloadProgress * 100)}%</Text>
+                </View>
+                <View style={styles.dlBarTrack}>
+                  <View
+                    style={[
+                      styles.dlBarFill,
+                      { width: `${Math.min(downloadProgress * 100, 100)}%` },
+                    ]}
+                  />
+                </View>
+              </>
+            )}
+
+            {isDownloaded && (
+              <>
+                <View style={styles.updateRow}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  <Text style={styles.updateText}>v{remoteVersion} downloaded</Text>
+                </View>
+                <Pressable style={styles.updateBtn} onPress={installUpdate}>
+                  <Ionicons name="open-outline" size={16} color="#fff" />
+                  <Text style={styles.updateBtnText}>Install Now</Text>
+                </Pressable>
+              </>
+            )}
+
+            {isInstalling && (
+              <View style={styles.updateRow}>
+                <Ionicons name="hourglass-outline" size={18} color={colors.accent} />
+                <Text style={styles.updateText}>Opening installer...</Text>
+              </View>
+            )}
+          </Card>
+        )}
+
+        {/* Update error */}
+        {updateStatus === 'error' && updateError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning-outline" size={16} color={colors.error} />
+            <Text style={styles.errorText}>{updateError}</Text>
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Quick-log input modal */}
+      <Modal visible={!!activeAction} animationType="fade" transparent>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setActiveAction(null)}
+          >
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Ionicons
+                  name={(activeAction?.icon as keyof typeof Ionicons.glyphMap) || 'add'}
+                  size={20}
+                  color={activeAction?.color || colors.accent}
+                />
+                <Text style={styles.modalTitle}>Log {activeAction?.label}</Text>
+              </View>
+
+              <TextInput
+                style={styles.modalInput}
+                value={inputValue}
+                onChangeText={setInputValue}
+                placeholder={activeAction?.placeholder || '0'}
+                placeholderTextColor={colors.textLight}
+                keyboardType="decimal-pad"
+                autoFocus
+              />
+              <Text style={styles.modalUnit}>{activeAction?.unit}</Text>
+
+              {activeAction?.hasDescription && (
+                <TextInput
+                  style={[styles.modalInput, { marginTop: 10 }]}
+                  value={inputDesc}
+                  onChangeText={setInputDesc}
+                  placeholder={activeAction.key === 'meal' ? 'What did you eat?' : 'Description'}
+                  placeholderTextColor={colors.textLight}
+                />
+              )}
+
+              {activeAction?.hasCategory && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.catScroll}
+                >
+                  {(activeAction.categories || []).map((cat) => (
+                    <Pressable
+                      key={cat}
+                      style={[styles.catPill, inputCategory === cat && styles.catPillActive]}
+                      onPress={() => setInputCategory(cat)}
+                    >
+                      <Text
+                        style={[
+                          styles.catPillText,
+                          inputCategory === cat && styles.catPillTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+
+              <View style={styles.modalButtons}>
+                <Pressable style={styles.modalCancel} onPress={() => setActiveAction(null)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalSubmit, submitting && { opacity: 0.5 }]}
+                  onPress={handleQuickLog}
+                  disabled={submitting || !inputValue.trim()}
+                >
+                  <Text style={styles.modalSubmitText}>
+                    {submitting ? 'Saving...' : 'Log'}
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -1078,166 +593,145 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tabBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.sidebar,
-  },
-  tabBtnActive: { backgroundColor: colors.dark },
-  tabBtnText: { fontSize: 14, fontWeight: '600', color: colors.textLight },
-  tabBtnTextActive: { color: colors.darkText },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+
+  // Sync
   syncRow: { alignItems: 'flex-end', marginBottom: 8 },
-  profileCard: { marginBottom: 12 },
-  profileHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+
+  // Hero
+  heroCard: { padding: 16, marginBottom: 12 },
+  heroTop: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
   },
-  editForm: { marginTop: 8 },
-  fieldContainer: { marginBottom: 12 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.sidebar,
+  heroAge: { fontSize: 40, fontWeight: '700', color: colors.darkText, lineHeight: 44 },
+  heroLabel: { fontSize: 12, color: colors.darkTextMuted, marginTop: 2 },
+  heroDivider: { height: 1, backgroundColor: colors.darkInner, marginVertical: 12 },
+  heroStatsRow: { flexDirection: 'row', gap: 20 },
+  heroStat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heroStatText: { fontSize: 12, color: colors.darkTextMuted },
+  lifeBarWrap: { marginTop: 12 },
+  lifeBarTrack: {
+    height: 4, backgroundColor: colors.darkInner, borderRadius: 2, overflow: 'hidden',
   },
-  saveButton: {
-    backgroundColor: colors.dark,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 4,
+  lifeBarFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 2 },
+  lifeBarLabel: { fontSize: 10, color: colors.darkTextMuted, marginTop: 4 },
+
+  // Edit form inside hero
+  editHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 14,
   },
-  saveButtonText: { color: colors.darkText, fontSize: 15, fontWeight: '700' },
-  profileDetails: { marginTop: 4 },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  editTitle: { fontSize: 16, fontWeight: '700', color: colors.darkText },
+  editField: { marginBottom: 12 },
+  editLabel: { fontSize: 11, color: colors.darkTextMuted, marginBottom: 4 },
+  editInput: {
+    borderWidth: 1, borderColor: colors.darkInner, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
+    color: colors.darkText, backgroundColor: colors.darkInner,
   },
-  detailLabel: { fontSize: 14, color: colors.textLight },
-  detailValue: { fontSize: 14, fontWeight: '600', color: colors.text },
-  infoCard: { marginBottom: 12 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  infoText: { fontSize: 13, color: colors.textLight },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 4,
+  saveBtn: {
+    backgroundColor: colors.accent, paddingVertical: 12,
+    borderRadius: 8, alignItems: 'center', marginTop: 4,
   },
-  syncButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    gap: 8,
-  },
-  syncButtonText: { fontSize: 14, fontWeight: '600', color: colors.accent },
-  updateButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-  },
-  updateButtonText: { fontSize: 14, fontWeight: '600', color: colors.textLight },
-  updateCard: { marginTop: 12, marginBottom: 12 },
-  updateSource: { fontSize: 12, color: colors.textLight, marginBottom: 10 },
-  updateAvailableBox: {
-    backgroundColor: colors.success + '10',
-    borderRadius: 10,
-    padding: 12,
+  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 8,
   },
-  updateVersionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.textLight, letterSpacing: 0.3 },
+
+  // Quick actions
+  quickRow: {
+    flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12,
   },
-  updateVersionText: { fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
-  updateSizeText: { fontSize: 12, color: colors.textLight },
-  releaseNotes: { fontSize: 13, color: colors.textLight, marginBottom: 10, lineHeight: 18 },
-  downloadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.dark,
-    paddingVertical: 12,
-    borderRadius: 8,
+  quickBtn: { alignItems: 'center', flex: 1 },
+  quickIcon: {
+    width: 48, height: 48, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 4,
   },
-  downloadBtnText: { fontSize: 15, fontWeight: '700', color: colors.darkText },
-  downloadingBox: {
-    backgroundColor: colors.accent + '10',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+  quickLabel: { fontSize: 11, fontWeight: '600', color: colors.text },
+
+  // Toast
+  toast: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 12,
   },
-  downloadingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+  toastText: { fontSize: 13, fontWeight: '600' },
+
+  // Settings list
+  settingsList: { padding: 0, overflow: 'hidden', marginBottom: 12 },
+  settingsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 13,
   },
-  downloadingText: { fontSize: 14, fontWeight: '600', color: colors.text, flex: 1 },
-  downloadingPct: { fontSize: 14, fontWeight: '700', color: colors.accent },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: colors.hover,
-    borderRadius: 4,
-    overflow: 'hidden',
+  settingsLabel: { fontSize: 14, fontWeight: '500', color: colors.text, flex: 1 },
+  settingsHint: { fontSize: 12, color: colors.textLight },
+  settingsValue: { fontSize: 12, color: colors.textLight },
+  settingsDivider: { height: 1, backgroundColor: colors.borderSubtle, marginLeft: 42 },
+
+  // Update banners
+  updateBanner: { marginBottom: 12, padding: 14 },
+  updateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  updateText: { fontSize: 14, fontWeight: '600', color: colors.text, flex: 1 },
+  updateSize: { fontSize: 12, color: colors.textLight },
+  updatePct: { fontSize: 14, fontWeight: '700', color: colors.accent },
+  releaseNotes: { fontSize: 12, color: colors.textLight, marginBottom: 10, lineHeight: 17 },
+  updateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: colors.accent, paddingVertical: 11, borderRadius: 8,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 4,
+  updateBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+
+  // Download bar
+  dlBarTrack: {
+    height: 6, backgroundColor: colors.hover, borderRadius: 3, overflow: 'hidden',
   },
-  updateErrorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.error + '10',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 8,
+  dlBarFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 3 },
+
+  // Error
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.error + '10', borderRadius: 8,
+    padding: 10, marginBottom: 12,
   },
-  updateErrorText: { fontSize: 13, color: colors.error, flex: 1 },
-  checkUpdateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+  errorText: { fontSize: 13, color: colors.error, flex: 1 },
+
+  // Modal
+  modalOverlay: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)', padding: 24,
   },
-  checkUpdateText: { fontSize: 14, fontWeight: '600', color: colors.accent },
+  modalSheet: {
+    backgroundColor: colors.bg, borderRadius: 16, padding: 24,
+    width: '100%', maxWidth: 340,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  modalInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 18,
+    color: colors.text, backgroundColor: colors.card, textAlign: 'center',
+  },
+  modalUnit: { fontSize: 13, color: colors.textLight, textAlign: 'center', marginTop: 4 },
+  catScroll: { marginTop: 12, flexGrow: 0 },
+  catPill: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18,
+    borderWidth: 1, borderColor: colors.border, marginRight: 8,
+  },
+  catPillActive: { backgroundColor: colors.dark, borderColor: colors.dark },
+  catPillText: { fontSize: 13, fontWeight: '600', color: colors.textLight },
+  catPillTextActive: { color: colors.darkText },
+  modalButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalCancel: {
+    flex: 1, paddingVertical: 12, borderRadius: 8,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textLight },
+  modalSubmit: {
+    flex: 1, paddingVertical: 12, borderRadius: 8,
+    backgroundColor: colors.accent, alignItems: 'center',
+  },
+  modalSubmitText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
