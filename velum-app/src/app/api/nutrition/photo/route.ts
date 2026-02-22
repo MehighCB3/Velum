@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { searchFatSecret } from '@/app/lib/fatsecret'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 30
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -13,6 +15,7 @@ interface FoodAnalysis {
   serving: string
   confidence: 'high' | 'medium' | 'low'
   note?: string
+  source?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -29,6 +32,7 @@ export async function POST(request: NextRequest) {
 
     // Fallback if no OpenAI key
     if (!OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY not configured')
       return NextResponse.json({
         result: {
           name: 'Unknown food',
@@ -39,6 +43,7 @@ export async function POST(request: NextRequest) {
           serving: '1 serving',
           confidence: 'low',
           note: 'AI recognition unavailable — please fill in manually',
+          source: 'fallback',
         } satisfies FoodAnalysis,
       })
     }
@@ -98,21 +103,23 @@ Rules:
     if (!response.ok) {
       const errText = await response.text()
       console.error('OpenAI error:', response.status, errText)
-      return NextResponse.json({ error: 'AI analysis failed' }, { status: 502 })
+      return NextResponse.json(
+        { error: `AI analysis failed (${response.status})` },
+        { status: 502 },
+      )
     }
 
     const data = await response.json()
     const content = data.choices?.[0]?.message?.content || ''
 
     // Parse the JSON response
-    let result: FoodAnalysis
+    let aiResult: FoodAnalysis
     try {
-      // Strip any markdown code fences just in case
       const clean = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
-      result = JSON.parse(clean)
+      aiResult = JSON.parse(clean)
     } catch {
       console.error('Failed to parse AI response:', content)
-      result = {
+      aiResult = {
         name: 'Unknown food',
         calories: 200,
         protein: 10,
@@ -125,12 +132,41 @@ Rules:
     }
 
     // Ensure numeric fields are numbers
-    result.calories = Math.round(Number(result.calories) || 0)
-    result.protein = Math.round(Number(result.protein) || 0)
-    result.carbs = Math.round(Number(result.carbs) || 0)
-    result.fat = Math.round(Number(result.fat) || 0)
+    aiResult.calories = Math.round(Number(aiResult.calories) || 0)
+    aiResult.protein = Math.round(Number(aiResult.protein) || 0)
+    aiResult.carbs = Math.round(Number(aiResult.carbs) || 0)
+    aiResult.fat = Math.round(Number(aiResult.fat) || 0)
 
-    return NextResponse.json({ result })
+    // ── Refine with FatSecret lookup ──────────────────────────
+    // Use the AI-identified name to get accurate nutrition from FatSecret
+    if (aiResult.name && aiResult.name !== 'Unknown' && aiResult.name !== 'Unknown food') {
+      try {
+        const fsResults = await searchFatSecret(aiResult.name, 1)
+        if (fsResults && fsResults.length > 0) {
+          const fs = fsResults[0]
+          // Use FatSecret nutrition data (more accurate than AI estimates)
+          // but keep the AI-identified name and serving description
+          aiResult.calories = Math.round(fs.calories)
+          aiResult.protein = Math.round(fs.protein)
+          aiResult.carbs = Math.round(fs.carbs)
+          aiResult.fat = Math.round(fs.fat)
+          aiResult.source = 'fatsecret'
+          // If FatSecret has a serving size, note it
+          if (fs.serving && fs.serving !== '100g') {
+            aiResult.note = `Nutrition per ${fs.serving} (via FatSecret)`
+          } else {
+            aiResult.note = `Nutrition per 100g (via FatSecret)`
+          }
+        } else {
+          aiResult.source = 'ai-estimate'
+        }
+      } catch (fsError) {
+        console.error('FatSecret lookup failed (using AI estimates):', fsError)
+        aiResult.source = 'ai-estimate'
+      }
+    }
+
+    return NextResponse.json({ result: aiResult })
   } catch (error) {
     console.error('Photo analysis error:', error)
     return NextResponse.json({ error: 'Failed to analyze photo' }, { status: 500 })
