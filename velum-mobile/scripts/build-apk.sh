@@ -60,11 +60,9 @@ if [ -z "${JAVA_HOME:-}" ]; then
   fi
 fi
 
-# ── Step 1: Generate native project if needed ────────────────
-if [ ! -f "android/gradlew" ]; then
-  echo "Generating native Android project..."
-  npx expo prebuild --platform android --clean
-fi
+# ── Step 1: Always clean prebuild to pick up app.json changes ─
+echo "Generating native Android project (clean)..."
+npx expo prebuild --platform android --clean
 
 # ── Step 2: Ensure local.properties ──────────────────────────
 if [ ! -f "android/local.properties" ]; then

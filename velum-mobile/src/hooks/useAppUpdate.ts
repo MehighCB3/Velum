@@ -1,7 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system/next';
+import {
+  documentDirectory,
+  createDownloadResumable,
+  getContentUriAsync,
+  type DownloadResumable,
+} from 'expo-file-system';
 import { getSyncMeta, setSyncMeta } from '../db/database';
 
 // GitHub repository for release checks
@@ -74,6 +80,18 @@ export function formatBytes(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+/** Clean up a file if it exists — uses new File API (SDK 54+) */
+function cleanupFile(uri: string): void {
+  try {
+    const file = new File(uri);
+    if (file.exists) {
+      file.delete();
+    }
+  } catch {
+    // Ignore — file may not exist
+  }
+}
+
 const INITIAL_STATE: AppUpdateState = {
   status: 'idle',
   error: null,
@@ -90,7 +108,7 @@ const INITIAL_STATE: AppUpdateState = {
 
 export function useAppUpdate() {
   const [state, setState] = useState<AppUpdateState>(INITIAL_STATE);
-  const downloadRef = useRef<FileSystem.DownloadResumable | null>(null);
+  const downloadRef = useRef<DownloadResumable | null>(null);
 
   // ── Check GitHub Releases for latest version ──
   const checkForUpdate = useCallback(async (force = false) => {
@@ -247,18 +265,15 @@ export function useAppUpdate() {
     if (!state.apkUrl) return;
 
     const fileName = `velum-v${state.remoteVersion}-arm64.apk`;
-    const fileUri = FileSystem.documentDirectory + fileName;
+    const fileUri = documentDirectory + fileName;
 
     try {
-      // Clean up any previous download
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
-      }
+      // Clean up any previous download (new File API — no deprecation warning)
+      cleanupFile(fileUri);
 
       setState((s) => ({ ...s, status: 'downloading', downloadProgress: 0, error: null }));
 
-      const downloadResumable = FileSystem.createDownloadResumable(
+      const downloadResumable = createDownloadResumable(
         state.apkUrl,
         fileUri,
         {
@@ -309,7 +324,7 @@ export function useAppUpdate() {
       // Try to open with Android content URI (triggers package installer)
       if (Platform.OS === 'android') {
         try {
-          const contentUri = await FileSystem.getContentUriAsync(filePath);
+          const contentUri = await getContentUriAsync(filePath);
           const canOpen = await Linking.canOpenURL(contentUri);
           if (canOpen) {
             await Linking.openURL(contentUri);
@@ -347,18 +362,15 @@ export function useAppUpdate() {
     if (!state.apkUrl) return;
 
     const fileName = `velum-v${state.remoteVersion}-arm64.apk`;
-    const fileUri = FileSystem.documentDirectory + fileName;
+    const fileUri = documentDirectory + fileName;
 
     try {
-      // Clean up
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
-      }
+      // Clean up previous download
+      cleanupFile(fileUri);
 
       setState((s) => ({ ...s, status: 'downloading', downloadProgress: 0, error: null }));
 
-      const downloadResumable = FileSystem.createDownloadResumable(
+      const downloadResumable = createDownloadResumable(
         state.apkUrl,
         fileUri,
         { headers: { Accept: 'application/octet-stream' } },
@@ -388,7 +400,7 @@ export function useAppUpdate() {
 
       if (Platform.OS === 'android') {
         try {
-          const contentUri = await FileSystem.getContentUriAsync(result.uri);
+          const contentUri = await getContentUriAsync(result.uri);
           await Linking.openURL(contentUri);
           return;
         } catch {
