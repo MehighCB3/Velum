@@ -533,12 +533,14 @@ function classifyInsightType(parsed: ParsedFitnessEntry, weekData: SavedWeekData
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook secret when configured
-    if (WEBHOOK_SECRET) {
-      const secret = request.headers.get('x-webhook-secret')
-      if (secret !== WEBHOOK_SECRET) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    // Verify webhook secret — REQUIRED in production
+    const secret = request.headers.get('x-webhook-secret')
+    if (!WEBHOOK_SECRET) {
+      console.error('TELEGRAM_WEBHOOK_SECRET is not set — rejecting webhook request')
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
+    }
+    if (secret !== WEBHOOK_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -714,9 +716,8 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Fitness webhook error:', error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Failed to process fitness entry',
-      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
 }

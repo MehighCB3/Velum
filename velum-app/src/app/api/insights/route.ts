@@ -17,15 +17,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate — if INSIGHTS_API_KEY is set, require Bearer token.
-    // When the key is not configured (dev/initial setup), allow all writes
-    // so internal callers like the fitness webhook can push insights.
-    if (INSIGHTS_API_KEY) {
-      const authHeader = request.headers.get('authorization')
-      const token = authHeader?.replace('Bearer ', '')
-      if (token !== INSIGHTS_API_KEY) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    // Authenticate — require Bearer token when INSIGHTS_API_KEY is set.
+    // Reject writes if the key is not configured in production to prevent
+    // unauthenticated data injection.
+    if (!INSIGHTS_API_KEY) {
+      console.error('INSIGHTS_API_KEY is not set — rejecting unauthenticated write')
+      return NextResponse.json({ error: 'Insights API key not configured' }, { status: 503 })
+    }
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
+    if (token !== INSIGHTS_API_KEY) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
