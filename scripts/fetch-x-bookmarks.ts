@@ -29,7 +29,8 @@ const VELUM_API_BASE = process.env.VELUM_API_BASE || 'https://velum-five.vercel.
 const BOOKMARKS_API_KEY = process.env.BOOKMARKS_API_KEY || '';
 
 // X's internal GraphQL endpoint for bookmarks
-const BOOKMARKS_QUERY_ID = 'eylgGMXVNrFjYg2UGPhV4g';
+// X rotates query IDs on deploys — override via env var when stale
+const BOOKMARKS_QUERY_ID = process.env.X_BOOKMARKS_QUERY_ID || 'eylgGMXVNrFjYg2UGPhV4g';
 const BOOKMARKS_URL = `https://x.com/i/api/graphql/${BOOKMARKS_QUERY_ID}/Bookmarks`;
 
 // Features param required by X's GraphQL API
@@ -95,6 +96,14 @@ async function fetchBookmarksPage(cursor?: string): Promise<{
 
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 404) {
+      throw new Error(
+        `X API 404 — the GraphQL query ID is likely stale (current: ${BOOKMARKS_QUERY_ID}).\n` +
+        `  Fix: open x.com/i/bookmarks → DevTools → Network → filter "graphql" →\n` +
+        `  copy the ID from the Bookmarks request URL, then re-run with:\n` +
+        `  X_BOOKMARKS_QUERY_ID=<new_id> npx tsx scripts/fetch-x-bookmarks.ts`
+      );
+    }
     throw new Error(`X API ${res.status}: ${body.slice(0, 200)}`);
   }
 
