@@ -60,6 +60,10 @@ if [ -z "${JAVA_HOME:-}" ]; then
   fi
 fi
 
+# ── Step 0: Install/update dependencies ──────────────────────
+echo "Installing dependencies..."
+npm install --legacy-peer-deps
+
 # ── Step 1: Always clean prebuild to pick up app.json changes ─
 echo "Generating native Android project (clean)..."
 npx expo prebuild --platform android --clean
