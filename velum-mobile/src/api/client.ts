@@ -316,3 +316,47 @@ export const booksApi = {
     return request('/books?action=captures');
   },
 };
+
+// ==================== BOOKMARKS ====================
+
+export interface XBookmark {
+  id: string;
+  tweet_id: string;
+  author_handle: string;
+  author_name: string;
+  text: string;
+  url: string;
+  tags: string[];
+  created_at: string;
+  bookmarked_at: string;
+  dismissed: boolean;
+}
+
+export const bookmarksApi = {
+  async getAll(opts?: { limit?: number; offset?: number; all?: boolean }): Promise<{
+    bookmarks: XBookmark[];
+    total: number;
+    active: number;
+  }> {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    if (opts?.all) params.set('all', 'true');
+    const qs = params.toString();
+    return request(`/bookmarks${qs ? `?${qs}` : ''}`);
+  },
+
+  async dismiss(tweetId: string): Promise<{ success: boolean }> {
+    return request('/bookmarks', {
+      method: 'PATCH',
+      body: JSON.stringify({ tweet_id: tweetId, dismissed: true }),
+    });
+  },
+
+  async undismiss(tweetId: string): Promise<{ success: boolean }> {
+    return request('/bookmarks', {
+      method: 'PATCH',
+      body: JSON.stringify({ tweet_id: tweetId, dismissed: false }),
+    });
+  },
+};
