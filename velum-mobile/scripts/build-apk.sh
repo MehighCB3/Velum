@@ -128,10 +128,8 @@ if command -v gh &>/dev/null; then
       --notes "Velum Mobile v${VERSION}
 
 ## What's new
-- Auto-update system: checks GitHub Releases for new versions
-- In-app APK download with progress bar
-- One-tap install after download
-- Background update checks with 6-hour cooldown
+- Goals reintroduced in Profile: year, 3-yr, 5-yr, 10-yr, bucket list
+- Spanish Learning reintroduced in Profile: cards, exercises, pronunciation
 
 ## Install
 Download \`${APK_DST}\` and install on your Android device.
