@@ -4,7 +4,7 @@ import { searchFatSecret } from '@/app/lib/fatsecret'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 
 interface FoodAnalysis {
   name: string
@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 })
     }
 
-    // Fallback if no OpenAI key
-    if (!OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY not configured')
+    // Fallback if no OpenRouter key
+    if (!OPENROUTER_API_KEY) {
+      console.error('OPENROUTER_API_KEY not configured')
       return NextResponse.json({
         result: {
           name: 'Unknown food',
@@ -70,14 +70,16 @@ Rules:
 - confidence: high if you can clearly identify it, medium if guessing, low if unclear
 - If you cannot see any food, return name "Unknown" with confidence "low"`
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://velum-five.vercel.app',
+        'X-Title': 'Velum',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'anthropic/claude-sonnet-4-5',
         max_tokens: 300,
         messages: [
           {
