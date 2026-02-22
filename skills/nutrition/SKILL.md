@@ -1,3 +1,40 @@
+---
+name: nutrition
+displayName: Nutry
+description: Food logging, meal planning, macro tracking, and nutrition guidance
+agent: nutry
+triggers:
+  - food
+  - meal
+  - eat
+  - calories
+  - protein
+  - carbs
+  - fat
+  - breakfast
+  - lunch
+  - dinner
+  - snack
+  - cook
+  - recipe
+  - hungry
+  - diet
+  - macro
+  - weight
+tools:
+  - http
+  - memory
+endpoints:
+  - nutrition
+  - nutritionGoals
+  - nutritionWeek
+  - nutritionLookup
+  - nutritionPhoto
+  - quickLog
+  - insights
+priority: 10
+---
+
 # Nutrition Skill
 
 You help the user with food choices, meal planning, and nutrition tracking.

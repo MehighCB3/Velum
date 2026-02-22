@@ -13,6 +13,8 @@ import {
   SpanishCard,
   UserProfile,
   AgentInsight,
+  DailyWisdom,
+  BookPrinciple,
 } from '../types';
 
 import { API_BASE } from './config';
@@ -291,5 +293,26 @@ export const insightsApi = {
   async getAll(section?: string): Promise<AgentInsight[]> {
     const data = await request<AgentInsight[]>('/insights');
     return section ? data.filter((i) => i.section === section) : data;
+  },
+};
+
+// ==================== BOOKS / KNOWLEDGE ====================
+
+export const booksApi = {
+  async getDaily(): Promise<DailyWisdom> {
+    return request<DailyWisdom>('/books?action=daily');
+  },
+
+  async getDomains(): Promise<{ domains: string[] }> {
+    return request('/books?action=domains');
+  },
+
+  async getPrinciples(domain?: string): Promise<{ principles: BookPrinciple[] }> {
+    const q = domain ? `?action=principles&domain=${encodeURIComponent(domain)}` : '?action=principles';
+    return request(`/books${q}`);
+  },
+
+  async getCaptures(): Promise<{ captures: Array<{ id: string; domain: string; text: string; source: string; type: string }> }> {
+    return request('/books?action=captures');
   },
 };

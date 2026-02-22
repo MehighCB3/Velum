@@ -1,3 +1,28 @@
+---
+name: assistant
+displayName: Assistant
+description: General-purpose life admin — reminders, scheduling, research, decisions
+agent: main
+triggers:
+  - remind
+  - schedule
+  - todo
+  - help
+  - plan
+  - decide
+  - write
+  - research
+tools:
+  - http
+  - memory
+endpoints:
+  - goals
+  - profile
+  - quickLog
+  - insights
+priority: 0
+---
+
 # Assistant Skill
 
 You help with practical, everyday tasks — reminders, scheduling, research, decisions, and general life admin.

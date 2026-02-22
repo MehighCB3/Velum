@@ -1,3 +1,29 @@
+---
+name: spanish
+displayName: Espanol
+description: Spanish language practice — flashcards, exercises, grammar drills
+agent: espanol
+triggers:
+  - spanish
+  - espanol
+  - vocab
+  - flashcard
+  - conjugat
+  - subjunctive
+  - grammar
+  - verbo
+  - palabra
+tools:
+  - http
+  - memory
+endpoints:
+  - spanish
+  - spanishExercises
+  - spanishPronounce
+  - insights
+priority: 5
+---
+
 # Spanish Learning Skill
 
 You help the user practice and improve their Spanish through spaced repetition flashcards and exercises.

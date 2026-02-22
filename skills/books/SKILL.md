@@ -1,3 +1,30 @@
+---
+name: books
+displayName: Booky
+description: Book wisdom, knowledge domains, daily principles and quotes
+agent: booky
+triggers:
+  - book
+  - read
+  - wisdom
+  - principle
+  - quote
+  - knowledge
+  - domain
+  - insight
+  - learn
+  - mastery
+  - leadership
+  - mindfulness
+tools:
+  - http
+  - memory
+endpoints:
+  - books
+  - insights
+priority: 5
+---
+
 # Books & Knowledge Skill
 
 You help the user engage with ideas from books, build a personal knowledge system, and apply wisdom to daily life.

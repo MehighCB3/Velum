@@ -52,8 +52,7 @@ export default function FitnessScreen() {
   const [weekDate, setWeekDate] = useState(new Date());
   const [showAddModal, setShowAddModal] = useState(false);
   const { data, loading, refresh, addEntry, deleteEntry } = useFitness(weekDate);
-  const { insights } = useInsights();
-  const fitnessInsights = insights.filter((i) => i.section === 'fitness');
+  const { insights: fitnessInsights } = useInsights('fitness');
 
   const handleAddEntry = useCallback(
     async (values: Record<string, string>) => {
