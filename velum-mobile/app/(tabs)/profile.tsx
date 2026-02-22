@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors } from '../../src/theme/colors';
 import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
@@ -67,6 +68,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 // ==================== MAIN SCREEN ====================
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -337,6 +339,35 @@ export default function ProfileScreen() {
             </Text>
           </View>
         )}
+
+        {/* Goals & Learning */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>My Space</Text>
+        </View>
+
+        <Card style={styles.settingsList}>
+          <Pressable
+            style={styles.settingsRow}
+            onPress={() => router.push('/goals')}
+          >
+            <Ionicons name="trophy-outline" size={18} color={colors.warning} />
+            <Text style={styles.settingsLabel}>Goals</Text>
+            <Text style={styles.settingsHint}>Year, 3-yr, bucket list</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+          </Pressable>
+
+          <View style={styles.settingsDivider} />
+
+          <Pressable
+            style={styles.settingsRow}
+            onPress={() => router.push('/learn')}
+          >
+            <Ionicons name="language-outline" size={18} color={colors.success} />
+            <Text style={styles.settingsLabel}>Spanish</Text>
+            <Text style={styles.settingsHint}>Cards, exercises, speak</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+          </Pressable>
+        </Card>
 
         {/* Settings / Info — flat list */}
         <View style={styles.sectionHeader}>
