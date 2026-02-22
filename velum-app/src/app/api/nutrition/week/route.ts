@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
             : { calories: 2600, protein: 160, carbs: 310, fat: 80 }
 
           // Convert entries to ensure numeric types
-          const dayEntries = dayRawEntries.map((entry: { id: string; name: string; calories: string | number; protein: string | number; carbs: string | number; fat: string | number; time: string }) => ({
+          const dayEntries = (dayRawEntries as Array<{ id: string; name: string; calories: string | number; protein: string | number; carbs: string | number; fat: string | number; time: string }>).map((entry) => ({
             id: entry.id,
             name: entry.name,
             calories: Number(entry.calories),
