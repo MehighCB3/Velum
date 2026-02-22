@@ -12,9 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useFitness } from '../../src/hooks/useFitness';
 import { useInsights } from '../../src/hooks/useInsights';
-import { DarkCard, Card, SectionHeader, EmptyState } from '../../src/components/Card';
+import { DarkCard, Card, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
-import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
@@ -26,6 +25,11 @@ function fmt(n: number): string {
   if (n >= 1000) return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return String(n);
 }
+
+const ACTIVITY_ICONS: Record<string, string> = {
+  steps: '🚶', run: '🏃', swim: '🏊', cycle: '🚴',
+  jiujitsu: '🥋', gym: '💪', other: '⚡',
+};
 
 const fitnessFields: FormField[] = [
   {
@@ -80,7 +84,6 @@ export default function FitnessScreen() {
   );
 
   const entries = data?.entries ?? [];
-  // Merge with defaults — protects against partial API responses where individual fields are null/undefined
   const rawTotals = data?.totals;
   const totals = {
     steps: Number(rawTotals?.steps) || 0,
@@ -102,30 +105,15 @@ export default function FitnessScreen() {
     .filter((e) => e.type === 'steps' && e.date === new Date().toISOString().split('T')[0])
     .reduce((sum, e) => sum + (e.steps || 0), 0);
 
-  // Computed insights
-  const computedInsights: InsightItem[] = [];
-  const stepsPercent = goals.steps > 0 ? stepsToday / goals.steps : 0;
-  if (stepsPercent >= 1) {
-    computedInsights.push({ emoji: '🎉', text: `Step goal smashed! ${fmt(stepsToday)} steps today.`, tone: 'positive' });
-  } else if (stepsToday > 0) {
-    computedInsights.push({ emoji: '🚶', text: `${fmt(stepsToday)} steps today — ${Math.round(stepsPercent * 100)}% of your ${(goals.steps / 1000).toFixed(0)}k goal.`, tone: 'neutral' });
-  }
-  const totalSessions = totals.runs + totals.swims + totals.cycles + totals.jiujitsu;
-  if (totalSessions >= 5) {
-    computedInsights.push({ emoji: '💪', text: `${totalSessions} workouts this week — outstanding consistency!`, tone: 'positive' });
-  } else if (totalSessions > 0) {
-    computedInsights.push({ emoji: '📊', text: `${totalSessions} workout${totalSessions !== 1 ? 's' : ''} this week · ${totals.totalDistance.toFixed(1)} km total distance.`, tone: 'neutral' });
-  }
-
-  // Health data tiles — safely access advanced metrics
+  // Health data tiles — from watch/advanced metrics
   const adv = data?.advanced;
   const healthTiles = [
-    ...(adv?.avgVo2max ? [{ icon: '🫁', label: 'VO2 Max', val: `${adv.avgVo2max} ml/kg`, color: colors.info }] : []),
-    ...(adv?.latestHrv ? [{ icon: '💓', label: 'HRV', val: `${adv.latestHrv}ms`, color: colors.warning }] : []),
-    ...(adv?.avgRecovery ? [{ icon: '⚡', label: 'Recovery', val: adv.recoveryStatus || 'Good', color: colors.success }] : []),
-    ...(adv?.totalTrainingLoad ? [{ icon: '🏋️', label: 'Training Load', val: adv.totalTrainingLoad > 6 ? 'High' : 'Moderate', color: colors.accent }] : []),
-    ...(adv?.latestWeight ? [{ icon: '⚖️', label: 'Weight', val: `${adv.latestWeight}kg`, color: colors.textLight }] : []),
-    ...(adv?.latestBodyFat ? [{ icon: '📏', label: 'Body Fat', val: `${adv.latestBodyFat}%`, color: colors.textLight }] : []),
+    ...(adv?.avgVo2max ? [{ icon: '🫁', label: 'VO2 Max', val: `${adv.avgVo2max}`, unit: 'ml/kg', color: colors.info }] : []),
+    ...(adv?.latestHrv ? [{ icon: '💓', label: 'HRV', val: `${adv.latestHrv}`, unit: 'ms', color: colors.warning }] : []),
+    ...(adv?.avgRecovery ? [{ icon: '⚡', label: 'Recovery', val: adv.recoveryStatus || 'Good', unit: '', color: colors.success }] : []),
+    ...(adv?.totalTrainingLoad ? [{ icon: '🏋️', label: 'Load', val: adv.totalTrainingLoad > 6 ? 'High' : 'Moderate', unit: '', color: colors.accent }] : []),
+    ...(adv?.latestWeight ? [{ icon: '⚖️', label: 'Weight', val: `${adv.latestWeight}`, unit: 'kg', color: colors.textLight }] : []),
+    ...(adv?.latestBodyFat ? [{ icon: '📏', label: 'Body Fat', val: `${adv.latestBodyFat}`, unit: '%', color: colors.textLight }] : []),
   ];
 
   return (
@@ -139,44 +127,47 @@ export default function FitnessScreen() {
       >
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
-        {/* Unified Fitness Widget — single DarkCard per v2 spec */}
+        {/* Unified Fitness Card */}
         <DarkCard style={styles.unifiedCard}>
-          {/* Section A — Activity Rings */}
+          {/* Activity Rings */}
           <View style={styles.ringRow}>
             {[
-              { label: 'Steps', val: stepsToday >= 1000 ? `${(stepsToday / 1000).toFixed(1)}k` : `${stepsToday}`, pct: goals.steps > 0 ? stepsToday / goals.steps : 0 },
-              { label: 'Runs', val: `${totals.runs}`, pct: goals.runs > 0 ? totals.runs / goals.runs : 0 },
-              { label: 'Swims', val: `${totals.swims}`, pct: goals.swims > 0 ? totals.swims / goals.swims : 0 },
-              { label: 'Cycles', val: `${totals.cycles}`, pct: totals.cycles > 0 ? 1 : 0 },
+              { label: 'Steps', val: stepsToday >= 1000 ? `${(stepsToday / 1000).toFixed(1)}k` : `${stepsToday}`, pct: goals.steps > 0 ? stepsToday / goals.steps : 0, color: colors.steps },
+              { label: 'Runs', val: `${totals.runs}`, pct: goals.runs > 0 ? totals.runs / goals.runs : 0, color: colors.run },
+              { label: 'Swims', val: `${totals.swims}`, pct: goals.swims > 0 ? totals.swims / goals.swims : 0, color: colors.swim },
+              { label: 'Cycles', val: `${totals.cycles}`, pct: totals.cycles > 0 ? 1 : 0, color: colors.cycle },
             ].map((a) => (
               <View key={a.label} style={styles.ringItem}>
-                <ProgressRing progress={a.pct} size={42} strokeWidth={4} color={colors.accent} value={a.val} />
+                <ProgressRing progress={a.pct} size={44} strokeWidth={4} color={a.color} value={a.val} />
                 <Text style={styles.ringLabel}>{a.label}</Text>
               </View>
             ))}
           </View>
 
-          {/* Divider */}
+          {/* Key Stats — Burned | Distance | BJJ */}
           <View style={styles.divider} />
-
-          {/* Section B — Key Stats */}
           <View style={styles.statsRow}>
-            {[
-              { val: totals.totalDistance.toFixed(1), unit: 'km', label: 'Distance' },
-              { val: `${totals.totalCalories}`, unit: 'kcal', label: 'Burned' },
-              { val: `${totals.jiujitsu}`, unit: '', label: 'BJJ' },
-            ].map((s) => (
-              <View key={s.label} style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {s.val}
-                  {s.unit ? <Text style={styles.statUnit}> {s.unit}</Text> : null}
-                </Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-            ))}
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {fmt(totals.totalCalories)}
+                <Text style={styles.statUnit}> kcal</Text>
+              </Text>
+              <Text style={styles.statLabel}>Burned</Text>
+            </View>
+            <View style={[styles.statItem, styles.statCenter]}>
+              <Text style={[styles.statValue, styles.statValueLarge]}>
+                {totals.totalDistance.toFixed(1)}
+                <Text style={styles.statUnit}> km</Text>
+              </Text>
+              <Text style={styles.statLabel}>Distance</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{totals.jiujitsu}</Text>
+              <Text style={styles.statLabel}>BJJ</Text>
+            </View>
           </View>
 
-          {/* Section C — Health Data Tiles */}
+          {/* Health / Watch Data */}
           {healthTiles.length > 0 && (
             <>
               <View style={[styles.divider, { marginTop: 14 }]} />
@@ -187,7 +178,9 @@ export default function FitnessScreen() {
                     <Text style={styles.healthIcon}>{h.icon}</Text>
                     <View>
                       <Text style={styles.healthTileLabel}>{h.label}</Text>
-                      <Text style={[styles.healthTileValue, { color: h.color }]}>{h.val}</Text>
+                      <Text style={[styles.healthTileValue, { color: h.color }]}>
+                        {h.val}{h.unit ? <Text style={styles.healthTileUnit}> {h.unit}</Text> : null}
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -196,38 +189,48 @@ export default function FitnessScreen() {
           )}
         </DarkCard>
 
-        {/* Insights */}
-        {computedInsights.length > 0 && <InsightBanner insights={computedInsights} />}
+        {/* Agent Insights */}
         {fitnessInsights.map((insight) => (
           <AgentInsightCard key={insight.agentId} insight={insight} />
         ))}
 
-        {/* Activity Log */}
-        <SectionHeader title="Activities" />
+        {/* Activity Log — flat card with dividers */}
+        <View style={styles.logHeader}>
+          <Text style={styles.logTitle}>Activities</Text>
+        </View>
 
         {entries.length === 0 ? (
           <EmptyState icon="🏃" title="No activities logged" subtitle="Tap + to log your workout" />
         ) : (
-          entries.map((entry) => (
-            <Pressable key={entry.id} onLongPress={() => handleDeleteEntry(entry.id)}>
-              <Card style={styles.activityCard}>
-                <View style={styles.activityRow}>
-                  <View style={styles.activityInfo}>
-                    <Text style={styles.activityName}>
-                      {entry.name || entry.type.charAt(0).toUpperCase() + entry.type.slice(1)}
-                    </Text>
-                    <Text style={styles.activityDetail}>
-                      {entry.type === 'steps' ? `${fmt(entry.steps || 0)} steps`
-                        : entry.duration ? `${entry.duration} min` : ''}
-                      {entry.distance ? ` · ${entry.distance} km` : ''}
-                      {entry.calories ? ` · ${entry.calories} cal` : ''}
-                    </Text>
-                  </View>
-                  <Text style={styles.activityTime}>{entry.date.slice(5)}</Text>
+          <Card style={styles.activityList}>
+            {entries.map((entry, idx) => (
+              <Pressable
+                key={entry.id}
+                onLongPress={() => handleDeleteEntry(entry.id)}
+                style={[
+                  styles.activityRow,
+                  idx < entries.length - 1 && styles.activityRowBorder,
+                ]}
+              >
+                <Text style={styles.activityEmoji}>
+                  {ACTIVITY_ICONS[entry.type] || '⚡'}
+                </Text>
+                <View style={styles.activityInfo}>
+                  <Text style={styles.activityName}>
+                    {entry.name || entry.type.charAt(0).toUpperCase() + entry.type.slice(1)}
+                  </Text>
+                  <Text style={styles.activityDetail}>
+                    {entry.type === 'steps'
+                      ? `${fmt(entry.steps || 0)} steps`
+                      : entry.duration ? `${entry.duration} min` : ''}
+                    {entry.distance ? ` · ${entry.distance} km` : ''}
+                    {entry.calories ? ` · ${entry.calories} kcal` : ''}
+                  </Text>
                 </View>
-              </Card>
-            </Pressable>
-          ))
+                <Text style={styles.activityTime}>{entry.date.slice(5)}</Text>
+              </Pressable>
+            ))}
+          </Card>
         )}
 
         <View style={{ height: 100 }} />
@@ -252,18 +255,36 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+
+  // Hero card
   unifiedCard: { padding: 16, marginBottom: 8 },
-  ringRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 18 },
+
+  // Rings
+  ringRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
   ringItem: { alignItems: 'center' },
-  ringLabel: { fontSize: 9, color: colors.textMuted, marginTop: 4 },
-  divider: { height: 1, backgroundColor: colors.border, marginBottom: 14 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  statItem: { alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '700', color: colors.darkText },
-  statUnit: { fontSize: 11, fontWeight: '400', color: colors.textMuted },
+  ringLabel: { fontSize: 9, color: colors.darkTextMuted, marginTop: 4, letterSpacing: 0.3 },
+
+  divider: { height: 1, backgroundColor: colors.darkInner, marginBottom: 14 },
+
+  // Stats — Burned | Distance | BJJ
+  statsRow: { flexDirection: 'row', alignItems: 'center' },
+  statItem: { flex: 1, alignItems: 'center' },
+  statCenter: {
+    borderLeftWidth: 1, borderRightWidth: 1,
+    borderLeftColor: colors.darkInner, borderRightColor: colors.darkInner,
+    paddingHorizontal: 8,
+  },
+  statValue: { fontSize: 17, fontWeight: '700', color: colors.darkText },
+  statValueLarge: { fontSize: 22, color: colors.accent },
+  statUnit: { fontSize: 10, fontWeight: '400', color: colors.darkTextMuted },
   statLabel: { fontSize: 10, color: colors.darkTextMuted, marginTop: 2 },
-  healthHeader: { fontSize: 11, color: colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
-  healthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+
+  // Health tiles
+  healthHeader: {
+    fontSize: 10, color: colors.darkTextMuted, letterSpacing: 1,
+    textTransform: 'uppercase', marginBottom: 10,
+  },
+  healthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   healthTile: {
     width: '47%', backgroundColor: colors.darkInner, borderRadius: 10,
     padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -271,12 +292,26 @@ const styles = StyleSheet.create({
   healthIcon: { fontSize: 14 },
   healthTileLabel: { fontSize: 10, color: colors.darkTextMuted },
   healthTileValue: { fontSize: 13, fontWeight: '600' },
-  activityCard: { marginBottom: 6, padding: 14 },
-  activityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  healthTileUnit: { fontSize: 10, fontWeight: '400', color: colors.darkTextMuted },
+
+  // Activity log
+  logHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 8, marginTop: 4,
+  },
+  logTitle: { fontSize: 13, fontWeight: '600', color: colors.textLight, letterSpacing: 0.3 },
+  activityList: { padding: 0, overflow: 'hidden' },
+  activityRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 12, gap: 10,
+  },
+  activityRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
+  activityEmoji: { fontSize: 18, width: 28, textAlign: 'center' },
   activityInfo: { flex: 1 },
   activityName: { fontSize: 13, fontWeight: '600', color: colors.text },
   activityDetail: { fontSize: 11, color: colors.textLight, marginTop: 2 },
   activityTime: { fontSize: 11, color: colors.textLight },
+
   fab: {
     position: 'absolute', right: 20, bottom: 24, width: 56, height: 56,
     borderRadius: 28, backgroundColor: colors.accent,
