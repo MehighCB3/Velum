@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sql } from '@vercel/postgres'
+import { buildEntry, addFitnessEntry, getWeekKey } from '../../lib/fitnessStore'
+import { addBudgetEntry, BudgetEntry, Category } from '../../lib/budgetStore'
 
 export const dynamic = 'force-dynamic'
 
 // Quick-log accepts simple POST requests from external automation tools
-// (Tasker, iOS Shortcuts, curl, etc.) and routes to the appropriate API.
+// (Tasker, iOS Shortcuts, curl, etc.) and routes to the appropriate storage.
 //
-// Auth: Bearer token via QUICK_LOG_TOKEN env var (optional — if not set, endpoint is open)
+// Auth: Bearer token via QUICK_LOG_TOKEN env var (optional)
 //
 // POST /api/quick-log
 // Body: { "type": "steps|expense|meal|weight", "value": ..., "description": "..." }
 
 const QUICK_LOG_TOKEN = process.env.QUICK_LOG_TOKEN || ''
+const usePostgres = !!process.env.POSTGRES_URL
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -43,12 +47,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const baseUrl = request.nextUrl.origin
     const date = new Date().toISOString().split('T')[0]
     const time = new Date().toTimeString().slice(0, 5)
     const id = `ql-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-    let result: Response
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any
 
     switch (type) {
       case 'steps': {
@@ -56,20 +60,9 @@ export async function POST(request: NextRequest) {
         if (steps <= 0) {
           return NextResponse.json({ error: 'Steps value must be positive' }, { status: 400, headers: CORS_HEADERS })
         }
-        result = await fetch(`${baseUrl}/api/fitness`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entry: {
-              id,
-              type: 'steps',
-              date,
-              steps,
-              notes: description || '',
-              name: 'Steps',
-            },
-          }),
-        })
+        const weekKey = getWeekKey(new Date())
+        const entry = buildEntry({ id, type: 'steps', date, steps, notes: description || '', name: 'Steps' })
+        data = await addFitnessEntry(weekKey, entry)
         break
       }
 
@@ -78,20 +71,16 @@ export async function POST(request: NextRequest) {
         if (amount <= 0) {
           return NextResponse.json({ error: 'Amount must be positive' }, { status: 400, headers: CORS_HEADERS })
         }
-        result = await fetch(`${baseUrl}/api/budget`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entry: {
-              id,
-              amount,
-              category: category || 'Other',
-              description: description || 'Quick expense',
-              date,
-              time,
-            },
-          }),
-        })
+        const weekKey = getWeekKey(new Date())
+        const entry: BudgetEntry = {
+          id,
+          amount,
+          category: (category as Category) || 'Other',
+          description: description || 'Quick expense',
+          date,
+          timestamp: new Date().toISOString(),
+        }
+        data = await addBudgetEntry(weekKey, entry)
         break
       }
 
@@ -100,23 +89,34 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Description required for meal' }, { status: 400, headers: CORS_HEADERS })
         }
         const calories = Number(value) || 0
-        result = await fetch(`${baseUrl}/api/nutrition`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date,
-            entries: [{
-              id,
-              name: description,
-              calories,
-              protein: 0,
-              carbs: 0,
-              fat: 0,
-              time,
-              date,
-            }],
-          }),
-        })
+
+        // Write directly to Postgres or return fallback
+        if (usePostgres) {
+          try {
+            await sql`
+              CREATE TABLE IF NOT EXISTS nutrition_entries (
+                id SERIAL PRIMARY KEY,
+                entry_id VARCHAR(50) UNIQUE NOT NULL,
+                date DATE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                calories INTEGER NOT NULL DEFAULT 0,
+                protein DECIMAL(6,2) NOT NULL DEFAULT 0,
+                carbs DECIMAL(6,2) NOT NULL DEFAULT 0,
+                fat DECIMAL(6,2) NOT NULL DEFAULT 0,
+                entry_time TIME NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              )
+            `
+            await sql`
+              INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
+              VALUES (${id}, ${date}, ${description}, ${calories}, ${0}, ${0}, ${0}, ${time})
+              ON CONFLICT (entry_id) DO NOTHING
+            `
+          } catch (error) {
+            console.error('Nutrition write error:', error)
+          }
+        }
+        data = { success: true, date, entry: { id, name: description, calories, date, time } }
         break
       }
 
@@ -125,20 +125,9 @@ export async function POST(request: NextRequest) {
         if (weight <= 0) {
           return NextResponse.json({ error: 'Weight value must be positive' }, { status: 400, headers: CORS_HEADERS })
         }
-        result = await fetch(`${baseUrl}/api/fitness`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entry: {
-              id,
-              type: 'weight',
-              date,
-              weight,
-              notes: description || '',
-              name: 'Weight',
-            },
-          }),
-        })
+        const weekKey = getWeekKey(new Date())
+        const entry = buildEntry({ id, type: 'weight', date, weight, notes: description || '', name: 'Weight' })
+        data = await addFitnessEntry(weekKey, entry)
         break
       }
 
@@ -149,15 +138,6 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    if (!result.ok) {
-      const errBody = await result.text()
-      return NextResponse.json(
-        { error: `Upstream API error: ${errBody}` },
-        { status: result.status, headers: CORS_HEADERS }
-      )
-    }
-
-    const data = await result.json()
     return NextResponse.json(
       { success: true, type, logged: { value, description, category, date, time }, data },
       { headers: CORS_HEADERS }

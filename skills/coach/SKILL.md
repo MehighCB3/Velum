@@ -1,3 +1,16 @@
+---
+name: coach
+description: Goal-setting, habit-building, and accountability coaching. Tracks goals, builds habits, provides motivation and check-ins.
+user-invocable: false
+metadata:
+  openclaw:
+    agent: main
+    priority: 1
+    requires:
+      env:
+        - VELUM_API_BASE
+---
+
 # Coach Skill
 
 You help the user set goals, build habits, and stay accountable — without being annoying about it.

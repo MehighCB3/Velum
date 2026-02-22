@@ -7,6 +7,8 @@ import {
   RefreshControl,
   Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors } from '../../src/theme/colors';
 import { DarkCard, Card, SectionHeader } from '../../src/components/Card';
 import { ProgressRing } from '../../src/components/ProgressRing';
@@ -149,6 +151,58 @@ const gridStyles = StyleSheet.create({
   legendText: { fontSize: 10, color: colors.textLight },
 });
 
+// ==================== QUICK LOG BAR ====================
+// Single row of 3 data-input actions — replaces the 6-button grid
+
+const LOG_ACTIONS = [
+  { icon: 'nutrition-outline' as const, label: 'Meal', route: '/nutrition', color: '#6ec87a' },
+  { icon: 'barbell-outline' as const, label: 'Workout', route: '/fitness', color: '#e8a85c' },
+  { icon: 'card-outline' as const, label: 'Expense', route: '/budget', color: '#6ba3d6' },
+];
+
+function QuickLogBar() {
+  const router = useRouter();
+  return (
+    <Card style={shortcutStyles.bar}>
+      {LOG_ACTIONS.map((a, i) => (
+        <React.Fragment key={a.label}>
+          {i > 0 && <View style={shortcutStyles.divider} />}
+          <Pressable
+            style={shortcutStyles.action}
+            onPress={() => router.push(a.route as any)}
+          >
+            <Ionicons name={a.icon} size={20} color={a.color} />
+            <Text style={shortcutStyles.label}>{a.label}</Text>
+          </Pressable>
+        </React.Fragment>
+      ))}
+    </Card>
+  );
+}
+
+const shortcutStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+  },
+  action: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  divider: {
+    width: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  label: { fontSize: 13, fontWeight: '600', color: colors.text },
+});
+
 // ==================== HOME SCREEN ====================
 
 export default function HomeScreen() {
@@ -264,10 +318,14 @@ export default function HomeScreen() {
           </>
         )}
 
+        {/* Quick Log — single unified data input */}
+        <SectionHeader title="Quick Log" />
+        <QuickLogBar />
+
         {/* Agent Insights */}
         {insights.length > 0 && (
           <View style={styles.insightsSection}>
-            <SectionHeader title="Insights" />
+            <SectionHeader title="Agent Insights" />
             {insights.map((insight) => (
               <AgentInsightCard key={insight.agentId} insight={insight} />
             ))}

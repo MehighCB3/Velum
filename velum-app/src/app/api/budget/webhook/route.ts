@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getISOWeek } from '../../../lib/weekUtils'
+import { addBudgetEntry, BudgetEntry, Category } from '../../../lib/budgetStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,29 +123,19 @@ export async function POST(request: NextRequest) {
     // Get week key
     const weekKey = getWeekKeyForBudget(parsed.week)
     
-    // Create entry
-    const entry = {
+    // Create entry and save directly to storage — eliminates the
+    // self-referencing fetch that was causing Vercel serverless timeouts
+    const entry: BudgetEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       amount: parsed.amount,
-      category: parsed.category,
+      category: parsed.category as Category,
       description: parsed.description,
       date: new Date().toISOString().split('T')[0],
       timestamp: new Date().toISOString(),
       reason: parsed.reason
     }
-    
-    // Call the budget API to save
-    const budgetApiUrl = new URL('/api/budget', request.url)
-    const response = await fetch(budgetApiUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week: weekKey, entry })
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to save to budget API')
-    }
-    
-    const savedData = await response.json()
+
+    const savedData = await addBudgetEntry(weekKey, entry)
     
     return NextResponse.json({
       success: true,

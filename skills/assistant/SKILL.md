@@ -1,3 +1,16 @@
+---
+name: assistant
+description: General-purpose life admin — reminders, scheduling, research, decisions. Handles todo lists, planning, writing, and everyday tasks.
+user-invocable: false
+metadata:
+  openclaw:
+    agent: main
+    priority: 0
+    requires:
+      env:
+        - VELUM_API_BASE
+---
+
 # Assistant Skill
 
 You help with practical, everyday tasks — reminders, scheduling, research, decisions, and general life admin.

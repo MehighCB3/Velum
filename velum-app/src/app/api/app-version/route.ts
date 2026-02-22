@@ -9,7 +9,7 @@ let cached: { data: Record<string, unknown>; ts: number } | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Fallback when GitHub is unreachable
-const FALLBACK_VERSION = '1.3.0';
+const FALLBACK_VERSION = '1.6.0';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

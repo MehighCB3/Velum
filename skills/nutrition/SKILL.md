@@ -1,3 +1,16 @@
+---
+name: nutrition
+description: Food logging, meal planning, macro tracking, and nutrition guidance. Logs meals with calories/protein/carbs/fat, suggests recipes, and tracks daily targets.
+user-invocable: true
+metadata:
+  openclaw:
+    agent: nutry
+    priority: 10
+    requires:
+      env:
+        - VELUM_API_BASE
+---
+
 # Nutrition Skill
 
 You help the user with food choices, meal planning, and nutrition tracking.

@@ -215,6 +215,36 @@ export interface AgentInsight {
   section: 'nutrition' | 'fitness' | 'budget' | 'tasks' | 'knowledge';
 }
 
+// ==================== BOOKS / KNOWLEDGE ====================
+
+export interface BookPrinciple {
+  id: string;
+  domain: string;
+  title: string;
+  principle: string;
+  source: string;
+  actionPrompt: string;
+}
+
+export interface RawCapture {
+  id: string;
+  domain: string;
+  text: string;
+  source: string;
+  type: 'quote' | 'passage' | 'note';
+}
+
+export interface DailyWisdom {
+  currentDomain: string;
+  domainIndex: number;
+  totalDomains: number;
+  weekPrinciple: BookPrinciple;
+  contextInsight: string;
+  rawCapture: RawCapture;
+  allDomains: string[];
+  source: 'notion' | 'seed';
+}
+
 // ==================== SYNC ====================
 
 export interface SyncStatus {

@@ -1,3 +1,16 @@
+---
+name: spanish
+description: Spanish language practice — spaced repetition flashcards, verb conjugation, cloze exercises, translation drills, grammar quizzes, and pronunciation practice.
+user-invocable: true
+metadata:
+  openclaw:
+    agent: espanol
+    priority: 5
+    requires:
+      env:
+        - VELUM_API_BASE
+---
+
 # Spanish Learning Skill
 
 You help the user practice and improve their Spanish through spaced repetition flashcards and exercises.

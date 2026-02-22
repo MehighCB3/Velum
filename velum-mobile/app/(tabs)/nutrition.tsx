@@ -935,19 +935,14 @@ export default function NutritionScreen() {
             {/* Meal Log */}
             <View style={styles.mealLogHeader}>
               <Text style={styles.mealLogTitle}>Meal Log</Text>
-              <View style={styles.mealLogActions}>
-                <Pressable style={styles.scanBtn} onPress={handleScanFood}>
-                  <Ionicons name="camera-outline" size={18} color={colors.accent} />
-                  <Text style={styles.scanBtnText}>Scan</Text>
-                </Pressable>
-                <Pressable style={styles.addBtn} onPress={() => setShowAddModal(true)}>
-                  <Text style={styles.addBtnText}>+ Add</Text>
-                </Pressable>
-              </View>
+              <Pressable style={styles.scanBtn} onPress={handleScanFood}>
+                <Ionicons name="camera-outline" size={18} color={colors.accent} />
+                <Text style={styles.scanBtnText}>Scan</Text>
+              </Pressable>
             </View>
 
             {data.entries.length === 0 ? (
-              <EmptyState icon="🍽️" title="No meals logged" subtitle="Tap + Add to log your first meal" />
+              <EmptyState icon="🍽️" title="No meals logged" subtitle="Tap + to log your first meal" />
             ) : (
               data.entries.map((entry) => (
                 <Pressable
