@@ -1,27 +1,14 @@
 ---
 name: spanish
-displayName: Espanol
-description: Spanish language practice — flashcards, exercises, grammar drills
-agent: espanol
-triggers:
-  - spanish
-  - espanol
-  - vocab
-  - flashcard
-  - conjugat
-  - subjunctive
-  - grammar
-  - verbo
-  - palabra
-tools:
-  - http
-  - memory
-endpoints:
-  - spanish
-  - spanishExercises
-  - spanishPronounce
-  - insights
-priority: 5
+description: Spanish language practice — spaced repetition flashcards, verb conjugation, cloze exercises, translation drills, grammar quizzes, and pronunciation practice.
+user-invocable: true
+metadata:
+  openclaw:
+    agent: espanol
+    priority: 5
+    requires:
+      env:
+        - VELUM_API_BASE
 ---
 
 # Spanish Learning Skill

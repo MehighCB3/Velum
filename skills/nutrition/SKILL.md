@@ -1,38 +1,14 @@
 ---
 name: nutrition
-displayName: Nutry
-description: Food logging, meal planning, macro tracking, and nutrition guidance
-agent: nutry
-triggers:
-  - food
-  - meal
-  - eat
-  - calories
-  - protein
-  - carbs
-  - fat
-  - breakfast
-  - lunch
-  - dinner
-  - snack
-  - cook
-  - recipe
-  - hungry
-  - diet
-  - macro
-  - weight
-tools:
-  - http
-  - memory
-endpoints:
-  - nutrition
-  - nutritionGoals
-  - nutritionWeek
-  - nutritionLookup
-  - nutritionPhoto
-  - quickLog
-  - insights
-priority: 10
+description: Food logging, meal planning, macro tracking, and nutrition guidance. Logs meals with calories/protein/carbs/fat, suggests recipes, and tracks daily targets.
+user-invocable: true
+metadata:
+  openclaw:
+    agent: nutry
+    priority: 10
+    requires:
+      env:
+        - VELUM_API_BASE
 ---
 
 # Nutrition Skill

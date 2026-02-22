@@ -1,28 +1,14 @@
 ---
 name: books
-displayName: Booky
-description: Book wisdom, knowledge domains, daily principles and quotes
-agent: booky
-triggers:
-  - book
-  - read
-  - wisdom
-  - principle
-  - quote
-  - knowledge
-  - domain
-  - insight
-  - learn
-  - mastery
-  - leadership
-  - mindfulness
-tools:
-  - http
-  - memory
-endpoints:
-  - books
-  - insights
-priority: 5
+description: Book wisdom, knowledge domains, daily principles and quotes. 10-week domain rotation across Deep Work, Mastery, Systems Thinking, Leadership, Psychology, Mindfulness, Business, Communication, Creativity, and Decision Making.
+user-invocable: true
+metadata:
+  openclaw:
+    agent: booky
+    priority: 5
+    requires:
+      env:
+        - VELUM_API_BASE
 ---
 
 # Books & Knowledge Skill

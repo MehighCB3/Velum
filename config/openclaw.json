@@ -44,12 +44,13 @@
   },
 
   "skills": {
-    "path": "./skills"
+    "path": "./skills",
+    "allowBundled": []
   },
 
   "session": {
     "scope": "per-sender",
-    "dmScope": "main",
+    "dmScope": "per-channel-peer",
     "mainKey": "main",
     "reset": {
       "mode": "daily",
@@ -69,6 +70,7 @@
 
   "gateway": {
     "port": 18789,
+    "bind": "loopback",
     "rateLimit": {
       "windowMs": 60000,
       "maxRequests": 30
@@ -82,22 +84,20 @@
     }
   },
 
-  "webhooks": {
-    "insights": {
-      "url": "${API_BASE}/api/insights",
-      "method": "POST",
-      "headers": {
-        "Authorization": "Bearer ${INSIGHTS_API_KEY}"
-      },
-      "events": ["agent.insight"]
-    }
+  "hooks": {
+    "enabled": true,
+    "token": "${OPENCLAW_HOOKS_TOKEN}",
+    "path": "/hooks",
+    "allowedAgentIds": ["main", "nutry", "booky", "espanol"],
+    "defaultSessionKey": "hook:ingress"
   },
 
   "tools": {
     "http": {
       "enabled": true,
       "allowedDomains": ["velum-five.vercel.app"]
-    }
+    },
+    "deny": ["group:automation", "group:runtime", "group:fs"]
   },
 
   "api": {
