@@ -2,7 +2,7 @@
   "expo": {
     "name": "Velum",
     "slug": "velum-mobile",
-    "version": "1.1.0",
+    "version": "1.8.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "velum",
@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.velum.mobile",
       "infoPlist": {
         "NSHealthShareUsageDescription": "Velum uses health data to track your fitness metrics.",
-        "NSMicrophoneUsageDescription": "Velum uses the microphone for Spanish pronunciation practice."
+        "NSMicrophoneUsageDescription": "Velum uses the microphone for Spanish pronunciation practice.",
+        "NSCameraUsageDescription": "Velum uses the camera to identify food and log nutrition automatically.",
+        "NSPhotoLibraryUsageDescription": "Velum accesses photos to identify food for nutrition logging."
       }
     },
     "android": {
@@ -30,13 +32,18 @@
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
       ]
     },
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 5000
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/f0325054-208a-45ff-81d0-867c8fb032d5"
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -45,10 +52,18 @@
       "expo-router",
       "expo-sqlite",
       "expo-updates",
+      "react-native-volume-manager",
       [
         "expo-av",
         {
           "microphonePermission": "Velum uses the microphone for Spanish pronunciation practice."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Velum accesses photos to identify food for nutrition logging.",
+          "cameraPermission": "Velum uses the camera to identify food and log nutrition automatically."
         }
       ]
     ],
@@ -57,8 +72,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "velum-mobile"
+        "projectId": "f0325054-208a-45ff-81d0-867c8fb032d5"
       }
-    }
+    },
+    "owner": "mihai233"
   }
 }

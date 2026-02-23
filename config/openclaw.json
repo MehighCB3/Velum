@@ -1,39 +1,137 @@
 {
   "agent": {
-    "model": "anthropic/claude-sonnet-4-5-20250929",
-    "thinkingLevel": "medium"
+    "model": "anthropic/claude-sonnet-4-6",
+    "thinkingLevel": "medium",
+    "maxTokens": 2048,
+    "temperature": 0.7
   },
+
   "agents": {
     "defaults": {
-      "workspace": "~/.openclaw/workspace"
+      "workspace": "~/.openclaw/workspace",
+      "memory": true
     },
     "list": [
       {
         "id": "main",
         "default": true,
-        "skills": ["assistant", "coach", "nutrition", "books", "spanish"]
+        "skills": ["assistant", "coach"],
+        "description": "General assistant and life coach — handles tasks, decisions, scheduling, and accountability"
+      },
+      {
+        "id": "nutry",
+        "skills": ["nutrition"],
+        "triggers": ["food", "meal", "eat", "calories", "protein", "carbs", "fat", "breakfast", "lunch", "dinner", "snack", "cook", "recipe", "hungry", "diet", "macro"],
+        "description": "Nutrition tracker and meal planner — logs food, estimates macros, suggests meals"
+      },
+      {
+        "id": "booky",
+        "skills": ["books"],
+        "triggers": ["book", "read", "wisdom", "principle", "quote", "knowledge", "domain", "insight", "learn"],
+        "description": "Knowledge companion — daily wisdom, book principles, domain rotation"
+      },
+      {
+        "id": "espanol",
+        "skills": ["spanish"],
+        "triggers": ["spanish", "espanol", "vocab", "flashcard", "conjugat", "subjunctive", "practice spanish"],
+        "description": "Spanish tutor — spaced repetition, exercises, grammar drills"
+      },
+      {
+        "id": "budgy",
+        "skills": ["budget"],
+        "triggers": ["spent", "expense", "cost", "paid", "pay", "buy", "bought", "purchase", "€", "euro", "budget", "money", "cash", "bill", "invoice", "receipt"],
+        "description": "Budget tracker — logs expenses by category, tracks weekly spending"
       }
-    ]
+    ],
+    "routing": {
+      "strategy": "keyword",
+      "fallback": "main"
+    }
   },
+
   "skills": {
-    "path": "./skills"
+    "path": "./skills",
+    "allowBundled": []
   },
+
   "session": {
     "scope": "per-sender",
-    "dmScope": "main",
+    "dmScope": "per-channel-peer",
     "mainKey": "main",
     "reset": {
       "mode": "daily",
       "atHour": 4
     },
-    "resetTriggers": ["/new", "/reset"]
+    "resetTriggers": ["/new", "/reset"],
+    "maxHistory": 20,
+    "compressAfter": 12
   },
+
+  "memory": {
+    "enabled": true,
+    "store": "file",
+    "path": "~/.openclaw/memory",
+    "apiEndpoint": "/api/memory"
+  },
+
   "gateway": {
-    "port": 18789
+    "port": 18789,
+    "bind": "loopback",
+    "rateLimit": {
+      "windowMs": 60000,
+      "maxRequests": 30
+    }
   },
+
   "channels": {
     "telegram": {
-      "enabled": true
+      "enabled": true,
+      "parseMode": "Markdown"
+    }
+  },
+
+  "hooks": {
+    "enabled": true,
+    "token": "${OPENCLAW_HOOKS_TOKEN}",
+    "path": "/hooks",
+    "allowedAgentIds": ["main", "nutry", "booky", "espanol", "budgy"],
+    "defaultSessionKey": "hook:ingress"
+  },
+
+  "tools": {
+    "http": {
+      "enabled": true,
+      "allowedDomains": ["velum-five.vercel.app"]
+    },
+    "deny": ["group:automation", "group:runtime", "group:fs"]
+  },
+
+  "api": {
+    "baseUrl": "https://velum-five.vercel.app",
+    "endpoints": {
+      "nutrition": "/api/nutrition",
+      "nutritionGoals": "/api/nutrition/goals",
+      "nutritionWeek": "/api/nutrition/week",
+      "nutritionLookup": "/api/nutrition/lookup",
+      "nutritionPhoto": "/api/nutrition/photo",
+      "fitness": "/api/fitness",
+      "fitnessWebhook": "/api/fitness/webhook",
+      "nutritionWebhook": "/api/nutrition/webhook",
+      "budget": "/api/budget",
+      "budgetWebhook": "/api/budget/webhook",
+      "budgetSummary": "/api/budget/summary",
+      "goals": "/api/goals",
+      "spanish": "/api/spanish",
+      "spanishExercises": "/api/spanish/exercises",
+      "spanishPronounce": "/api/spanish/pronounce",
+      "profile": "/api/profile",
+      "quickLog": "/api/quick-log",
+      "insights": "/api/insights",
+      "memory": "/api/memory",
+      "books": "/api/books",
+      "chat": "/api/chat",
+      "chatHistory": "/api/chat/history",
+      "appVersion": "/api/app-version"
     }
   }
 }

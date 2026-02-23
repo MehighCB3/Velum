@@ -13,14 +13,11 @@ import {
   SpanishCard,
   UserProfile,
   AgentInsight,
+  DailyWisdom,
+  BookPrinciple,
 } from '../types';
 
-// Base URL of the Velum web app API.
-// In production this points to the Vercel deployment.
-// For local development, point to localhost:3000.
-const API_BASE = __DEV__
-  ? 'http://localhost:3000'
-  : 'https://velum-five.vercel.app';
+import { API_BASE } from './config';
 
 // ==================== HTTP HELPERS ====================
 
@@ -290,11 +287,153 @@ export const quickLogApi = {
   },
 };
 
+// ==================== CHAT ====================
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResponse {
+  content: string;
+  source: string;
+  memoriesSaved?: number;
+}
+
+export const chatApi = {
+  /** Send a message to the OpenClaw gateway.
+   *  @param agent  One of 'main' | 'nutry' | 'booky' | 'espanol' | 'budgy'.
+   *                Defaults to 'main' on the server when omitted.
+   */
+  async send(
+    message: string,
+    opts?: { context?: string; agent?: string },
+  ): Promise<ChatResponse> {
+    return request<ChatResponse>('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, ...opts }),
+    });
+  },
+};
+
 // ==================== INSIGHTS ====================
 
 export const insightsApi = {
   async getAll(section?: string): Promise<AgentInsight[]> {
     const data = await request<AgentInsight[]>('/insights');
     return section ? data.filter((i) => i.section === section) : data;
+  },
+};
+
+// ==================== BOOKS / KNOWLEDGE ====================
+
+export const booksApi = {
+  async getDaily(): Promise<DailyWisdom> {
+    return request<DailyWisdom>('/books?action=daily');
+  },
+
+  async getDomains(): Promise<{ domains: string[] }> {
+    return request('/books?action=domains');
+  },
+
+  async getPrinciples(domain?: string): Promise<{ principles: BookPrinciple[] }> {
+    const q = domain ? `?action=principles&domain=${encodeURIComponent(domain)}` : '?action=principles';
+    return request(`/books${q}`);
+  },
+
+  async getCaptures(): Promise<{ captures: Array<{ id: string; domain: string; text: string; source: string; type: string }> }> {
+    return request('/books?action=captures');
+  },
+};
+
+// ==================== BOOKMARKS ====================
+
+export interface XBookmark {
+  id: string;
+  tweet_id: string;
+  author_handle: string;
+  author_name: string;
+  text: string;
+  url: string;
+  tags: string[];
+  created_at: string;
+  bookmarked_at: string;
+  dismissed: boolean;
+}
+
+export const bookmarksApi = {
+  async getAll(opts?: { limit?: number; offset?: number; all?: boolean }): Promise<{
+    bookmarks: XBookmark[];
+    total: number;
+    active: number;
+  }> {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    if (opts?.all) params.set('all', 'true');
+    const qs = params.toString();
+    return request(`/bookmarks${qs ? `?${qs}` : ''}`);
+  },
+
+  async dismiss(tweetId: string): Promise<{ success: boolean }> {
+    return request('/bookmarks', {
+      method: 'PATCH',
+      body: JSON.stringify({ tweet_id: tweetId, dismissed: true }),
+    });
+  },
+
+  async undismiss(tweetId: string): Promise<{ success: boolean }> {
+    return request('/bookmarks', {
+      method: 'PATCH',
+      body: JSON.stringify({ tweet_id: tweetId, dismissed: false }),
+    });
+  },
+
+  async yap(text: string, author: string): Promise<{ bullets: string[] }> {
+    return request('/bookmarks/yap', {
+      method: 'POST',
+      body: JSON.stringify({ text, author }),
+    });
+  },
+};
+
+// ==================== MYMIND ====================
+
+export type MymindItemType = 'bookmark' | 'note' | 'quote' | 'highlight' | 'image';
+
+export interface MymindItem {
+  id: string;
+  mymind_id: string;
+  type: MymindItemType;
+  title: string;
+  content: string;
+  url: string;
+  image_url: string;
+  source: string;
+  tags: string[];
+  created_at: string;
+  saved_at: string;
+  dismissed: boolean;
+}
+
+export const mymindApi = {
+  async getAll(opts?: { limit?: number; offset?: number; all?: boolean }): Promise<{
+    items: MymindItem[];
+    total: number;
+    active: number;
+  }> {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    if (opts?.all) params.set('all', 'true');
+    const q = params.toString();
+    return request(`/mymind${q ? `?${q}` : ''}`);
+  },
+
+  async dismiss(mymindId: string): Promise<{ success: boolean }> {
+    return request('/mymind', {
+      method: 'PATCH',
+      body: JSON.stringify({ mymind_id: mymindId, dismissed: true }),
+    });
   },
 };

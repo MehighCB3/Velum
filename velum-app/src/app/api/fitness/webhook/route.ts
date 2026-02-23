@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FitnessEntry } from '../route'
+import { FitnessEntry, buildEntry, addFitnessEntry } from '../../../lib/fitnessStore'
 import { saveInsight } from '../../../lib/insightsStore'
 import { getWeekKey } from '../../../lib/weekUtils'
+import { generateAIInsight } from '../../../lib/aiInsights'
 
 export const dynamic = 'force-dynamic'
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET
 
 interface ParsedFitnessEntry {
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat' | 'sleep'
   name?: string
   steps?: number
   distance?: number      // in km
@@ -21,6 +22,8 @@ interface ParsedFitnessEntry {
   hrv?: number           // ms
   weight?: number        // kg
   bodyFat?: number       // percentage
+  sleepHours?: number    // decimal hours
+  sleepScore?: number    // 0-100
   date?: string
   notes?: string
 }
@@ -386,6 +389,48 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
     }
   }
 
+  // ==================== SLEEP PARSING ====================
+
+  // Patterns: "slept 7.5h" / "sleep 7h 45min" / "slept 8 hours score 82" / "sleep: 6.5h 75"
+  if (lowerText.includes('sleep') || lowerText.includes('slept') || lowerText.includes('sleeping')) {
+    // Extract hours — support "7.5h", "7h30", "7 hours", "7:30"
+    let sleepHours = 0
+    const hoursPattern = /(\d+(?:\.\d+)?)\s*h(?:ours?|r)?/i
+    const hoursMatch = text.match(hoursPattern)
+    if (hoursMatch) {
+      sleepHours = parseFloat(hoursMatch[1])
+    }
+    // Handle "7h30" or "7h 30min" formats
+    const hMinPattern = /(\d+)\s*h(?:ours?)?\s*(\d+)\s*(?:min|m\b)/i
+    const hMinMatch = text.match(hMinPattern)
+    if (hMinMatch) {
+      sleepHours = parseInt(hMinMatch[1]) + parseInt(hMinMatch[2]) / 60
+      sleepHours = Math.round(sleepHours * 10) / 10
+    }
+    // Try bare decimal: "sleep 7.5" (no unit)
+    if (!sleepHours) {
+      const barePattern = /(?:sleep|slept)\s+(\d+(?:\.\d+)?)/i
+      const bareMatch = text.match(barePattern)
+      if (bareMatch) {
+        const v = parseFloat(bareMatch[1])
+        if (v > 0 && v < 24) sleepHours = v
+      }
+    }
+
+    // Optional sleep quality/score
+    let sleepScore: number | undefined
+    const scorePattern = /(?:score|quality)[\s:]*(\d+)/i
+    const scoreMatch = text.match(scorePattern)
+    if (scoreMatch) {
+      const s = parseInt(scoreMatch[1])
+      if (s >= 0 && s <= 100) sleepScore = s
+    }
+
+    if (sleepHours > 0 && sleepHours <= 24) {
+      return { type: 'sleep', sleepHours, sleepScore, date: targetDate, notes }
+    }
+  }
+
   // ==================== JIU-JITSU PARSING ====================
 
   // Pattern: "bjj", "jiu-jitsu", "jiu jitsu", "jiujitsu", "bjj 90min", "jiu-jitsu 60min"
@@ -448,10 +493,10 @@ function generateFitnessInsight(parsed: ParsedFitnessEntry, weekData: SavedWeekD
   if (parsed.type === 'steps') {
     const steps = parsed.steps || 0
     const goal = goals?.steps || 10000
-    if (steps >= goal) return `Daily step goal hit! ${steps.toLocaleString()} steps today.`
+    if (steps >= goal) return `Daily step goal hit! ${steps.toLocaleString('en-US')} steps today.`
     const pct = Math.round((steps / goal) * 100)
-    if (pct >= 80) return `Almost there — ${pct}% of step goal (${steps.toLocaleString()}/${goal.toLocaleString()}).`
-    return `${steps.toLocaleString()} steps logged. ${(goal - steps).toLocaleString()} more to hit your daily goal.`
+    if (pct >= 80) return `Almost there — ${pct}% of step goal (${steps.toLocaleString('en-US')}/${goal.toLocaleString('en-US')}).`
+    return `${steps.toLocaleString('en-US')} steps logged. ${(goal - steps).toLocaleString('en-US')} more to hit your daily goal.`
   }
 
   if (parsed.type === 'run') {
@@ -545,20 +590,30 @@ export async function POST(request: NextRequest) {
     
     // Extract message text from Telegram format
     const messageText = body.message?.text || body.text
+    // Telegram forum topic detection:
+    // - forum_topic_created.name: only on the message that CREATES the topic (first msg)
+    // - reply_to_message.forum_topic_created.name: on direct children of the root topic msg
+    // - is_topic_message: true for all messages in any forum topic (Telegram Bot API v6.3+)
+    // - message_thread_name: non-standard, not sent by Telegram, but may come from OpenClaw
     const topicName = body.message?.forum_topic_created?.name ||
                       body.message?.reply_to_message?.forum_topic_created?.name ||
-                      body.message?.message_thread_name
-    
+                      body.message?.reply_to_message?.reply_to_message?.forum_topic_created?.name ||
+                      body.message?.message_thread_name ||
+                      body.topic_name  // OpenClaw may set this when forwarding
+
     if (!messageText) {
       return NextResponse.json({ error: 'No message text' }, { status: 400 })
     }
-    
+
     console.log('Fitness webhook received:', messageText, 'Topic:', topicName)
-    
-    // Only process messages from "Fity" topic
-    const isFityTopic = topicName === 'Fity' || 
+
+    // Only process messages from "Fity" topic or tagged with #fity / fity:
+    // Also accept messages where is_topic_message=true with the known thread ID
+    const FITY_THREAD_ID = process.env.FITY_THREAD_ID ? parseInt(process.env.FITY_THREAD_ID) : null
+    const isFityTopic = topicName === 'Fity' ||
                         messageText.toLowerCase().includes('#fity') ||
-                        messageText.toLowerCase().startsWith('fity:')
+                        messageText.toLowerCase().startsWith('fity:') ||
+                        (FITY_THREAD_ID !== null && body.message?.message_thread_id === FITY_THREAD_ID)
     
     if (!isFityTopic) {
       return NextResponse.json({ 
@@ -588,64 +643,86 @@ export async function POST(request: NextRequest) {
     const entryDate = parsed.date || new Date().toISOString().split('T')[0]
     const weekKey = getWeekKey(new Date(entryDate))
     
-    // Create entry
-    const entry: Partial<FitnessEntry> = {
+    // Build entry using shared store (no self-referencing fetch)
+    const entryData: Record<string, unknown> = {
       date: entryDate,
       timestamp: new Date().toISOString(),
       type: parsed.type,
-      name: parsed.name,
+      name: parsed.type === 'jiujitsu' ? 'Jiu-Jitsu' : parsed.name,
       notes: parsed.notes,
     }
 
     // Add type-specific fields
     if (parsed.type === 'steps') {
-      entry.steps = parsed.steps
-      entry.distanceKm = calculateDistanceFromSteps(parsed.steps || 0)
+      entryData.steps = parsed.steps
     } else if (parsed.type === 'run' || parsed.type === 'swim' || parsed.type === 'cycle') {
-      entry.distance = parsed.distance
-      entry.duration = parsed.duration
-      entry.calories = parsed.calories
-      entry.pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
+      entryData.distance = parsed.distance
+      entryData.duration = parsed.duration
+      entryData.calories = parsed.calories
     } else if (parsed.type === 'vo2max') {
-      entry.vo2max = parsed.vo2max
+      entryData.vo2max = parsed.vo2max
     } else if (parsed.type === 'training_load') {
-      entry.trainingLoad = parsed.trainingLoad
+      entryData.trainingLoad = parsed.trainingLoad
     } else if (parsed.type === 'stress') {
-      entry.stressLevel = parsed.stressLevel
+      entryData.stressLevel = parsed.stressLevel
     } else if (parsed.type === 'recovery') {
-      entry.recoveryScore = parsed.recoveryScore
+      entryData.recoveryScore = parsed.recoveryScore
     } else if (parsed.type === 'hrv') {
-      entry.hrv = parsed.hrv
+      entryData.hrv = parsed.hrv
     } else if (parsed.type === 'weight') {
-      entry.weight = parsed.weight
+      entryData.weight = parsed.weight
     } else if (parsed.type === 'body_fat') {
-      entry.bodyFat = parsed.bodyFat
+      entryData.bodyFat = parsed.bodyFat
+    } else if (parsed.type === 'sleep') {
+      entryData.sleepHours = parsed.sleepHours
+      entryData.sleepScore = parsed.sleepScore
     } else if (parsed.type === 'jiujitsu') {
-      entry.duration = parsed.duration
-      entry.name = 'Jiu-Jitsu'
+      entryData.duration = parsed.duration
     }
 
-    // Call the fitness API to save
-    const fitnessApiUrl = new URL('/api/fitness', request.url)
-    const response = await fetch(fitnessApiUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week: weekKey, entry })
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to save to fitness API')
-    }
-    
-    const savedData = await response.json()
+    // Save directly to storage — eliminates the self-referencing fetch
+    // that was causing Vercel serverless timeouts
+    const newEntry = buildEntry(entryData)
+    const savedData = await addFitnessEntry(weekKey, newEntry)
 
     // ==================== PUSH INSIGHT TO FITY AGENT ====================
-    // Generate a contextual insight and save directly to the shared store
-    // (Redis-backed) so it persists across serverless invocations.
+    // Try AI-generated insight first (OpenRouter), fall back to templates.
+    // Non-blocking: don't fail the webhook if insight push fails.
     try {
-      const insightText = generateFitnessInsight(parsed, savedData)
+      // Build a plain-text context summary for the AI
+      const contextLines: string[] = [`Activity logged: ${parsed.type}`]
+      if (parsed.steps) contextLines.push(`Steps: ${parsed.steps.toLocaleString('en-US')} (goal: ${savedData.goals?.steps?.toLocaleString('en-US') ?? 10000})`)
+      if (parsed.distance) contextLines.push(`Distance: ${parsed.distance}km`)
+      if (parsed.duration) contextLines.push(`Duration: ${parsed.duration}min`)
+      if (parsed.calories) contextLines.push(`Calories burned: ${parsed.calories}`)
+      if (parsed.recoveryScore != null) contextLines.push(`Recovery score: ${parsed.recoveryScore}%`)
+      if (parsed.stressLevel != null) contextLines.push(`Stress level: ${parsed.stressLevel}%`)
+      if (parsed.hrv != null) contextLines.push(`HRV: ${parsed.hrv}ms`)
+      if (parsed.vo2max != null) contextLines.push(`VO2 Max: ${parsed.vo2max}`)
+      if (parsed.trainingLoad != null) contextLines.push(`Training load: ${parsed.trainingLoad}`)
+      if (parsed.weight != null) contextLines.push(`Weight: ${parsed.weight}kg`)
+      if (parsed.bodyFat != null) contextLines.push(`Body fat: ${parsed.bodyFat}%`)
+      if (parsed.sleepHours != null) contextLines.push(`Sleep: ${parsed.sleepHours}h${parsed.sleepScore != null ? ` (score: ${parsed.sleepScore})` : ''}`)
+      if (savedData.totals) {
+        const t = savedData.totals
+        contextLines.push(`Week totals: ${t.runs} runs, ${t.swims} swims, ${t.cycles} rides, ${t.steps?.toLocaleString('en-US') ?? 0} steps, ${t.totalDistance?.toFixed(1) ?? 0}km`)
+      }
+      if (savedData.goals) {
+        const g = savedData.goals
+        contextLines.push(`Weekly goals: ${g.runs} runs, ${g.swims} swims`)
+      }
+      if (savedData.advanced) {
+        const a = savedData.advanced
+        contextLines.push(`Avg recovery: ${a.avgRecovery}%, Total training load: ${a.totalTrainingLoad}`)
+      }
+
+      const aiResult = await generateAIInsight(contextLines.join('\n'), 'Fity')
+
+      // Use AI result if available, otherwise fall back to template
+      const insightText = aiResult?.insight ?? generateFitnessInsight(parsed, savedData)
+      const insightType = aiResult?.type ?? classifyInsightType(parsed, savedData)
+
       if (insightText) {
-        const insightType = classifyInsightType(parsed, savedData)
         await saveInsight({
           agent: 'Fity',
           agentId: 'fitness-agent',
@@ -657,7 +734,6 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (insightErr) {
-      // Non-blocking: don't fail the webhook if insight push fails
       console.warn('Failed to push fitness insight:', insightErr)
     }
 
@@ -665,7 +741,7 @@ export async function POST(request: NextRequest) {
     let successMessage = ''
     if (parsed.type === 'steps') {
       const distance = calculateDistanceFromSteps(parsed.steps || 0)
-      successMessage = `✅ Logged: ${parsed.steps?.toLocaleString()} steps (${distance}km) - ${entryDate}`
+      successMessage = `✅ Logged: ${(parsed.steps || 0).toLocaleString('en-US')} steps (${distance}km) - ${entryDate}`
     } else if (parsed.type === 'run' || parsed.type === 'swim') {
       const pace = calculatePace(parsed.duration || 0, parsed.distance || 0)
       successMessage = `✅ Logged: ${parsed.type} - ${parsed.distance}km in ${parsed.duration}min`
@@ -707,6 +783,14 @@ export async function POST(request: NextRequest) {
       successMessage = `✅ Logged: Weight ${parsed.weight} kg - ${entryDate}`
     } else if (parsed.type === 'body_fat') {
       successMessage = `✅ Logged: Body Fat ${parsed.bodyFat}% - ${entryDate}`
+    } else if (parsed.type === 'sleep') {
+      const h = parsed.sleepHours || 0
+      successMessage = `✅ Logged: Sleep ${h}h - ${entryDate}`
+      if (parsed.sleepScore) successMessage += ` (score: ${parsed.sleepScore})`
+      if (h >= 8) successMessage += '\n😴 Great sleep!'
+      else if (h >= 7) successMessage += '\n✅ Good sleep'
+      else if (h >= 6) successMessage += '\n⚠️ A bit short — aim for 7-9h'
+      else successMessage += '\n🔴 Sleep debt building — prioritise rest'
     } else if (parsed.type === 'jiujitsu') {
       successMessage = `✅ Logged: Jiu-Jitsu session - ${entryDate}`
       if (parsed.duration) successMessage += ` (${parsed.duration} min)`

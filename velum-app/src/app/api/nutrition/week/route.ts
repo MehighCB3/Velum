@@ -51,19 +51,39 @@ export async function GET(request: NextRequest) {
         
         // Build daily summaries
         const dailyData = dates.map(date => {
-          const dayEntries = entriesResult.rows.filter(e => e.date === date)
-          const dayGoal = goalsResult.rows.find(g => g.date === date) || { calories: 2600, protein: 160, carbs: 310, fat: 80 }
-          
+          const dayRawEntries = entriesResult.rows.filter(e => e.date === date)
+          const dayGoalRaw = goalsResult.rows.find(g => g.date === date)
+          const dayGoal = dayGoalRaw
+            ? {
+                calories: Number(dayGoalRaw.calories),
+                protein: Number(dayGoalRaw.protein),
+                carbs: Number(dayGoalRaw.carbs),
+                fat: Number(dayGoalRaw.fat),
+              }
+            : { calories: 2600, protein: 160, carbs: 310, fat: 80 }
+
+          // Convert entries to ensure numeric types
+          const dayEntries = (dayRawEntries as Array<{ id: string; name: string; calories: string | number; protein: string | number; carbs: string | number; fat: string | number; time: string }>).map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            calories: Number(entry.calories),
+            protein: Number(entry.protein),
+            carbs: Number(entry.carbs),
+            fat: Number(entry.fat),
+            time: entry.time,
+            date,
+          }))
+
           const totals = dayEntries.reduce(
             (acc, entry) => ({
-              calories: acc.calories + Number(entry.calories),
-              protein: acc.protein + Number(entry.protein),
-              carbs: acc.carbs + Number(entry.carbs),
-              fat: acc.fat + Number(entry.fat)
+              calories: acc.calories + entry.calories,
+              protein: acc.protein + entry.protein,
+              carbs: acc.carbs + entry.carbs,
+              fat: acc.fat + entry.fat,
             }),
             { calories: 0, protein: 0, carbs: 0, fat: 0 }
           )
-          
+
           return {
             date,
             entries: dayEntries,

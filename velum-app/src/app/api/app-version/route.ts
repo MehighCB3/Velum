@@ -1,26 +1,79 @@
 import { NextResponse } from 'next/server';
 
-// Current app version — bump this when publishing new APK builds
-const CURRENT_VERSION = '1.1.0';
-const APK_DOWNLOAD_URL =
-  'https://github.com/MehighCB3/Velum/raw/main/velum-mobile/velum-v1.1.0-arm64.apk';
+const GITHUB_OWNER = 'MehighCB3';
+const GITHUB_REPO = 'Velum';
+const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+
+// In-memory cache (5-minute TTL)
+let cached: { data: Record<string, unknown>; ts: number } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+// Fallback when GitHub is unreachable
+const FALLBACK_VERSION = '1.6.0';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Cache-Control': 'no-cache',
+  'Cache-Control': 'public, max-age=300',
 };
 
+async function fetchLatestRelease() {
+  // Return cache if fresh
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  try {
+    const res = await fetch(GITHUB_RELEASES_URL, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'Velum-API',
+      },
+      next: { revalidate: 300 },
+    });
+
+    if (!res.ok) {
+      throw new Error(`GitHub API returned ${res.status}`);
+    }
+
+    const release = await res.json();
+    const version = (release.tag_name || '').replace(/^v/, '') || FALLBACK_VERSION;
+
+    const apkAsset = (release.assets || []).find(
+      (a: { name?: string }) => a.name?.endsWith('.apk'),
+    );
+
+    const data = {
+      version,
+      apkUrl: apkAsset?.browser_download_url || null,
+      apkSize: apkAsset?.size || null,
+      releaseNotes: release.body || null,
+      releaseUrl: release.html_url || null,
+    };
+
+    cached = { data, ts: Date.now() };
+    return data;
+  } catch (err) {
+    console.warn('Failed to fetch GitHub release:', err);
+
+    // Return stale cache if available
+    if (cached) return cached.data;
+
+    // Final fallback
+    return {
+      version: FALLBACK_VERSION,
+      apkUrl: null,
+      apkSize: null,
+      releaseNotes: null,
+      releaseUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
+    };
+  }
+}
+
 export async function GET() {
-  return NextResponse.json(
-    {
-      version: CURRENT_VERSION,
-      apkUrl: APK_DOWNLOAD_URL,
-      releaseNotes: 'Insights on every tab, update fix, improved error handling',
-    },
-    { headers: CORS_HEADERS },
-  );
+  const data = await fetchLatestRelease();
+  return NextResponse.json(data, { headers: CORS_HEADERS });
 }
 
 export async function OPTIONS() {

@@ -110,6 +110,115 @@ const SEED_CAPTURES: RawCapture[] = [
   { id: 'rc-30', domain: 'Systems Thinking', text: '"The structure of a system determines its behavior. System structure is the source of system behavior."', source: 'Thinking in Systems — Donella Meadows', type: 'quote' },
 ]
 
+// ==================== FLASH CARD ====================
+
+interface FlashCard {
+  front: { text: string; book: string }
+  back: { text: string }
+  source: 'notion' | 'seed'
+  total: number
+}
+
+function extractRichText(richText: any[] = []): string {
+  return richText.map((r: any) => r.plain_text || '').join('')
+}
+
+async function fetchFlashCard(index: number): Promise<FlashCard> {
+  const token = process.env.NOTION_TOKEN || process.env.NOTION_API_KEY
+  const dbId = process.env.NOTION_BOOKS_DB_ID
+
+  if (token && dbId) {
+    try {
+      const dbRes = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ page_size: 20 }),
+      })
+
+      if (dbRes.ok) {
+        const dbData: any = await dbRes.json()
+        const pages: any[] = dbData.results || []
+
+        if (pages.length > 0) {
+          const pageIdx = index % pages.length
+          const page = pages[pageIdx]
+          const props = page.properties || {}
+          const bookTitle =
+            props.Name?.title?.[0]?.plain_text ||
+            props.Title?.title?.[0]?.plain_text ||
+            'From your library'
+
+          const blocksRes = await fetch(
+            `https://api.notion.com/v1/blocks/${page.id}/children?page_size=100`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Notion-Version': '2022-06-28',
+              },
+            }
+          )
+
+          if (blocksRes.ok) {
+            const blocksData: any = await blocksRes.json()
+            const blocks: any[] = blocksData.results || []
+
+            const quotes = blocks
+              .filter(b => b.type === 'quote')
+              .map(b => extractRichText(b.quote?.rich_text))
+              .filter(Boolean)
+
+            const userNotes = blocks
+              .filter(b => b.type === 'paragraph' || b.type === 'callout')
+              .map(b => {
+                const rt =
+                  b.type === 'callout' ? b.callout?.rich_text : b.paragraph?.rich_text
+                return extractRichText(rt)
+              })
+              .filter(t => t.length > 20)
+
+            if (quotes.length > 0) {
+              const offset = Math.floor(index / pages.length)
+              const quoteText = quotes[offset % quotes.length]
+              const noteText =
+                userNotes.length > 0
+                  ? userNotes[offset % userNotes.length]
+                  : 'No notes captured for this book yet.'
+
+              return {
+                front: { text: quoteText, book: bookTitle },
+                back: { text: noteText },
+                source: 'notion',
+                total: pages.length * Math.max(quotes.length, 1),
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Notion flashcard error:', error)
+    }
+  }
+
+  // Seed fallback — pair each quote with its principle's action prompt
+  const quotes = SEED_CAPTURES.filter(c => c.type === 'quote')
+  const capture = quotes[index % quotes.length]
+  const principle = SEED_PRINCIPLES.find(p => p.source === capture.source)
+  return {
+    front: { text: capture.text, book: capture.source },
+    back: {
+      text:
+        principle?.actionPrompt ??
+        'Reflect on how this applies to your life today.',
+    },
+    source: 'seed',
+    total: quotes.length,
+  }
+}
+
 // ==================== NOTION INTEGRATION ====================
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN || process.env.NOTION_API_KEY
@@ -243,6 +352,12 @@ export async function GET(request: NextRequest) {
         source: notionData ? 'notion' : 'seed',
         rotationNote: 'Quotes and principles rotate daily'
       })
+    }
+
+    if (action === 'flashcard') {
+      const index = Math.max(0, parseInt(searchParams.get('index') || '0', 10))
+      const card = await fetchFlashCard(index)
+      return NextResponse.json(card)
     }
 
     if (action === 'domains') {

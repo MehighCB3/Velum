@@ -1,0 +1,23 @@
+appId: com.velum.mobile
+---
+# Smoke test 2 — Every main tab renders without crashing
+- launchApp
+
+- tapOn: "Nutrition"
+- assertVisible: "Nutrition"
+
+- tapOn: "Fitness"
+- assertVisible: "Fitness"
+
+- tapOn: "Budget"
+- assertVisible: "Budget"
+
+- tapOn: "Library"
+- assertVisible: "Library"
+
+- tapOn: "Profile"
+- assertVisible: "Profile"
+
+# Return home
+- tapOn: "Home"
+- assertVisible: "Velum"

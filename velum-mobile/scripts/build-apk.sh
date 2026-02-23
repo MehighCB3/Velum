@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# build-apk.sh — Build Velum Mobile APK (arm64)
+# build-apk.sh — Build Velum Mobile APK (arm64) + GitHub Release
 #
 # Usage:
 #   ./scripts/build-apk.sh           # uses version from app.json
-#   ./scripts/build-apk.sh 1.2.0     # override version
+#   ./scripts/build-apk.sh 1.3.0     # override version
 #
 # Prerequisites:
 #   - Node.js & npm (with project deps installed)
 #   - Java 17+ (JAVA_HOME set)
 #   - Android SDK (ANDROID_HOME set, or at /opt/android-sdk)
 #   - NDK 27.x installed via SDK manager
+#   - gh CLI (optional, for auto-publishing GitHub Release)
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -21,6 +22,25 @@ cd "$PROJECT_DIR"
 # ── Resolve version ──────────────────────────────────────────
 VERSION="${1:-$(node -p "require('./app.json').expo.version")}"
 echo "Building Velum Mobile v${VERSION} (arm64)"
+
+# ── Update version in app.json and package.json ─────────────
+# Ensures Constants.expoConfig.version matches the built APK
+CURRENT_APP_VERSION=$(node -p "require('./app.json').expo.version")
+if [ "$VERSION" != "$CURRENT_APP_VERSION" ]; then
+  echo "Updating app.json version: $CURRENT_APP_VERSION → $VERSION"
+  node -e "
+    const fs = require('fs');
+    const app = JSON.parse(fs.readFileSync('./app.json', 'utf8'));
+    app.expo.version = '$VERSION';
+    fs.writeFileSync('./app.json', JSON.stringify(app, null, 2) + '\n');
+  "
+  node -e "
+    const fs = require('fs');
+    const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+    pkg.version = '$VERSION';
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+  "
+fi
 
 # ── Ensure ANDROID_HOME ──────────────────────────────────────
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
@@ -40,11 +60,13 @@ if [ -z "${JAVA_HOME:-}" ]; then
   fi
 fi
 
-# ── Step 1: Generate native project if needed ────────────────
-if [ ! -f "android/gradlew" ]; then
-  echo "Generating native Android project..."
-  npx expo prebuild --platform android --clean
-fi
+# ── Step 0: Install/update dependencies ──────────────────────
+echo "Installing dependencies..."
+npm install --legacy-peer-deps
+
+# ── Step 1: Always clean prebuild to pick up app.json changes ─
+echo "Generating native Android project (clean)..."
+npx expo prebuild --platform android --clean
 
 # ── Step 2: Ensure local.properties ──────────────────────────
 if [ ! -f "android/local.properties" ]; then
@@ -54,10 +76,22 @@ fi
 # ── Step 3: Bundle JS ────────────────────────────────────────
 echo "Bundling JavaScript..."
 mkdir -p android/app/src/main/assets
-npx expo export --platform android
 
-# Copy the Hermes bytecode bundle
-BUNDLE=$(ls -1 dist/_expo/static/js/android/entry-*.hbc 2>/dev/null | head -1)
+# Always wipe the previous export so stale bundles from old versions never
+# get copied into the new APK. Without this, interrupted or cached runs
+# leave old .hbc files that the copy step below picks up instead of the
+# freshly-built one.
+rm -rf dist/
+
+# --reset-cache forces Metro to discard its on-disk transform cache.
+# Without it, expo-constants (which injects app.json values including the
+# version string) can serve a cached transform from the previous version,
+# meaning the old version number ends up baked into the new APK bundle.
+npx expo export --platform android --reset-cache
+
+# Copy the Hermes bytecode bundle — use -t to sort newest-first so that if
+# any leftover files somehow exist, we always pick the most recent one.
+BUNDLE=$(ls -1t dist/_expo/static/js/android/entry-*.hbc 2>/dev/null | head -1)
 if [ -z "$BUNDLE" ]; then
   echo "ERROR: JS bundle not found in dist/"
   exit 1
@@ -68,7 +102,7 @@ echo "JS bundle: $(du -h android/app/src/main/assets/index.android.bundle | cut 
 # ── Step 4: Gradle build (arm64 only) ────────────────────────
 echo "Building APK with Gradle..."
 cd android
-./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a -q
+./gradlew assembleRelease --no-daemon --no-build-cache -PreactNativeArchitectures=arm64-v8a
 cd ..
 
 # ── Step 5: Copy output ──────────────────────────────────────
@@ -88,8 +122,42 @@ echo "BUILD SUCCESSFUL"
 echo "  APK: $APK_DST ($APK_SIZE)"
 echo "  Version: $VERSION"
 echo "  Arch: arm64-v8a"
-echo ""
-echo "Next steps:"
-echo "  1. Update velum-app/src/app/api/app-version/route.ts with version $VERSION"
-echo "  2. git add $APK_DST && git commit && git push"
-echo "  3. Merge to main so the download URL works"
+
+# ── Step 6: Create GitHub Release (if gh CLI available) ──────
+if command -v gh &>/dev/null; then
+  echo ""
+  echo "Publishing GitHub Release..."
+
+  TAG="v${VERSION}"
+
+  # Check if release already exists
+  if gh release view "$TAG" &>/dev/null 2>&1; then
+    echo "Release $TAG already exists — uploading APK asset..."
+    gh release upload "$TAG" "$APK_DST" --clobber
+  else
+    gh release create "$TAG" "$APK_DST" \
+      --title "Velum Mobile $TAG" \
+      --notes "Velum Mobile v${VERSION}
+
+## What's new
+- Auto-update system: checks GitHub Releases for new versions
+- In-app APK download with progress bar
+- One-tap install after download
+- Background update checks with 6-hour cooldown
+
+## Install
+Download \`${APK_DST}\` and install on your Android device.
+" \
+      --latest
+
+    echo "GitHub Release $TAG published!"
+  fi
+  echo "  URL: https://github.com/MehighCB3/Velum/releases/tag/$TAG"
+else
+  echo ""
+  echo "Next steps (gh CLI not found — publish manually):"
+  echo "  1. git add $APK_DST && git commit && git push"
+  echo "  2. Create a GitHub Release tagged v$VERSION"
+  echo "  3. Upload $APK_DST as a release asset"
+  echo "  4. The app will auto-detect the new version on next check"
+fi

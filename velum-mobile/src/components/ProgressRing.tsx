@@ -24,7 +24,8 @@ export function ProgressRing({
 }: ProgressRingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const clampedProgress = Math.min(Math.max(progress, 0), 1);
+  const safeProgress = Number.isFinite(progress) ? progress : 0;
+  const clampedProgress = Math.min(Math.max(safeProgress, 0), 1);
   const strokeDashoffset = circumference * (1 - clampedProgress);
 
   return (

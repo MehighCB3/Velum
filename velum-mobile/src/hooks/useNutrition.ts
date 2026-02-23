@@ -4,11 +4,23 @@ import { nutritionApi } from '../api/client';
 import { cacheNutritionDay, getCachedNutritionDay } from '../db/database';
 import { isOnline } from '../db/sync';
 
+function sumTotals(entries: Pick<NutritionEntry, 'calories' | 'protein' | 'carbs' | 'fat'>[]): NutritionGoals {
+  return entries.reduce(
+    (acc, e) => ({
+      calories: acc.calories + e.calories,
+      protein:  acc.protein  + e.protein,
+      carbs:    acc.carbs    + e.carbs,
+      fat:      acc.fat      + e.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
 const DEFAULT_GOALS: NutritionGoals = {
-  calories: 2000,
-  protein: 150,
-  carbs: 200,
-  fat: 65,
+  calories: 2600,
+  protein: 160,
+  carbs: 310,
+  fat: 80,
 };
 
 export function useNutrition(date?: string) {
@@ -36,19 +48,10 @@ export function useNutrition(date?: string) {
         // Load from local cache
         const cached = await getCachedNutritionDay(targetDate);
         if (cached) {
-          const totals = cached.entries.reduce(
-            (acc, e) => ({
-              calories: acc.calories + e.calories,
-              protein: acc.protein + e.protein,
-              carbs: acc.carbs + e.carbs,
-              fat: acc.fat + e.fat,
-            }),
-            { calories: 0, protein: 0, carbs: 0, fat: 0 },
-          );
           setData({
             date: targetDate,
             entries: cached.entries as NutritionEntry[],
-            totals,
+            totals: sumTotals(cached.entries),
             goals: cached.goals,
           });
         }
@@ -58,19 +61,10 @@ export function useNutrition(date?: string) {
       // Try local cache on error
       const cached = await getCachedNutritionDay(targetDate);
       if (cached) {
-        const totals = cached.entries.reduce(
-          (acc, e) => ({
-            calories: acc.calories + e.calories,
-            protein: acc.protein + e.protein,
-            carbs: acc.carbs + e.carbs,
-            fat: acc.fat + e.fat,
-          }),
-          { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        );
         setData({
           date: targetDate,
           entries: cached.entries as NutritionEntry[],
-          totals,
+          totals: sumTotals(cached.entries),
           goals: cached.goals,
         });
       }

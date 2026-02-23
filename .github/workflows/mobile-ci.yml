@@ -1,0 +1,53 @@
+name: Mobile CI
+
+# Runs on every claude/* branch push that touches mobile code.
+# Catches broken installs and TypeScript errors before they reach the
+# expensive 90-minute APK build on main.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'velum-mobile/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'velum-mobile/**'
+
+jobs:
+  typecheck:
+    name: Install + TypeCheck + expo-doctor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: velum-mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: velum-mobile/package-lock.json
+
+      # Fail fast if any package version doesn't exist in the registry
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Catch TypeScript errors before they silently reach the APK build
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      # Verify all Expo package versions are compatible with the SDK
+      - name: expo-doctor
+        run: npx expo-doctor
+        # Warn only — some peer dep advisory warnings are non-blocking
+        continue-on-error: true
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

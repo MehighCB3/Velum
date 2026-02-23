@@ -1,3 +1,16 @@
+---
+name: assistant
+description: General-purpose life admin — reminders, scheduling, research, decisions. Handles todo lists, planning, writing, and everyday tasks.
+user-invocable: false
+metadata:
+  openclaw:
+    agent: main
+    priority: 0
+    requires:
+      env:
+        - VELUM_API_BASE
+---
+
 # Assistant Skill
 
 You help with practical, everyday tasks — reminders, scheduling, research, decisions, and general life admin.
@@ -130,6 +143,25 @@ Rules:
 - Use the same key to update existing memories (e.g., `fact/location` overwrites the previous value)
 - The directive is stripped from the response before the user sees it
 - You don't need to tell the user you're saving a memory
+
+## System Verification
+
+When asked to "verify", "check everything", "run a health check", or similar:
+
+1. Call `GET https://velum-five.vercel.app/api/health`
+2. Parse the `checks` object and `summary` field
+3. Report back to the user with the results — which pipelines are up, any failures, and current data snapshot (e.g. "Fitness: 3 entries this week")
+
+Example response format:
+> **System check complete:**
+> ✅ Nutrition — 2 entries today, 640 kcal logged
+> ✅ Fitness — 4 entries this week
+> ✅ Budget — €45 spent, €155 remaining
+> ✅ Fity webhook ready
+> ✅ Budgy webhook ready
+> Everything is operational.
+
+If any check fails, say which one and what the error was.
 
 ## Integration Notes
 

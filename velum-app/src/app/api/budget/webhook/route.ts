@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getISOWeek } from '../../../lib/weekUtils'
+import { getISOWeek, parseWeekKey } from '../../../lib/weekUtils'
+import { addBudgetEntry, BudgetEntry, Category } from '../../../lib/budgetStore'
+import { saveInsight } from '../../../lib/insightsStore'
+import { generateAIInsight } from '../../../lib/aiInsights'
+import { inferBudgetCategory } from '../../../lib/budgetCategories'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,22 +51,8 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
     remaining = remaining.replace(weekMatch[0], '').trim()
   }
   
-  // Determine category
-  let category: ParsedExpense['category']
-  if (/\b(?:transport|uber|taxi|metro|bus|train|fuel|gas|parking)\b/i.test(remaining)) {
-    category = 'Transport'
-  } else if (/\b(?:sub|subscription|netflix|spotify|gym\s*membership|monthly|annual)\b/i.test(remaining)) {
-    category = 'Subscriptions'
-  } else if (/\b(?:food|eat|lunch|dinner|breakfast|meal|restaurant|groceries|mercadona|carrefour)\b/i.test(remaining)) {
-    category = 'Food'
-  } else if (/\b(?:fun|drink|bar|movie|game|entertainment|concert|party)\b/i.test(remaining)) {
-    category = 'Fun'
-  } else if (/\b(?:other)\b/i.test(remaining)) {
-    category = 'Other'
-  } else {
-    // Default to Food if contains eating keywords, otherwise Other
-    category = /\b(?:lunch|dinner|breakfast|coffee|snack)\b/i.test(remaining) ? 'Food' : 'Other'
-  }
+  // Determine category — delegate to shared lib so webhook + agent stay in sync
+  const category = inferBudgetCategory(remaining)
   
   // Clean up description (remove category words for cleaner description)
   let description = remaining
@@ -103,12 +93,37 @@ export async function POST(request: NextRequest) {
 
     // Extract message text from Telegram format
     const messageText = body.message?.text || body.text
-    
+
     if (!messageText) {
       return NextResponse.json({ error: 'No message text' }, { status: 400 })
     }
-    
-    console.log('Budget webhook received:', messageText)
+
+    // Topic detection — same multi-level pattern as fitness webhook
+    const topicName =
+      body.message?.forum_topic_created?.name ||
+      body.message?.reply_to_message?.forum_topic_created?.name ||
+      body.message?.reply_to_message?.reply_to_message?.forum_topic_created?.name ||
+      body.message?.message_thread_name ||
+      body.topic_name // OpenClaw may set this when forwarding
+
+    const BUDGY_THREAD_ID = process.env.BUDGY_THREAD_ID
+      ? parseInt(process.env.BUDGY_THREAD_ID)
+      : null
+
+    const isBudgyTopic =
+      topicName === 'Budgy' ||
+      messageText.toLowerCase().includes('#budgy') ||
+      messageText.toLowerCase().startsWith('budgy:') ||
+      (BUDGY_THREAD_ID !== null && body.message?.message_thread_id === BUDGY_THREAD_ID)
+
+    if (!isBudgyTopic) {
+      return NextResponse.json({
+        ignored: true,
+        reason: 'Message not in Budgy topic or missing #budgy tag',
+      })
+    }
+
+    console.log('Budget webhook received:', messageText, 'Topic:', topicName)
     
     // Parse the expense
     const parsed = parseExpenseMessage(messageText)
@@ -121,31 +136,54 @@ export async function POST(request: NextRequest) {
     
     // Get week key
     const weekKey = getWeekKeyForBudget(parsed.week)
-    
-    // Create entry
-    const entry = {
+
+    // Derive the correct entry date from the week key so past-week entries
+    // (e.g. "15€ lunch food week 2") land on the Monday of that week, not today.
+    const entryDate = parsed.week
+      ? parseWeekKey(weekKey).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
+
+    // Create entry and save directly to storage — eliminates the
+    // self-referencing fetch that was causing Vercel serverless timeouts
+    const entry: BudgetEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       amount: parsed.amount,
-      category: parsed.category,
+      category: parsed.category as Category,
       description: parsed.description,
-      date: new Date().toISOString().split('T')[0],
+      date: entryDate,
       timestamp: new Date().toISOString(),
       reason: parsed.reason
     }
-    
-    // Call the budget API to save
-    const budgetApiUrl = new URL('/api/budget', request.url)
-    const response = await fetch(budgetApiUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week: weekKey, entry })
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to save to budget API')
+
+    const savedData = await addBudgetEntry(weekKey, entry)
+
+    // ==================== PUSH INSIGHT TO BUDGY AGENT ====================
+    // Non-blocking: don't fail the webhook if insight push fails.
+    try {
+      const contextLines = [
+        `Expense logged: €${parsed.amount} ${parsed.description} (${parsed.category})`,
+        `Week: ${weekKey}`,
+        `Total spent this week: €${savedData.totalSpent?.toFixed(2) ?? parsed.amount}`,
+        `Remaining budget: €${savedData.remaining?.toFixed(2) ?? 'unknown'}`,
+      ]
+      if (parsed.reason) contextLines.push(`Reason: ${parsed.reason}`)
+
+      const aiResult = await generateAIInsight(contextLines.join('\n'), 'Budgy')
+      if (aiResult) {
+        await saveInsight({
+          agent: 'Budgy',
+          agentId: 'budget-agent',
+          emoji: '💰',
+          insight: aiResult.insight,
+          type: aiResult.type,
+          updatedAt: new Date().toISOString(),
+          section: 'budget',
+        })
+      }
+    } catch (insightErr) {
+      console.warn('Failed to push budget insight:', insightErr)
     }
-    
-    const savedData = await response.json()
-    
+
     return NextResponse.json({
       success: true,
       message: `✅ Logged: €${parsed.amount} ${parsed.description} (${parsed.category}) - Week ${parsed.week || 'current'}${parsed.reason ? ` for "${parsed.reason}"` : ''}`,

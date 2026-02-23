@@ -111,26 +111,55 @@ async function readFromPostgres(date: string): Promise<NutritionDay> {
     WHERE date = ${date}
     ORDER BY entry_time
   `
-  
+
   const goalsResult = await sql`
-    SELECT calories, protein, carbs, fat 
-    FROM nutrition_goals 
+    SELECT calories, protein, carbs, fat
+    FROM nutrition_goals
     WHERE date = ${date}
   `
-  
-  const goals = (goalsResult.rows[0] as NutritionGoals) || SEED_DATA["2026-02-01"].goals
-  const entries = entriesResult.rows as NutritionEntry[]
-  
+
+  const goalsRow = goalsResult.rows[0] as { calories: number; protein: number; carbs: number; fat: number } | undefined
+  const goals = goalsRow
+    ? {
+        calories: Number(goalsRow.calories),
+        protein: Number(goalsRow.protein),
+        carbs: Number(goalsRow.carbs),
+        fat: Number(goalsRow.fat),
+      }
+    : SEED_DATA["2026-02-01"].goals
+
+  // Convert entries ensuring numeric types (Postgres DECIMAL returns as string)
+  const entries = (entriesResult.rows as Array<{
+    id: string
+    name: string
+    calories: number | string
+    protein: number | string
+    carbs: number | string
+    fat: number | string
+    time: string
+    photoUrl?: string | null
+  }>).map((row) => ({
+    id: row.id,
+    name: row.name,
+    calories: Number(row.calories),
+    protein: Number(row.protein),
+    carbs: Number(row.carbs),
+    fat: Number(row.fat),
+    time: row.time,
+    date,
+    photoUrl: row.photoUrl ?? undefined,
+  }))
+
   const totals = entries.reduce(
     (acc, entry) => ({
-      calories: acc.calories + Number(entry.calories),
-      protein: acc.protein + Number(entry.protein),
-      carbs: acc.carbs + Number(entry.carbs),
-      fat: acc.fat + Number(entry.fat)
+      calories: acc.calories + entry.calories,
+      protein: acc.protein + entry.protein,
+      carbs: acc.carbs + entry.carbs,
+      fat: acc.fat + entry.fat,
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   )
-  
+
   return { date, entries, totals, goals }
 }
 

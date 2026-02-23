@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const secret = searchParams.get('secret')
     
-    if (secret !== process.env.MIGRATE_SECRET) {
+    if (secret !== process.env.MIGRATE_SECRET?.trim()) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -149,6 +149,65 @@ export async function POST(request: NextRequest) {
     await sql`CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC)`
     results.push('✅ Created agent_memories table')
 
+    // Create fitness_entries table
+    await sql`
+      CREATE TABLE IF NOT EXISTS fitness_entries (
+        id SERIAL PRIMARY KEY,
+        entry_id VARCHAR(50) UNIQUE NOT NULL,
+        week VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        entry_type VARCHAR(20) NOT NULL,
+        name VARCHAR(255),
+        steps INTEGER,
+        distance_km DECIMAL(6,2),
+        duration INTEGER,
+        distance DECIMAL(6,2),
+        pace DECIMAL(4,2),
+        calories INTEGER,
+        vo2max DECIMAL(5,2),
+        training_load INTEGER,
+        stress_level INTEGER,
+        recovery_score INTEGER,
+        hrv DECIMAL(5,2),
+        weight DECIMAL(5,2),
+        body_fat DECIMAL(4,2),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_week ON fitness_entries(week)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_date ON fitness_entries(date)`
+    results.push('✅ Created fitness_entries table')
+
+    // Create fitness_goals table
+    await sql`
+      CREATE TABLE IF NOT EXISTS fitness_goals (
+        week VARCHAR(10) UNIQUE NOT NULL PRIMARY KEY,
+        steps INTEGER NOT NULL DEFAULT 10000,
+        runs INTEGER NOT NULL DEFAULT 3,
+        swims INTEGER NOT NULL DEFAULT 2
+      )
+    `
+    results.push('✅ Created fitness_goals table')
+
+    // Create budget_entries table
+    await sql`
+      CREATE TABLE IF NOT EXISTS budget_entries (
+        id SERIAL PRIMARY KEY,
+        entry_id VARCHAR(50) UNIQUE NOT NULL,
+        week VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        description TEXT,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_date ON budget_entries(date)`
+    results.push('✅ Created budget_entries table')
+
     return NextResponse.json({
       success: true,
       results,
@@ -169,9 +228,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const check = searchParams.get('check')
+
+  if (check === 'data') {
+    try {
+      // Check what data exists in the database
+      const nutritionCount = await sql`SELECT COUNT(*) as count FROM nutrition_entries`
+      const nutritionDates = await sql`SELECT DISTINCT date FROM nutrition_entries ORDER BY date DESC LIMIT 10`
+      const fitnessCount = await sql`SELECT COUNT(*) as count FROM fitness_entries`
+      const budgetCount = await sql`SELECT COUNT(*) as count FROM budget_entries`
+
+      return NextResponse.json({
+        database: 'connected',
+        nutrition: {
+          totalEntries: Number(nutritionCount.rows[0]?.count || 0),
+          recentDates: nutritionDates.rows.map(r => r.date),
+        },
+        fitness: {
+          totalEntries: Number(fitnessCount.rows[0]?.count || 0),
+        },
+        budget: {
+          totalEntries: Number(budgetCount.rows[0]?.count || 0),
+        },
+        message: 'Data status retrieved successfully'
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      return NextResponse.json({
+        database: 'error',
+        error: errorMessage,
+        message: 'Failed to check database status'
+      }, { status: 500 })
+    }
+  }
+
   return NextResponse.json({
     message: 'Migration API - Use POST with ?secret=YOUR_SECRET to run migration',
-    note: 'Set MIGRATE_SECRET env var in Vercel dashboard first'
+    note: 'Set MIGRATE_SECRET env var in Vercel dashboard first',
+    usage: {
+      migrate: 'POST /api/migrate?secret=YOUR_SECRET',
+      checkData: 'GET /api/migrate?check=data'
+    }
   })
 }

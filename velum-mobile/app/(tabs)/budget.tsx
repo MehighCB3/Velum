@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,80 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useBudget } from '../../src/hooks/useBudget';
+import { budgetApi } from '../../src/api/client';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
-import { WeekSelector } from '../../src/components/WeekSelector';
+import { WeekSelector, getISOWeekKey } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
-import { BudgetCategory } from '../../src/types';
+import { BudgetCategory, BudgetWeek } from '../../src/types';
+import { fmtDecimal as fmt } from '../../src/utils/formatters';
 
 const WEEKLY_BUDGET = 70;
+
+// ---- Month comparison data types & helpers ----
+
+interface WeekSummary {
+  weekKey: string;
+  weekLabel: string; // e.g. "W08"
+  totalSpent: number;
+  isCurrent: boolean;
+  isFuture: boolean;
+}
+
+/** Get an array of 4 ISO week keys centred around the selected week */
+function getMonthWeekKeys(centerDate: Date): string[] {
+  const keys: string[] = [];
+  // Go back 1 week, then forward 2 from that (4 weeks total)
+  const base = new Date(centerDate);
+  base.setDate(base.getDate() - 7); // start 1 week before
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + i * 7);
+    keys.push(getISOWeekKey(d));
+  }
+  return keys;
+}
+
+function useMonthWeeks(centerDate: Date): { weeks: WeekSummary[]; loading: boolean } {
+  const weekKeys = useMemo(() => getMonthWeekKeys(centerDate), [centerDate]);
+  const currentWeekKey = getISOWeekKey(new Date());
+
+  const [weeks, setWeeks] = useState<WeekSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all(
+      weekKeys.map(async (wk): Promise<WeekSummary> => {
+        const label = wk.split('-')[1] || wk; // "W08"
+        const isCurrent = wk === currentWeekKey;
+        const isFuture = wk > currentWeekKey;
+        try {
+          if (isFuture) {
+            return { weekKey: wk, weekLabel: label, totalSpent: 0, isCurrent, isFuture };
+          }
+          const result: BudgetWeek = await budgetApi.getWeek(wk);
+          return { weekKey: wk, weekLabel: label, totalSpent: result.totalSpent, isCurrent, isFuture };
+        } catch {
+          return { weekKey: wk, weekLabel: label, totalSpent: 0, isCurrent, isFuture };
+        }
+      }),
+    ).then((results) => {
+      if (!cancelled) {
+        setWeeks(results);
+        setLoading(false);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [weekKeys.join(','), currentWeekKey]);
+
+  return { weeks, loading };
+}
 
 const budgetFields: FormField[] = [
   { key: 'amount', label: 'Amount (€)', placeholder: '0.00', type: 'number', required: true },
@@ -41,10 +106,100 @@ const budgetFields: FormField[] = [
   { key: 'reason', label: 'Reason', placeholder: 'Optional reason...', type: 'text' },
 ];
 
+// ---- Month Comparison Bar Chart ----
+
+const BAR_MAX_HEIGHT = 120;
+
+function MonthComparisonCard({
+  weeks,
+  budget,
+}: {
+  weeks: WeekSummary[];
+  budget: number;
+}) {
+  // Determine the max value for bar scaling (at least the budget)
+  const maxSpent = Math.max(budget, ...weeks.map((w) => w.totalSpent));
+
+  // Build the summary callout
+  const overWeek = weeks.find((w) => !w.isFuture && w.totalSpent > budget);
+  const underWeek = [...weeks]
+    .filter((w) => !w.isFuture && !w.isCurrent && w.totalSpent > 0 && w.totalSpent <= budget)
+    .sort((a, b) => a.totalSpent - b.totalSpent)[0];
+
+  const budgetLineBottom = (budget / maxSpent) * BAR_MAX_HEIGHT;
+
+  return (
+    <Card style={chartStyles.card}>
+      <SectionHeader title="Month Comparison" />
+
+      <View style={chartStyles.chartArea}>
+        {/* Dashed budget line */}
+        <View style={[chartStyles.budgetLine, { bottom: budgetLineBottom }]}>
+          <View style={chartStyles.budgetDash} />
+          <Text style={chartStyles.budgetLineLabel}>{'\u20AC'}{fmt(budget)}</Text>
+        </View>
+
+        {/* Bars */}
+        <View style={chartStyles.barsRow}>
+          {weeks.map((w) => {
+            const barH = maxSpent > 0 ? (w.totalSpent / maxSpent) * BAR_MAX_HEIGHT : 0;
+            const isOver = w.totalSpent > budget;
+
+            let barColor: string = colors.text; // past, under budget
+            if (w.isFuture) barColor = colors.border;
+            else if (w.isCurrent) barColor = colors.accent;
+            if (isOver && !w.isFuture) barColor = colors.error;
+
+            const barOpacity = w.isFuture ? 0.4 : 1;
+
+            return (
+              <View key={w.weekKey} style={chartStyles.barCol}>
+                <View style={chartStyles.barTrack}>
+                  <View
+                    style={[
+                      chartStyles.bar,
+                      {
+                        height: Math.max(barH, 4),
+                        backgroundColor: barColor,
+                        opacity: barOpacity,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={chartStyles.barLabel}>{w.weekLabel}</Text>
+                <Text style={chartStyles.barAmount}>
+                  {'\u20AC'}{fmt(w.totalSpent)}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Summary callout */}
+      {(overWeek || underWeek) && (
+        <View style={chartStyles.callout}>
+          {overWeek && (
+            <Text style={chartStyles.calloutText}>
+              {overWeek.weekLabel} was {'\u20AC'}{fmt(overWeek.totalSpent - budget)} over budget.
+            </Text>
+          )}
+          {underWeek && (
+            <Text style={chartStyles.calloutText}>
+              {underWeek.weekLabel} was {'\u20AC'}{fmt(budget - underWeek.totalSpent)} under.
+            </Text>
+          )}
+        </View>
+      )}
+    </Card>
+  );
+}
+
 export default function BudgetScreen() {
   const [weekDate, setWeekDate] = useState(new Date());
   const { data, loading, refresh, addEntry, deleteEntry } = useBudget(weekDate);
   const { insights: budgetAgentInsights } = useInsights('budget');
+  const { weeks: monthWeeks } = useMonthWeeks(weekDate);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const handleAddEntry = useCallback(
@@ -147,6 +302,11 @@ export default function BudgetScreen() {
           </View>
         </DarkCard>
 
+        {/* Month Comparison Chart */}
+        {monthWeeks.length > 0 && (
+          <MonthComparisonCard weeks={monthWeeks} budget={WEEKLY_BUDGET} />
+        )}
+
         {/* Insights */}
         <InsightBanner insights={budgetInsights} />
         {budgetAgentInsights.map((ai) => (
@@ -224,16 +384,13 @@ export default function BudgetScreen() {
         </Card>
 
         {/* Spending Log */}
-        <SectionHeader
-          title="Spending Log"
-          action={{ label: '+ Add', onPress: () => setShowAddModal(true) }}
-        />
+        <SectionHeader title="Spending Log" />
 
         {data.entries.length === 0 ? (
           <EmptyState
             icon="💰"
             title="No spending logged"
-            subtitle="Tap + Add to log an expense"
+            subtitle="Tap + to log an expense"
           />
         ) : (
           [...data.entries].reverse().map((entry) => (
@@ -289,7 +446,7 @@ export default function BudgetScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
   heroCard: { marginBottom: 12 },
@@ -349,5 +506,81 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
+  },
+});
+
+// ---- Chart styles ----
+
+const chartStyles = StyleSheet.create({
+  card: {
+    marginBottom: 12,
+  },
+  chartArea: {
+    position: 'relative',
+    height: BAR_MAX_HEIGHT + 40, // bars + labels
+    justifyContent: 'flex-end',
+  },
+  budgetLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  budgetDash: {
+    flex: 1,
+    height: 1,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: colors.textLight,
+  },
+  budgetLineLabel: {
+    fontSize: 10,
+    color: colors.textLight,
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+  barsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    paddingBottom: 0,
+  },
+  barCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  barTrack: {
+    height: BAR_MAX_HEIGHT,
+    width: 32,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bar: {
+    width: 24,
+    borderRadius: 6,
+  },
+  barLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 6,
+  },
+  barAmount: {
+    fontSize: 10,
+    color: colors.textLight,
+    marginTop: 2,
+  },
+  callout: {
+    backgroundColor: '#fdf8f3',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+  },
+  calloutText: {
+    fontSize: 12,
+    color: colors.text,
+    lineHeight: 18,
   },
 });

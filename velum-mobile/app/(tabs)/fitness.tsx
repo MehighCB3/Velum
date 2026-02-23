@@ -12,38 +12,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useFitness } from '../../src/hooks/useFitness';
 import { useInsights } from '../../src/hooks/useInsights';
-import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
+import { DarkCard, Card, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
-import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { FitnessEntryType } from '../../src/types';
+import { fmt } from '../../src/utils/formatters';
 
-const activityIcons: Record<string, { icon: string; color: string }> = {
-  steps: { icon: '🚶', color: colors.steps },
-  run: { icon: '🏃', color: colors.run },
-  swim: { icon: '🏊', color: colors.swim },
-  cycle: { icon: '🚴', color: colors.cycle },
-  jiujitsu: { icon: '🥋', color: colors.jiujitsu },
-  gym: { icon: '🏋️', color: colors.gym },
-  other: { icon: '⚡', color: colors.textLight },
-  vo2max: { icon: '❤️', color: colors.error },
-  training_load: { icon: '📊', color: colors.info },
-  stress: { icon: '😰', color: colors.warning },
-  recovery: { icon: '💤', color: colors.success },
-  hrv: { icon: '💓', color: colors.error },
-  weight: { icon: '⚖️', color: colors.textLight },
-  body_fat: { icon: '📏', color: colors.textLight },
+const ACTIVITY_ICONS: Record<string, string> = {
+  steps: '🚶', run: '🏃', swim: '🏊', cycle: '🚴',
+  jiujitsu: '🥋', gym: '💪', other: '⚡',
 };
 
 const fitnessFields: FormField[] = [
   {
-    key: 'type',
-    label: 'Activity Type',
-    placeholder: '',
-    type: 'select',
-    required: true,
+    key: 'type', label: 'Activity Type', placeholder: '', type: 'select', required: true,
     options: [
       { label: 'Steps', value: 'steps' },
       { label: 'Run', value: 'run' },
@@ -64,27 +48,19 @@ const fitnessFields: FormField[] = [
 
 export default function FitnessScreen() {
   const [weekDate, setWeekDate] = useState(new Date());
+  const [showAddModal, setShowAddModal] = useState(false);
   const { data, loading, refresh, addEntry, deleteEntry } = useFitness(weekDate);
   const { insights: fitnessInsights } = useInsights('fitness');
-  const [showAddModal, setShowAddModal] = useState(false);
 
   const handleAddEntry = useCallback(
     async (values: Record<string, string>) => {
-      const entry: Record<string, unknown> = {
-        type: values.type as FitnessEntryType,
-        name: values.name || undefined,
-        date: new Date().toISOString().split('T')[0],
-        notes: values.notes || undefined,
-      };
-
-      if (values.type === 'steps') {
-        entry.steps = Number(values.steps) || 0;
-      } else {
-        entry.duration = Number(values.duration) || 0;
-        entry.distance = Number(values.distance) || 0;
-        entry.calories = Number(values.calories) || 0;
-      }
-
+      const entry: Record<string, unknown> = { type: values.type };
+      if (values.name) entry.name = values.name;
+      if (values.steps) entry.steps = Number(values.steps);
+      if (values.duration) entry.duration = Number(values.duration);
+      if (values.distance) entry.distance = Number(values.distance);
+      if (values.calories) entry.calories = Number(values.calories);
+      if (values.notes) entry.notes = values.notes;
       await addEntry(entry as { type: FitnessEntryType });
       setShowAddModal(false);
     },
@@ -101,33 +77,38 @@ export default function FitnessScreen() {
     [deleteEntry],
   );
 
-  const stepsToday = data.entries
+  const entries = data?.entries ?? [];
+  const rawTotals = data?.totals;
+  const totals = {
+    steps: Number(rawTotals?.steps) || 0,
+    runs: Number(rawTotals?.runs) || 0,
+    swims: Number(rawTotals?.swims) || 0,
+    cycles: Number(rawTotals?.cycles) || 0,
+    jiujitsu: Number(rawTotals?.jiujitsu) || 0,
+    totalDistance: Number(rawTotals?.totalDistance) || 0,
+    totalCalories: Number(rawTotals?.totalCalories) || 0,
+  };
+  const rawGoals = data?.goals;
+  const goals = {
+    steps: Number(rawGoals?.steps) || 10000,
+    runs: Number(rawGoals?.runs) || 3,
+    swims: Number(rawGoals?.swims) || 2,
+  };
+
+  const stepsToday = entries
     .filter((e) => e.type === 'steps' && e.date === new Date().toISOString().split('T')[0])
     .reduce((sum, e) => sum + (e.steps || 0), 0);
 
-  const recoveryColor = {
-    good: colors.recoveryGood,
-    fair: colors.recoveryFair,
-    poor: colors.recoveryPoor,
-  }[data.advanced?.recoveryStatus || 'good'];
-
-  // Compute insights from current data
-  const computedInsights: InsightItem[] = [];
-  const stepsPercent = data.goals.steps > 0 ? stepsToday / data.goals.steps : 0;
-  if (stepsPercent >= 1) {
-    computedInsights.push({ emoji: '🎉', text: `Step goal smashed! ${stepsToday.toLocaleString()} steps today.`, tone: 'positive' });
-  } else if (stepsToday > 0) {
-    computedInsights.push({ emoji: '🚶', text: `${stepsToday.toLocaleString()} steps today — ${Math.round(stepsPercent * 100)}% of your ${(data.goals.steps / 1000).toFixed(0)}k goal.`, tone: 'neutral' });
-  }
-  const totalSessions = data.totals.runs + data.totals.swims + data.totals.cycles + data.totals.jiujitsu;
-  if (totalSessions >= 5) {
-    computedInsights.push({ emoji: '💪', text: `${totalSessions} workouts this week — outstanding consistency!`, tone: 'positive' });
-  } else if (totalSessions > 0) {
-    computedInsights.push({ emoji: '📊', text: `${totalSessions} workout${totalSessions !== 1 ? 's' : ''} this week · ${data.totals.totalDistance.toFixed(1)} km total distance.`, tone: 'neutral' });
-  }
-  if (data.advanced?.recoveryStatus === 'poor') {
-    computedInsights.push({ emoji: '⚠️', text: 'Recovery is low — consider a rest day or light activity.', tone: 'warning' });
-  }
+  // Health data tiles — from watch/advanced metrics
+  const adv = data?.advanced;
+  const healthTiles = [
+    ...(adv?.avgVo2max ? [{ icon: '🫁', label: 'VO2 Max', val: `${adv.avgVo2max}`, unit: 'ml/kg', color: colors.info }] : []),
+    ...(adv?.latestHrv ? [{ icon: '💓', label: 'HRV', val: `${adv.latestHrv}`, unit: 'ms', color: colors.warning }] : []),
+    ...(adv?.avgRecovery ? [{ icon: '⚡', label: 'Recovery', val: adv.recoveryStatus || 'Good', unit: '', color: colors.success }] : []),
+    ...(adv?.totalTrainingLoad ? [{ icon: '🏋️', label: 'Load', val: adv.totalTrainingLoad > 6 ? 'High' : 'Moderate', unit: '', color: colors.accent }] : []),
+    ...(adv?.latestWeight ? [{ icon: '⚖️', label: 'Weight', val: `${adv.latestWeight}`, unit: 'kg', color: colors.textLight }] : []),
+    ...(adv?.latestBodyFat ? [{ icon: '📏', label: 'Body Fat', val: `${adv.latestBodyFat}`, unit: '%', color: colors.textLight }] : []),
+  ];
 
   return (
     <View style={styles.container}>
@@ -140,159 +121,110 @@ export default function FitnessScreen() {
       >
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
-        {/* Summary Hero */}
-        <DarkCard style={styles.heroCard}>
+        {/* Unified Fitness Card */}
+        <DarkCard style={styles.unifiedCard}>
+          {/* Activity Rings */}
           <View style={styles.ringRow}>
-            <ProgressRing
-              progress={stepsToday / data.goals.steps}
-              size={70}
-              strokeWidth={6}
-              color={colors.steps}
-              value={stepsToday >= 1000 ? `${(stepsToday / 1000).toFixed(1)}k` : `${stepsToday}`}
-              label="Steps"
-              subLabel={`/ ${(data.goals.steps / 1000).toFixed(0)}k`}
-            />
-            <ProgressRing
-              progress={data.totals.runs / data.goals.runs}
-              size={70}
-              strokeWidth={6}
-              color={colors.run}
-              value={`${data.totals.runs}`}
-              label="Runs"
-              subLabel={`/ ${data.goals.runs}`}
-            />
-            <ProgressRing
-              progress={data.totals.swims / data.goals.swims}
-              size={70}
-              strokeWidth={6}
-              color={colors.swim}
-              value={`${data.totals.swims}`}
-              label="Swims"
-              subLabel={`/ ${data.goals.swims}`}
-            />
-            <ProgressRing
-              progress={data.totals.cycles > 0 ? 1 : 0}
-              size={70}
-              strokeWidth={6}
-              color={colors.cycle}
-              value={`${data.totals.cycles}`}
-              label="Cycles"
-            />
-          </View>
-        </DarkCard>
-
-        {/* Insights */}
-        <InsightBanner insights={computedInsights} />
-        {fitnessInsights.length > 0 && (
-          <View style={styles.insightsContainer}>
-            {fitnessInsights.map((fi) => (
-              <AgentInsightCard key={fi.agentId} insight={fi} />
+            {[
+              { label: 'Steps', val: stepsToday >= 1000 ? `${(stepsToday / 1000).toFixed(1)}k` : `${stepsToday}`, pct: goals.steps > 0 ? stepsToday / goals.steps : 0, color: colors.steps },
+              { label: 'Runs', val: `${totals.runs}`, pct: goals.runs > 0 ? totals.runs / goals.runs : 0, color: colors.run },
+              { label: 'Swims', val: `${totals.swims}`, pct: goals.swims > 0 ? totals.swims / goals.swims : 0, color: colors.swim },
+              { label: 'Cycles', val: `${totals.cycles}`, pct: totals.cycles > 0 ? 1 : 0, color: colors.cycle },
+            ].map((a) => (
+              <View key={a.label} style={styles.ringItem}>
+                <ProgressRing progress={a.pct} size={44} strokeWidth={4} color={a.color} value={a.val} />
+                <Text style={styles.ringLabel}>{a.label}</Text>
+              </View>
             ))}
           </View>
-        )}
 
-        {/* Week Stats */}
-        <Card style={styles.statsCard}>
-          <SectionHeader title="Week Summary" />
-          <View style={styles.statsGrid}>
+          {/* Key Stats — Burned | Distance | BJJ */}
+          <View style={styles.divider} />
+          <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{data.totals.totalDistance.toFixed(1)} km</Text>
-              <Text style={styles.statLabel}>Total Distance</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{data.totals.totalCalories}</Text>
-              <Text style={styles.statLabel}>Calories Burned</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{data.totals.jiujitsu}</Text>
-              <Text style={styles.statLabel}>BJJ Sessions</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: recoveryColor }]}>
-                {data.advanced?.recoveryStatus || '—'}
+              <Text style={styles.statValue}>
+                {fmt(totals.totalCalories)}
+                <Text style={styles.statUnit}> kcal</Text>
               </Text>
-              <Text style={styles.statLabel}>Recovery</Text>
+              <Text style={styles.statLabel}>Burned</Text>
+            </View>
+            <View style={[styles.statItem, styles.statCenter]}>
+              <Text style={[styles.statValue, styles.statValueLarge]}>
+                {totals.totalDistance.toFixed(1)}
+                <Text style={styles.statUnit}> km</Text>
+              </Text>
+              <Text style={styles.statLabel}>Distance</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{totals.jiujitsu}</Text>
+              <Text style={styles.statLabel}>BJJ</Text>
             </View>
           </View>
-        </Card>
 
-        {/* Advanced Metrics */}
-        {data.advanced && (data.advanced.avgVo2max > 0 || data.advanced.latestWeight > 0) && (
-          <Card style={styles.metricsCard}>
-            <SectionHeader title="Body Metrics" />
-            <View style={styles.metricsGrid}>
-              {data.advanced.avgVo2max > 0 && (
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricIcon}>❤️</Text>
-                  <Text style={styles.metricValue}>{data.advanced.avgVo2max}</Text>
-                  <Text style={styles.metricLabel}>VO2 Max</Text>
-                </View>
-              )}
-              {data.advanced.latestHrv > 0 && (
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricIcon}>💓</Text>
-                  <Text style={styles.metricValue}>{data.advanced.latestHrv}ms</Text>
-                  <Text style={styles.metricLabel}>HRV</Text>
-                </View>
-              )}
-              {data.advanced.latestWeight > 0 && (
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricIcon}>⚖️</Text>
-                  <Text style={styles.metricValue}>{data.advanced.latestWeight}kg</Text>
-                  <Text style={styles.metricLabel}>Weight</Text>
-                </View>
-              )}
-              {data.advanced.latestBodyFat > 0 && (
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricIcon}>📏</Text>
-                  <Text style={styles.metricValue}>{data.advanced.latestBodyFat}%</Text>
-                  <Text style={styles.metricLabel}>Body Fat</Text>
-                </View>
-              )}
-            </View>
-          </Card>
-        )}
-
-        {/* Activity Log */}
-        <SectionHeader
-          title="Activities"
-          action={{ label: '+ Add', onPress: () => setShowAddModal(true) }}
-        />
-
-        {data.entries.length === 0 ? (
-          <EmptyState
-            icon="🏃"
-            title="No activities logged"
-            subtitle="Tap + Add to log your workout"
-          />
-        ) : (
-          data.entries.map((entry) => {
-            const info = activityIcons[entry.type] || { icon: '🏋️', color: colors.textLight };
-            return (
-              <Pressable key={entry.id} onLongPress={() => handleDeleteEntry(entry.id)}>
-                <Card style={styles.activityCard}>
-                  <View style={styles.activityRow}>
-                    <Text style={styles.activityIcon}>{info.icon}</Text>
-                    <View style={styles.activityInfo}>
-                      <Text style={styles.activityName}>
-                        {entry.name || entry.type.charAt(0).toUpperCase() + entry.type.slice(1)}
-                      </Text>
-                      <Text style={styles.activityMeta}>
-                        {entry.type === 'steps'
-                          ? `${(entry.steps || 0).toLocaleString()} steps`
-                          : entry.duration
-                          ? `${entry.duration} min`
-                          : ''}
-                        {entry.distance ? ` · ${entry.distance} km` : ''}
-                        {entry.calories ? ` · ${entry.calories} cal` : ''}
+          {/* Health / Watch Data */}
+          {healthTiles.length > 0 && (
+            <>
+              <View style={[styles.divider, { marginTop: 14 }]} />
+              <Text style={styles.healthHeader}>HEALTH DATA</Text>
+              <View style={styles.healthGrid}>
+                {healthTiles.map((h) => (
+                  <View key={h.label} style={styles.healthTile}>
+                    <Text style={styles.healthIcon}>{h.icon}</Text>
+                    <View>
+                      <Text style={styles.healthTileLabel}>{h.label}</Text>
+                      <Text style={[styles.healthTileValue, { color: h.color }]}>
+                        {h.val}{h.unit ? <Text style={styles.healthTileUnit}> {h.unit}</Text> : null}
                       </Text>
                     </View>
-                    <Text style={styles.activityDate}>{entry.date.slice(5)}</Text>
                   </View>
-                </Card>
+                ))}
+              </View>
+            </>
+          )}
+        </DarkCard>
+
+        {/* Agent Insights */}
+        {fitnessInsights.map((insight) => (
+          <AgentInsightCard key={insight.agentId} insight={insight} />
+        ))}
+
+        {/* Activity Log — flat card with dividers */}
+        <View style={styles.logHeader}>
+          <Text style={styles.logTitle}>Activities</Text>
+        </View>
+
+        {entries.length === 0 ? (
+          <EmptyState icon="🏃" title="No activities logged" subtitle="Tap + to log your workout" />
+        ) : (
+          <Card style={styles.activityList}>
+            {entries.map((entry, idx) => (
+              <Pressable
+                key={entry.id}
+                onLongPress={() => handleDeleteEntry(entry.id)}
+                style={[
+                  styles.activityRow,
+                  idx < entries.length - 1 && styles.activityRowBorder,
+                ]}
+              >
+                <Text style={styles.activityEmoji}>
+                  {ACTIVITY_ICONS[entry.type] || '⚡'}
+                </Text>
+                <View style={styles.activityInfo}>
+                  <Text style={styles.activityName}>
+                    {entry.name || entry.type.charAt(0).toUpperCase() + entry.type.slice(1)}
+                  </Text>
+                  <Text style={styles.activityDetail}>
+                    {entry.type === 'steps'
+                      ? `${fmt(entry.steps || 0)} steps`
+                      : entry.duration ? `${entry.duration} min` : ''}
+                    {entry.distance ? ` · ${entry.distance} km` : ''}
+                    {entry.calories ? ` · ${entry.calories} kcal` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.activityTime}>{entry.date.slice(5)}</Text>
               </Pressable>
-            );
-          })
+            ))}
+          </Card>
         )}
 
         <View style={{ height: 100 }} />
@@ -314,58 +246,71 @@ export default function FitnessScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
-  heroCard: { marginBottom: 12 },
-  ringRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 4,
+  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+
+  // Hero card
+  unifiedCard: { padding: 16, marginBottom: 8 },
+
+  // Rings
+  ringRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
+  ringItem: { alignItems: 'center' },
+  ringLabel: { fontSize: 9, color: colors.darkTextMuted, marginTop: 4, letterSpacing: 0.3 },
+
+  divider: { height: 1, backgroundColor: colors.darkInner, marginBottom: 14 },
+
+  // Stats — Burned | Distance | BJJ
+  statsRow: { flexDirection: 'row', alignItems: 'center' },
+  statItem: { flex: 1, alignItems: 'center' },
+  statCenter: {
+    borderLeftWidth: 1, borderRightWidth: 1,
+    borderLeftColor: colors.darkInner, borderRightColor: colors.darkInner,
+    paddingHorizontal: 8,
   },
-  statsCard: { marginBottom: 12 },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
+  statValue: { fontSize: 17, fontWeight: '700', color: colors.darkText },
+  statValueLarge: { fontSize: 22, color: colors.accent },
+  statUnit: { fontSize: 10, fontWeight: '400', color: colors.darkTextMuted },
+  statLabel: { fontSize: 10, color: colors.darkTextMuted, marginTop: 2 },
+
+  // Health tiles
+  healthHeader: {
+    fontSize: 10, color: colors.darkTextMuted, letterSpacing: 1,
+    textTransform: 'uppercase', marginBottom: 10,
   },
-  statItem: {
-    width: '48%',
-    paddingVertical: 8,
+  healthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  healthTile: {
+    width: '47%', backgroundColor: colors.darkInner, borderRadius: 10,
+    padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8,
   },
-  statValue: { fontSize: 18, fontWeight: '700', color: colors.text },
-  statLabel: { fontSize: 12, color: colors.textLight, marginTop: 2 },
-  metricsCard: { marginBottom: 12 },
-  metricsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  healthIcon: { fontSize: 14 },
+  healthTileLabel: { fontSize: 10, color: colors.darkTextMuted },
+  healthTileValue: { fontSize: 13, fontWeight: '600' },
+  healthTileUnit: { fontSize: 10, fontWeight: '400', color: colors.darkTextMuted },
+
+  // Activity log
+  logHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 8, marginTop: 4,
   },
-  metricItem: { alignItems: 'center' },
-  metricIcon: { fontSize: 20, marginBottom: 4 },
-  metricValue: { fontSize: 16, fontWeight: '700', color: colors.text },
-  metricLabel: { fontSize: 11, color: colors.textLight, marginTop: 2 },
-  activityCard: { marginBottom: 8 },
-  activityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  activityIcon: { fontSize: 24 },
+  logTitle: { fontSize: 13, fontWeight: '600', color: colors.textLight, letterSpacing: 0.3 },
+  activityList: { padding: 0, overflow: 'hidden' },
+  activityRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 12, gap: 10,
+  },
+  activityRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
+  activityEmoji: { fontSize: 18, width: 28, textAlign: 'center' },
   activityInfo: { flex: 1 },
-  activityName: { fontSize: 15, fontWeight: '600', color: colors.text },
-  activityMeta: { fontSize: 12, color: colors.textLight, marginTop: 2 },
-  activityDate: { fontSize: 12, color: colors.textLight },
-  insightsContainer: { marginTop: 12 },
+  activityName: { fontSize: 13, fontWeight: '600', color: colors.text },
+  activityDetail: { fontSize: 11, color: colors.textLight, marginTop: 2 },
+  activityTime: { fontSize: 11, color: colors.textLight },
+
   fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.dark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    position: 'absolute', right: 20, bottom: 24, width: 56, height: 56,
+    borderRadius: 28, backgroundColor: colors.accent,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15, shadowRadius: 4,
   },
 });
