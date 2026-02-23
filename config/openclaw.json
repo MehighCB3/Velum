@@ -1,6 +1,6 @@
 {
   "agent": {
-    "model": "anthropic/claude-sonnet-4-5-20250929",
+    "model": "anthropic/claude-sonnet-4-6",
     "thinkingLevel": "medium",
     "maxTokens": 2048,
     "temperature": 0.7
@@ -63,8 +63,8 @@
       "atHour": 4
     },
     "resetTriggers": ["/new", "/reset"],
-    "maxHistory": 50,
-    "compressAfter": 30
+    "maxHistory": 20,
+    "compressAfter": 12
   },
 
   "memory": {

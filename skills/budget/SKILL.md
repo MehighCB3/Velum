@@ -37,12 +37,14 @@ Always include `date` (today unless the user specifies otherwise).
 
 ### Categories
 
+These categories mirror `velum-app/src/app/lib/budgetCategories.ts` — keep them in sync.
+
 | Keyword in message | Category |
 |---|---|
-| food, eat, lunch, dinner, breakfast, coffee, groceries, mercadona | `Food` |
-| fun, drinks, bar, movie, concert, entertainment, party | `Fun` |
-| uber, taxi, metro, bus, train, fuel, parking, transport | `Transport` |
-| netflix, spotify, gym membership, subscription, monthly, annual | `Subscriptions` |
+| food, eat, lunch, dinner, breakfast, coffee, croissant, bocadillo, tapas, pizza, burger, sushi, groceries, supermarket, mercadona, carrefour, lidl, aldi, cafe, restaurant, meal, snack | `Food` |
+| fun, drinks, bar, beer, wine, cocktail, cinema, movie, concert, show, entertainment, party, fiesta, club, disco | `Fun` |
+| uber, bolt, cabify, taxi, metro, bus, train, renfe, tram, fuel, gas, parking, transport | `Transport` |
+| netflix, spotify, amazon, prime, apple, google, gym membership, subscription, sub, monthly, annual, membership | `Subscriptions` |
 | anything else | `Other` |
 
 ### Example calls

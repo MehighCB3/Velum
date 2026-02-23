@@ -3,6 +3,7 @@ import { getISOWeek, parseWeekKey } from '../../../lib/weekUtils'
 import { addBudgetEntry, BudgetEntry, Category } from '../../../lib/budgetStore'
 import { saveInsight } from '../../../lib/insightsStore'
 import { generateAIInsight } from '../../../lib/aiInsights'
+import { inferBudgetCategory } from '../../../lib/budgetCategories'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,22 +51,8 @@ function parseExpenseMessage(text: string): ParsedExpense | null {
     remaining = remaining.replace(weekMatch[0], '').trim()
   }
   
-  // Determine category
-  let category: ParsedExpense['category']
-  if (/\b(?:transport|uber|taxi|metro|bus|train|fuel|gas|parking)\b/i.test(remaining)) {
-    category = 'Transport'
-  } else if (/\b(?:sub|subscription|netflix|spotify|gym\s*membership|monthly|annual)\b/i.test(remaining)) {
-    category = 'Subscriptions'
-  } else if (/\b(?:food|eat|lunch|dinner|breakfast|meal|restaurant|groceries|mercadona|carrefour)\b/i.test(remaining)) {
-    category = 'Food'
-  } else if (/\b(?:fun|drink|bar|movie|game|entertainment|concert|party)\b/i.test(remaining)) {
-    category = 'Fun'
-  } else if (/\b(?:other)\b/i.test(remaining)) {
-    category = 'Other'
-  } else {
-    // Default to Food if contains eating keywords, otherwise Other
-    category = /\b(?:lunch|dinner|breakfast|coffee|snack)\b/i.test(remaining) ? 'Food' : 'Other'
-  }
+  // Determine category — delegate to shared lib so webhook + agent stay in sync
+  const category = inferBudgetCategory(remaining)
   
   // Clean up description (remove category words for cleaner description)
   let description = remaining

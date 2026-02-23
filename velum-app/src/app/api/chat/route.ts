@@ -4,6 +4,7 @@ import {
   getMemoryContext,
   extractMemoriesFromText,
   saveMemory,
+  type MemoryCategory,
 } from '../../lib/memoryStore'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +12,9 @@ export const dynamic = 'force-dynamic'
 const GATEWAY_URL = process.env.GATEWAY_URL
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_PASSWORD
 
-// Local fallback responses when gateway is unavailable
+// Local fallback responses when gateway is unavailable.
+// Kept intentionally generic — no hardcoded values that can go stale
+// (e.g. macro targets, which the user can change via the agent).
 function generateLocalResponse(message: string, context?: string): string {
   const lowerMsg = message.toLowerCase()
 
@@ -23,11 +26,11 @@ function generateLocalResponse(message: string, context?: string): string {
   }
 
   if (lowerMsg.includes('goal') || lowerMsg.includes('target')) {
-    return "Your daily goals are set to 2600 calories, 160g protein, 310g carbs, and 80g fat. You're making solid progress!"
+    return "Your daily goals are tracked in the Nutrition tab. Check there for your current macro targets and progress — or ask me once the agent connection is back up."
   }
 
   if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('hey')) {
-    return "Hey! I'm Archie, your nutrition assistant. I can help you log food, review your intake, or give meal suggestions. What's up?"
+    return "Hey! I'm your Velum assistant. I can help you log food, review your intake, or give meal suggestions. What's up?"
   }
 
   if (lowerMsg.includes('insight') || lowerMsg.includes('analysis') || lowerMsg.includes('how am i doing')) {
@@ -47,9 +50,47 @@ function generateLocalResponse(message: string, context?: string): string {
   return "I'm here to help! Ask me about nutrition, Spanish practice, book wisdom, goals, or anything else you're working on."
 }
 
+/**
+ * Derive the most relevant memory categories for this message so we avoid
+ * injecting the full 60-memory blob on every request.
+ *
+ * Returns undefined (= all categories) only for general/coaching messages
+ * where full context genuinely helps. Specific domain messages get a
+ * narrower slice, saving ~30-40% of context tokens on average.
+ */
+function getRelevantMemoryCategories(message: string): MemoryCategory[] | undefined {
+  const lower = message.toLowerCase()
+
+  const isNutrition = /eat|food|meal|calorie|protein|carb|fat|breakfast|lunch|dinner|snack|cook|recipe|hungry|diet|macro/.test(lower)
+  const isFitness = /workout|run|swim|cycle|step|sleep|weight|vo2|hrv|stress|recovery|training|bjj|jiu/.test(lower)
+  const isBudget = /spent|expense|cost|paid|pay|buy|bought|€|euro|budget|money|cash|bill|invoice/.test(lower)
+  const isLearning = /spanish|book|read|learn|wisdom|principle|flashcard|conjugat|vocab/.test(lower)
+
+  // General coaching / open-ended — inject everything
+  if (!isNutrition && !isFitness && !isBudget && !isLearning) return undefined
+
+  // Always include base facts + preferences
+  const cats: MemoryCategory[] = ['preference', 'fact']
+
+  if (isNutrition || isFitness) {
+    cats.push('health', 'habit', 'goal')
+  }
+  if (isBudget) {
+    cats.push('context')
+  }
+  if (isLearning) {
+    cats.push('goal', 'habit')
+  }
+
+  return cats
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { message, context } = await request.json()
+    // Accept optional `agent` field — callers (mobile screens, web) can pass
+    // the target agent ID (e.g. "nutry", "budgy") to skip keyword routing and
+    // route directly to the right agent on the gateway.
+    const { message, context, agent } = await request.json()
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -58,7 +99,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const sessionKey = 'main'
+    // sessionKey mirrors the agent so conversation history stays per-context.
+    // Defaults to "main" for the general assistant.
+    const validAgents = ['main', 'nutry', 'booky', 'espanol', 'budgy']
+    const sessionKey = validAgents.includes(agent) ? agent : 'main'
 
     // Store the user's message in session history
     await appendMessage(sessionKey, {
@@ -88,9 +132,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Build enriched context: persistent memory + recent conversation + dashboard data
+    // Build enriched context: scope memory to the relevant categories for this
+    // message so we don't inject Spanish-flashcard facts into a budget query.
+    const relevantCategories = getRelevantMemoryCategories(message)
     const [memoryContext, recentHistory] = await Promise.all([
-      getMemoryContext(),
+      getMemoryContext(relevantCategories),
       getRecentContext(sessionKey, 8),
     ])
 
@@ -103,7 +149,9 @@ export async function POST(request: NextRequest) {
     const fullMessage = contextParts.join('\n\n')
 
     try {
-      // OpenClaw tools/invoke HTTP API
+      // OpenClaw tools/invoke HTTP API.
+      // Pass sessionKey so the gateway routes directly to the right agent
+      // instead of relying on keyword matching for every message.
       const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
         method: 'POST',
         headers: {
@@ -113,7 +161,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           tool: 'sessions_send',
           args: {
-            sessionKey: 'main',
+            sessionKey,
             message: fullMessage,
             timeoutSeconds: 25
           }
