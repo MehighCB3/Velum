@@ -2730,61 +2730,34 @@ function SpanishView() {
 
 // Books View - Weekly wisdom & domain rotation
 function BooksView() {
-  const [data, setData] = useState<{
-    currentDomain: string
-    domainIndex: number
-    totalDomains: number
-    weekPrinciple: {
-      id: string
-      domain: string
-      title: string
-      principle: string
-      source: string
-      actionPrompt: string
-    }
-    contextInsight: string
-    rawCapture: {
-      id: string
-      domain: string
-      text: string
-      source: string
-      type: string
-    }
-    allDomains: string[]
+  const [card, setCard] = useState<{
+    front: { text: string; book: string }
+    back: { text: string }
     source: string
+    total: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [expandedAction, setExpandedAction] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const { insights: knowledgeInsights } = useInsights('knowledge')
+  const [flipped, setFlipped] = useState(false)
+  const [index, setIndex] = useState(0)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        const response = await fetch('/api/books?action=daily')
-        const result = await response.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching books data:', error)
-      }
-      setLoading(false)
+  const fetchCard = useCallback(async (idx: number) => {
+    setLoading(true)
+    setFlipped(false)
+    try {
+      const res = await fetch(`/api/books?action=flashcard&index=${idx}`)
+      const result = await res.json()
+      setCard(result)
+    } catch (error) {
+      console.error('Error fetching flashcard', error)
     }
-    fetchData()
+    setLoading(false)
   }, [])
 
-  const handleCopyPrompt = async () => {
-    if (!data) return
-    try {
-      await navigator.clipboard.writeText(data.weekPrinciple.actionPrompt)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      console.error('Failed to copy')
-    }
-  }
+  useEffect(() => {
+    fetchCard(index)
+  }, [index, fetchCard])
 
-  if (loading || !data) {
+  if (loading || !card) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-stone-300 border-t-amber-500 rounded-full animate-spin" />
@@ -2798,98 +2771,75 @@ function BooksView() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Books</h1>
-          <p className="text-sm text-stone-400">Daily wisdom &amp; insights</p>
+          <p className="text-sm text-stone-400">
+            {card.source === 'notion' ? 'From your Notion notes' : 'From your library'}
+          </p>
         </div>
       </div>
 
-      {/* Dark Hero Card */}
-      <div className="relative bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
-            <BookOpen size={20} className="text-amber-400" />
-          </div>
-          <div>
-            <p className="text-white font-semibold text-lg">{data.currentDomain}</p>
-            <p className="text-stone-400 text-xs">Domain {data.domainIndex}/{data.totalDomains}</p>
-          </div>
-        </div>
-
-        {/* Domain rotation progress */}
-        <div className="flex items-center gap-1.5">
-          {Array.from({ length: data.totalDomains }).map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 flex-1 rounded-full transition-all ${
-                i < data.domainIndex - 1 ? 'bg-amber-500' : i === data.domainIndex - 1 ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]' : 'bg-white/10'
-              }`}
-            />
-          ))}
-        </div>
-        <p className="text-xs text-stone-500 mt-2 uppercase tracking-wider">10-week rotation</p>
-      </div>
-
-      {/* Cards Grid */}
-      <div className="space-y-4">
-        {/* Daily Principle Card */}
-        <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Star size={16} className="text-amber-500" />
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Daily Principle</p>
-          </div>
-          <h3 className="text-lg font-bold text-stone-900 mb-2">{data.weekPrinciple.title}</h3>
-          <p className="text-sm text-stone-600 leading-relaxed mb-3">{data.weekPrinciple.principle}</p>
-          <p className="text-xs text-stone-400 mb-4">{data.weekPrinciple.source}</p>
-
-          {/* Action Prompt */}
-          <div className="bg-stone-50 rounded-xl p-3">
-            <button
-              onClick={() => setExpandedAction(!expandedAction)}
-              className="flex items-center justify-between w-full text-left min-h-[44px]"
-            >
-              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Action Prompt</span>
-              <ChevronDown size={14} className={`text-stone-400 transition-transform ${expandedAction ? 'rotate-180' : ''}`} />
-            </button>
-            {expandedAction && (
-              <div className="mt-2">
-                <p className="text-sm text-stone-700 leading-relaxed">{data.weekPrinciple.actionPrompt}</p>
-                <button
-                  onClick={handleCopyPrompt}
-                  className="mt-2 flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors"
-                >
-                  {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                  {copied ? 'Copied' : 'Copy prompt'}
-                </button>
+      {/* Flash card — tap to flip */}
+      <div
+        className="cursor-pointer select-none"
+        style={{ perspective: '1000px', height: '300px' }}
+        onClick={() => setFlipped(f => !f)}
+      >
+        <div
+          style={{
+            transformStyle: 'preserve-3d',
+            transition: 'transform 0.45s ease',
+            transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            position: 'relative',
+            height: '100%',
+          }}
+        >
+          {/* Front — book highlight */}
+          <div
+            className="absolute inset-0 bg-gradient-to-br from-[#1a1d2e] to-[#252840] rounded-2xl p-6 flex flex-col justify-between overflow-hidden"
+            style={{ backfaceVisibility: 'hidden' }}
+          >
+            <div className="overflow-hidden">
+              <div className="flex items-center gap-2 mb-4">
+                <BookOpen size={16} className="text-amber-400" />
+                <span className="text-xs text-amber-400/70 uppercase tracking-wider font-medium">Highlight</span>
               </div>
-            )}
+              <p className="text-white text-lg leading-relaxed font-light italic line-clamp-6">
+                {card.front.text}
+              </p>
+            </div>
+            <div className="flex items-center justify-between mt-4 shrink-0">
+              <p className="text-stone-400 text-xs truncate pr-4">{card.front.book}</p>
+              <p className="text-stone-500 text-xs shrink-0">Your note →</p>
+            </div>
           </div>
-        </div>
 
-        {/* Context Insight Card */}
-        <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Brain size={16} className="text-violet-500" />
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Context Insight</p>
+          {/* Back — user's own note */}
+          <div
+            className="absolute inset-0 bg-white rounded-2xl border border-stone-100 p-6 flex flex-col justify-between shadow-sm overflow-hidden"
+            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+          >
+            <div className="overflow-hidden">
+              <div className="flex items-center gap-2 mb-4">
+                <Brain size={16} className="text-violet-500" />
+                <span className="text-xs text-stone-400 uppercase tracking-wider font-medium">Your Note</span>
+              </div>
+              <p className="text-stone-700 text-base leading-relaxed line-clamp-6">
+                {card.back.text}
+              </p>
+            </div>
+            <p className="text-stone-400 text-xs shrink-0">← Tap to flip back</p>
           </div>
-          <p className="text-sm text-stone-700 leading-relaxed">{data.contextInsight}</p>
-        </div>
-
-        {/* Raw Capture Card */}
-        <div className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <BookOpen size={16} className="text-stone-500" />
-            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-              {data.rawCapture.type === 'quote' ? 'Quote' : 'Passage'}
-            </p>
-          </div>
-          <blockquote className="text-sm text-stone-700 leading-relaxed italic border-l-2 border-amber-300 pl-3 mb-3">
-            {data.rawCapture.text}
-          </blockquote>
-          <p className="text-xs text-stone-400">{data.rawCapture.source}</p>
         </div>
       </div>
-      {knowledgeInsights.map((ki) => (
-        <AgentInsight key={ki.agentId} agent={ki.agent} emoji={ki.emoji} insight={ki.insight} updatedAt={ki.updatedAt} type={ki.type} />
-      ))}
+
+      {/* Next card */}
+      <div className="flex items-center justify-end mt-3 px-1">
+        <button
+          onClick={() => setIndex(i => i + 1)}
+          className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-900 transition-colors min-h-[44px] px-2"
+        >
+          Next <ChevronRight size={14} />
+        </button>
+      </div>
     </div>
   )
 }
