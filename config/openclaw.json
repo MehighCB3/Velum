@@ -1,6 +1,6 @@
 {
   "agent": {
-    "model": "anthropic/claude-sonnet-4-5-20250929",
+    "model": "anthropic/claude-sonnet-4-6",
     "thinkingLevel": "medium",
     "maxTokens": 2048,
     "temperature": 0.7
@@ -35,6 +35,12 @@
         "skills": ["spanish"],
         "triggers": ["spanish", "espanol", "vocab", "flashcard", "conjugat", "subjunctive", "practice spanish"],
         "description": "Spanish tutor — spaced repetition, exercises, grammar drills"
+      },
+      {
+        "id": "budgy",
+        "skills": ["budget"],
+        "triggers": ["spent", "expense", "cost", "paid", "pay", "buy", "bought", "purchase", "€", "euro", "budget", "money", "cash", "bill", "invoice", "receipt"],
+        "description": "Budget tracker — logs expenses by category, tracks weekly spending"
       }
     ],
     "routing": {
@@ -57,8 +63,8 @@
       "atHour": 4
     },
     "resetTriggers": ["/new", "/reset"],
-    "maxHistory": 50,
-    "compressAfter": 30
+    "maxHistory": 20,
+    "compressAfter": 12
   },
 
   "memory": {
@@ -88,7 +94,7 @@
     "enabled": true,
     "token": "${OPENCLAW_HOOKS_TOKEN}",
     "path": "/hooks",
-    "allowedAgentIds": ["main", "nutry", "booky", "espanol"],
+    "allowedAgentIds": ["main", "nutry", "booky", "espanol", "budgy"],
     "defaultSessionKey": "hook:ingress"
   },
 
@@ -110,6 +116,7 @@
       "nutritionPhoto": "/api/nutrition/photo",
       "fitness": "/api/fitness",
       "fitnessWebhook": "/api/fitness/webhook",
+      "nutritionWebhook": "/api/nutrition/webhook",
       "budget": "/api/budget",
       "budgetWebhook": "/api/budget/webhook",
       "budgetSummary": "/api/budget/summary",

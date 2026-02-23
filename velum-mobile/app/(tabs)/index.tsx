@@ -281,7 +281,7 @@ function WeekGrid({
         const isPast = weekNum < currentWeek;
         const isCurrent = weekNum === currentWeek;
 
-        let bg = colors.border;
+        let bg: string = colors.border;
         if (isPast) bg = colors.text;
         else if (isCurrent) bg = colors.accent;
         else if (event) bg = event.color;

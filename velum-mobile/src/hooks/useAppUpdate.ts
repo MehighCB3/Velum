@@ -7,7 +7,7 @@ import {
   createDownloadResumable,
   getContentUriAsync,
   type DownloadResumable,
-} from 'expo-file-system';
+} from 'expo-file-system/legacy';
 import { getSyncMeta, setSyncMeta } from '../db/database';
 
 // GitHub repository for release checks

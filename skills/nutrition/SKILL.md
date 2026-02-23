@@ -56,13 +56,58 @@ Current daily goals (updated 2026-02-15):
 | Carbs    | 310g   | Endurance fuel       |
 | Fat      | 80g    | Hormone health       |
 
-You can read or update goals via the Velum API (base: `https://velum-five.vercel.app`):
-- **GET** `/api/nutrition/goals?date=YYYY-MM-DD` — returns current goals
-- **POST** `/api/nutrition/goals` — body: `{ "date": "...", "calories": N, "protein": N, "carbs": N, "fat": N }`
-- **GET** `/api/nutrition?date=YYYY-MM-DD` — returns day's entries and totals
-- **POST** `/api/nutrition` — log a meal entry
-- **GET** `/api/nutrition/week?date=YYYY-MM-DD` — 7-day summary
-- **GET** `/api/nutrition/lookup?q=food+name` — search food nutrition data
+## Logging Food to Velum
+
+When the user tells you what they ate — **log it immediately** before responding.
+
+### Step 1 — Look up macros (if not given)
+
+```
+GET https://velum-five.vercel.app/api/nutrition/lookup?q=oatmeal+with+banana
+```
+
+Returns `{ name, calories, protein, carbs, fat }`. Use these values in the POST.
+
+### Step 2 — Log the entry
+
+```
+POST https://velum-five.vercel.app/api/nutrition
+{
+  "date": "YYYY-MM-DD",
+  "name": "Oatmeal with banana",
+  "calories": 320,
+  "protein": 10,
+  "carbs": 58,
+  "fat": 6,
+  "time": "08:30"
+}
+```
+
+Always include `date` (today if not specified) and `time` (current time if not specified).
+
+### Step 3 — Confirm briefly
+
+> "Logged — oatmeal with banana, ~320 kcal, 10g protein."
+
+Don't ask the user to log it themselves. Don't repeat all the numbers back unless asked.
+
+### If the API fails
+
+Tell the user and save in memory:
+`[MEMORY: nutrition/pending = FOOD DATE — API failed, log manually]`
+
+### Updating goals
+
+```
+POST https://velum-five.vercel.app/api/nutrition/goals
+{ "date": "YYYY-MM-DD", "calories": 2600, "protein": 160, "carbs": 310, "fat": 80 }
+```
+
+### Reading data
+
+- `GET /api/nutrition?date=YYYY-MM-DD` — day's entries and totals
+- `GET /api/nutrition/week?date=YYYY-MM-DD` — 7-day summary
+- `GET /api/nutrition/goals?date=YYYY-MM-DD` — current targets
 
 ## Tracking Approach
 

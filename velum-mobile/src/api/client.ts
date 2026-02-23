@@ -287,6 +287,35 @@ export const quickLogApi = {
   },
 };
 
+// ==================== CHAT ====================
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResponse {
+  content: string;
+  source: string;
+  memoriesSaved?: number;
+}
+
+export const chatApi = {
+  /** Send a message to the OpenClaw gateway.
+   *  @param agent  One of 'main' | 'nutry' | 'booky' | 'espanol' | 'budgy'.
+   *                Defaults to 'main' on the server when omitted.
+   */
+  async send(
+    message: string,
+    opts?: { context?: string; agent?: string },
+  ): Promise<ChatResponse> {
+    return request<ChatResponse>('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, ...opts }),
+    });
+  },
+};
+
 // ==================== INSIGHTS ====================
 
 export const insightsApi = {
