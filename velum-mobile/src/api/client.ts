@@ -359,4 +359,11 @@ export const bookmarksApi = {
       body: JSON.stringify({ tweet_id: tweetId, dismissed: false }),
     });
   },
+
+  async yap(text: string, author: string): Promise<{ bullets: string[] }> {
+    return request('/bookmarks/yap', {
+      method: 'POST',
+      body: JSON.stringify({ text, author }),
+    });
+  },
 };

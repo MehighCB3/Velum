@@ -15,6 +15,7 @@ import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { booksApi, bookmarksApi, XBookmark } from '../../src/api/client';
+import { BookmarkQueueCard } from '../../src/components/BookmarkQueueCard';
 import { DailyWisdom, BookPrinciple } from '../../src/types';
 
 type TopTab = 'bookmarks' | 'knowledge';
@@ -35,6 +36,18 @@ function timeAgo(dateStr: string): string {
   if (days < 7) return `${days}d ago`;
   const weeks = Math.floor(days / 7);
   return `${weeks}w ago`;
+}
+
+// Day-seeded shuffle — same order all day, rotates tomorrow
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  let s = seed;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    const j = Math.abs(s) % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 // ==================== X BOOKMARKS ====================
@@ -246,6 +259,7 @@ function KnowledgeView() {
   const [allPrinciples, setAllPrinciples] = useState<BookPrinciple[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDomain, setActiveDomain] = useState<string | null>(null);
+  const [queue, setQueue] = useState<XBookmark[]>([]);
   const { insights: knowledgeInsights } = useInsights('knowledge');
 
   const fetchWisdom = useCallback(async () => {
@@ -262,6 +276,20 @@ function KnowledgeView() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // Fetch read queue — shuffle by day seed so same 5 show all day, rotate tomorrow
+  useEffect(() => {
+    bookmarksApi.getAll({ limit: 50 }).then(({ bookmarks }) => {
+      const undismissed = bookmarks.filter((b) => !b.dismissed);
+      const daySeed = Math.floor(Date.now() / 86400000);
+      setQueue(seededShuffle(undismissed, daySeed).slice(0, 5));
+    }).catch(() => {});
+  }, []);
+
+  const handleQueueDismiss = useCallback(async (tweetId: string) => {
+    setQueue((prev) => prev.filter((b) => b.tweet_id !== tweetId));
+    try { await bookmarksApi.dismiss(tweetId); } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
@@ -324,6 +352,20 @@ function KnowledgeView() {
       {knowledgeInsights.map((ai) => (
         <AgentInsightCard key={ai.agentId} insight={ai} />
       ))}
+
+      {/* Read Queue — shuffled bookmarks */}
+      {queue.length > 0 && (
+        <>
+          <SectionHeader title={`Your Queue · ${queue.length}`} />
+          {queue.map((bk) => (
+            <BookmarkQueueCard
+              key={bk.tweet_id}
+              bookmark={bk}
+              onDismiss={handleQueueDismiss}
+            />
+          ))}
+        </>
+      )}
 
       {/* Domain Explorer */}
       <SectionHeader title="Explore Domains" />
