@@ -27,6 +27,7 @@ import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { nutritionApi } from '../../src/api/client';
 import { API_BASE } from '../../src/api/config';
 import { NutritionDay, NutritionEntry } from '../../src/types';
+import { fmt } from '../../src/utils/formatters';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -45,12 +46,6 @@ function getMealEmoji(time: string): string {
   if (hour < 15) return '☀️';
   if (hour < 18) return '🌤️';
   return '🌙';
-}
-
-function fmt(n: number): string {
-  if (!Number.isFinite(n)) return '0';
-  if (n >= 1000) return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return String(n);
 }
 
 type Tab = 'today' | '30days';

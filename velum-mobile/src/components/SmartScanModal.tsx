@@ -30,7 +30,7 @@ import * as Haptics from 'expo-haptics'
 import { colors } from '../theme/colors'
 import { nutritionApi, budgetApi, fitnessApi } from '../api/client'
 import { API_BASE } from '../api/config'
-import type { BudgetCategory, FitnessEntryType } from '../types'
+import type { BudgetCategory, FitnessEntry, FitnessEntryType } from '../types'
 
 // ==================== TYPES ====================
 
@@ -212,8 +212,10 @@ export function SmartScanModal({ visible, onClose }: Props) {
         })
 
       } else if (result.section === 'fitness') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const entry: any = { type: fitnessType, date: today }
+        const entry: Partial<FitnessEntry> & { type: FitnessEntryType } = {
+          type: fitnessType,
+          date: today,
+        }
         if (fitnessType === 'steps') {
           if (steps) entry.steps = Number(steps)
         } else {
