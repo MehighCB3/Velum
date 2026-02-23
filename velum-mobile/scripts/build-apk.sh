@@ -76,10 +76,22 @@ fi
 # ── Step 3: Bundle JS ────────────────────────────────────────
 echo "Bundling JavaScript..."
 mkdir -p android/app/src/main/assets
-npx expo export --platform android
 
-# Copy the Hermes bytecode bundle
-BUNDLE=$(ls -1 dist/_expo/static/js/android/entry-*.hbc 2>/dev/null | head -1)
+# Always wipe the previous export so stale bundles from old versions never
+# get copied into the new APK. Without this, interrupted or cached runs
+# leave old .hbc files that the copy step below picks up instead of the
+# freshly-built one.
+rm -rf dist/
+
+# --reset-cache forces Metro to discard its on-disk transform cache.
+# Without it, expo-constants (which injects app.json values including the
+# version string) can serve a cached transform from the previous version,
+# meaning the old version number ends up baked into the new APK bundle.
+npx expo export --platform android --reset-cache
+
+# Copy the Hermes bytecode bundle — use -t to sort newest-first so that if
+# any leftover files somehow exist, we always pick the most recent one.
+BUNDLE=$(ls -1t dist/_expo/static/js/android/entry-*.hbc 2>/dev/null | head -1)
 if [ -z "$BUNDLE" ]; then
   echo "ERROR: JS bundle not found in dist/"
   exit 1
@@ -90,7 +102,7 @@ echo "JS bundle: $(du -h android/app/src/main/assets/index.android.bundle | cut 
 # ── Step 4: Gradle build (arm64 only) ────────────────────────
 echo "Building APK with Gradle..."
 cd android
-./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a -q
+./gradlew assembleRelease --no-daemon --no-build-cache -PreactNativeArchitectures=arm64-v8a
 cd ..
 
 # ── Step 5: Copy output ──────────────────────────────────────

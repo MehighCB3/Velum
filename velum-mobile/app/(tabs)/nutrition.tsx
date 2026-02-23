@@ -439,6 +439,12 @@ function FoodScanModal({
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [serving, setServing] = useState('');
+
+  // AI correction state
+  const [showCorrection, setShowCorrection] = useState(false);
+  const [correctionText, setCorrectionText] = useState('');
+  const [correcting, setCorrecting] = useState(false);
 
   useEffect(() => {
     if (result) {
@@ -447,8 +453,39 @@ function FoodScanModal({
       setProtein(String(result.protein));
       setCarbs(String(result.carbs));
       setFat(String(result.fat));
+      setServing(result.serving || '1 serving');
+      setShowCorrection(false);
+      setCorrectionText('');
     }
   }, [result]);
+
+  const handleAiCorrect = useCallback(async () => {
+    const query = correctionText.trim();
+    if (!query) return;
+    setCorrecting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/nutrition/lookup?query=${encodeURIComponent(query)}`);
+      if (!res.ok) throw new Error('Lookup failed');
+      const json = await res.json();
+      const hit = json.results?.[0];
+      if (hit) {
+        setName(hit.name || query);
+        setCalories(String(Math.round(Number(hit.calories) || 0)));
+        setProtein(String(Math.round(Number(hit.protein) || 0)));
+        setCarbs(String(Math.round(Number(hit.carbs) || 0)));
+        setFat(String(Math.round(Number(hit.fat) || 0)));
+        if (hit.serving) setServing(hit.serving);
+        setShowCorrection(false);
+        setCorrectionText('');
+      } else {
+        Alert.alert('Not found', `No data found for "${query}". Try a different name.`);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not look up that food. Please try again.');
+    } finally {
+      setCorrecting(false);
+    }
+  }, [correctionText]);
 
   const handleConfirm = () => {
     onConfirm({
@@ -457,7 +494,7 @@ function FoodScanModal({
       protein: Number(protein) || 0,
       carbs: Number(carbs) || 0,
       fat: Number(fat) || 0,
-      serving: result?.serving || '1 serving',
+      serving: serving || result?.serving || '1 serving',
       confidence: result?.confidence || 'medium',
     });
   };
@@ -515,7 +552,7 @@ function FoodScanModal({
                 </View>
               </View>
 
-              {/* Name field */}
+              {/* Name field + AI correction button */}
               <View style={scanStyles.nameRow}>
                 <TextInput
                   style={scanStyles.nameInput}
@@ -524,7 +561,42 @@ function FoodScanModal({
                   placeholder="Food name"
                   placeholderTextColor={colors.textLight}
                 />
+                <Pressable
+                  style={[scanStyles.aiBtn, showCorrection && scanStyles.aiBtnActive]}
+                  onPress={() => { setShowCorrection((v) => !v); setCorrectionText(''); }}
+                  hitSlop={8}
+                >
+                  <Ionicons name="color-wand-outline" size={17} color={showCorrection ? colors.darkText : colors.accent} />
+                </Pressable>
               </View>
+
+              {/* AI correction box — visible when user taps the wand */}
+              {showCorrection && (
+                <View style={scanStyles.correctionBox}>
+                  <Text style={scanStyles.correctionLabel}>What is this food?</Text>
+                  <View style={scanStyles.correctionRow}>
+                    <TextInput
+                      style={scanStyles.correctionInput}
+                      value={correctionText}
+                      onChangeText={setCorrectionText}
+                      placeholder="e.g. pasta carbonara"
+                      placeholderTextColor={colors.textLight}
+                      autoFocus
+                      returnKeyType="search"
+                      onSubmitEditing={handleAiCorrect}
+                    />
+                    <Pressable
+                      style={[scanStyles.correctionSend, (!correctionText.trim() || correcting) && { opacity: 0.45 }]}
+                      onPress={handleAiCorrect}
+                      disabled={correcting || !correctionText.trim()}
+                    >
+                      {correcting
+                        ? <ActivityIndicator size="small" color={colors.darkText} />
+                        : <Ionicons name="arrow-forward" size={16} color={colors.darkText} />}
+                    </Pressable>
+                  </View>
+                </View>
+              )}
 
               {/* Macro grid — 4 compact inputs */}
               <View style={scanStyles.macroGrid}>
@@ -548,7 +620,7 @@ function FoodScanModal({
                 ))}
               </View>
 
-              <Text style={scanStyles.serving}>Per: {result.serving}</Text>
+              <Text style={scanStyles.serving}>Per: {serving}</Text>
 
               <View style={scanStyles.buttons}>
                 <Pressable style={scanStyles.cancelBtn} onPress={onClose}>
@@ -600,11 +672,47 @@ const scanStyles = StyleSheet.create({
   confidenceText: { fontSize: 11, fontWeight: '600' },
   sourceText: { fontSize: 10, color: colors.textLight },
   note: { fontSize: 11, color: colors.warning, marginTop: 2, fontStyle: 'italic' },
-  nameRow: { marginBottom: 12 },
+  nameRow: { marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   nameInput: {
+    flex: 1,
     borderWidth: 1, borderColor: colors.border, borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, fontWeight: '600',
     color: colors.text, backgroundColor: colors.card,
+  },
+  aiBtn: {
+    width: 40, height: 40, borderRadius: 10,
+    backgroundColor: colors.accent + '18',
+    borderWidth: 1, borderColor: colors.accent + '40',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  aiBtnActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  correctionBox: {
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.accent + '35',
+    gap: 8,
+  },
+  correctionLabel: {
+    fontSize: 10, fontWeight: '700', color: colors.accent,
+    textTransform: 'uppercase', letterSpacing: 0.8,
+  },
+  correctionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  correctionInput: {
+    flex: 1,
+    borderWidth: 1, borderColor: colors.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 9,
+    fontSize: 14, color: colors.text, backgroundColor: colors.bg,
+  },
+  correctionSend: {
+    width: 36, height: 36, borderRadius: 8,
+    backgroundColor: colors.dark,
+    justifyContent: 'center', alignItems: 'center',
   },
   macroGrid: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   macroItem: { flex: 1, alignItems: 'center', gap: 4 },
