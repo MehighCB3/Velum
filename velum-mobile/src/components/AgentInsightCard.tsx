@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { AgentInsight } from '../types';
+import { AgentChatSheet, SECTION_TO_AGENT } from './AgentChatSheet';
 
 function timeAgo(dateString: string): string {
   const now = Date.now();
@@ -24,27 +25,45 @@ const borderColors: Record<string, string> = {
 
 export function AgentInsightCard({ insight }: { insight: AgentInsight }) {
   const [dismissed, setDismissed] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   if (dismissed) return null;
 
   const borderColor = borderColors[insight.type] || colors.border;
+  const agentId = SECTION_TO_AGENT[insight.section] || 'main';
 
   return (
-    <View style={[styles.card, { borderLeftColor: borderColor }]}>
-      <Text style={styles.emoji}>{insight.emoji}</Text>
-      <View style={styles.content}>
-        <Text style={styles.text}>
-          <Text style={styles.agent}>{insight.agent}</Text>{' '}
-          {insight.insight}
-        </Text>
-        {insight.updatedAt && (
-          <Text style={styles.timestamp}>{timeAgo(insight.updatedAt)}</Text>
-        )}
+    <>
+      <View style={[styles.card, { borderLeftColor: borderColor }]}>
+        <Text style={styles.emoji}>{insight.emoji}</Text>
+        <View style={styles.content}>
+          <Text style={styles.text}>
+            <Text style={styles.agent}>{insight.agent}</Text>{' '}
+            {insight.insight}
+          </Text>
+          {insight.updatedAt && (
+            <Text style={styles.timestamp}>{timeAgo(insight.updatedAt)}</Text>
+          )}
+        </View>
+
+        {/* Reply — opens agent-scoped chat */}
+        <Pressable onPress={() => setShowChat(true)} hitSlop={8} style={styles.action}>
+          <Ionicons name="chatbubble-outline" size={14} color={colors.textLight} />
+        </Pressable>
+
+        <Pressable onPress={() => setDismissed(true)} hitSlop={8} style={styles.action}>
+          <Ionicons name="close" size={14} color={colors.textLight} />
+        </Pressable>
       </View>
-      <Pressable onPress={() => setDismissed(true)} hitSlop={8}>
-        <Ionicons name="close" size={14} color={colors.textLight} />
-      </Pressable>
-    </View>
+
+      <AgentChatSheet
+        visible={showChat}
+        agentId={agentId}
+        agentName={insight.agent}
+        emoji={insight.emoji}
+        onClose={() => setShowChat(false)}
+      />
+    </>
   );
 }
 
@@ -81,5 +100,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textLight,
     marginTop: 2,
+  },
+  action: {
+    marginLeft: 2,
   },
 });
