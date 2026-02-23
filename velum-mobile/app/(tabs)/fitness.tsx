@@ -18,13 +18,7 @@ import { ProgressRing } from '../../src/components/ProgressRing';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { FitnessEntryType } from '../../src/types';
-
-// Safe number formatter — avoids Hermes toLocaleString() crashes on Android
-function fmt(n: number): string {
-  if (!Number.isFinite(n)) return '0';
-  if (n >= 1000) return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return String(n);
-}
+import { fmt } from '../../src/utils/formatters';
 
 const ACTIVITY_ICONS: Record<string, string> = {
   steps: '🚶', run: '🏃', swim: '🏊', cycle: '🚴',

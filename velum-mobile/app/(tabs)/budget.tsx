@@ -19,19 +19,9 @@ import { useInsights } from '../../src/hooks/useInsights';
 import { WeekSelector, getISOWeekKey } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
 import { BudgetCategory, BudgetWeek } from '../../src/types';
+import { fmtDecimal as fmt } from '../../src/utils/formatters';
 
 const WEEKLY_BUDGET = 70;
-
-/** Safe euro formatter — avoids toLocaleString which crashes on Hermes/some RN engines */
-function fmt(n: number, decimals = 0): string {
-  const abs = Math.abs(n);
-  const fixed = abs.toFixed(decimals);
-  const [whole, frac] = fixed.split('.');
-  // Add thousand separators
-  const withCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const sign = n < 0 ? '-' : '';
-  return frac !== undefined ? `${sign}${withCommas}.${frac}` : `${sign}${withCommas}`;
-}
 
 // ---- Month comparison data types & helpers ----
 

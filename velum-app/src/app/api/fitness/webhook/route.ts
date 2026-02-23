@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { FitnessEntry, buildEntry, addFitnessEntry } from '../../../lib/fitnessStore'
 import { saveInsight } from '../../../lib/insightsStore'
 import { getWeekKey } from '../../../lib/weekUtils'
+import { generateAIInsight } from '../../../lib/aiInsights'
 
 export const dynamic = 'force-dynamic'
 
@@ -628,12 +629,42 @@ export async function POST(request: NextRequest) {
     const savedData = await addFitnessEntry(weekKey, newEntry)
 
     // ==================== PUSH INSIGHT TO FITY AGENT ====================
-    // Generate a contextual insight and save directly to the shared store
-    // (Redis-backed) so it persists across serverless invocations.
+    // Try AI-generated insight first (OpenRouter), fall back to templates.
+    // Non-blocking: don't fail the webhook if insight push fails.
     try {
-      const insightText = generateFitnessInsight(parsed, savedData)
+      // Build a plain-text context summary for the AI
+      const contextLines: string[] = [`Activity logged: ${parsed.type}`]
+      if (parsed.steps) contextLines.push(`Steps: ${parsed.steps.toLocaleString('en-US')} (goal: ${savedData.goals?.steps?.toLocaleString('en-US') ?? 10000})`)
+      if (parsed.distance) contextLines.push(`Distance: ${parsed.distance}km`)
+      if (parsed.duration) contextLines.push(`Duration: ${parsed.duration}min`)
+      if (parsed.calories) contextLines.push(`Calories burned: ${parsed.calories}`)
+      if (parsed.recoveryScore != null) contextLines.push(`Recovery score: ${parsed.recoveryScore}%`)
+      if (parsed.stressLevel != null) contextLines.push(`Stress level: ${parsed.stressLevel}%`)
+      if (parsed.hrv != null) contextLines.push(`HRV: ${parsed.hrv}ms`)
+      if (parsed.vo2max != null) contextLines.push(`VO2 Max: ${parsed.vo2max}`)
+      if (parsed.trainingLoad != null) contextLines.push(`Training load: ${parsed.trainingLoad}`)
+      if (parsed.weight != null) contextLines.push(`Weight: ${parsed.weight}kg`)
+      if (parsed.bodyFat != null) contextLines.push(`Body fat: ${parsed.bodyFat}%`)
+      if (savedData.totals) {
+        const t = savedData.totals
+        contextLines.push(`Week totals: ${t.runs} runs, ${t.swims} swims, ${t.cycles} rides, ${t.steps?.toLocaleString('en-US') ?? 0} steps, ${t.totalDistance?.toFixed(1) ?? 0}km`)
+      }
+      if (savedData.goals) {
+        const g = savedData.goals
+        contextLines.push(`Weekly goals: ${g.runs} runs, ${g.swims} swims`)
+      }
+      if (savedData.advanced) {
+        const a = savedData.advanced
+        contextLines.push(`Avg recovery: ${a.avgRecovery}%, Total training load: ${a.totalTrainingLoad}`)
+      }
+
+      const aiResult = await generateAIInsight(contextLines.join('\n'), 'Fity')
+
+      // Use AI result if available, otherwise fall back to template
+      const insightText = aiResult?.insight ?? generateFitnessInsight(parsed, savedData)
+      const insightType = aiResult?.type ?? classifyInsightType(parsed, savedData)
+
       if (insightText) {
-        const insightType = classifyInsightType(parsed, savedData)
         await saveInsight({
           agent: 'Fity',
           agentId: 'fitness-agent',
@@ -645,7 +676,6 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (insightErr) {
-      // Non-blocking: don't fail the webhook if insight push fails
       console.warn('Failed to push fitness insight:', insightErr)
     }
 
