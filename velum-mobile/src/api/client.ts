@@ -359,4 +359,52 @@ export const bookmarksApi = {
       body: JSON.stringify({ tweet_id: tweetId, dismissed: false }),
     });
   },
+
+  async yap(text: string, author: string): Promise<{ bullets: string[] }> {
+    return request('/bookmarks/yap', {
+      method: 'POST',
+      body: JSON.stringify({ text, author }),
+    });
+  },
+};
+
+// ==================== MYMIND ====================
+
+export type MymindItemType = 'bookmark' | 'note' | 'quote' | 'highlight' | 'image';
+
+export interface MymindItem {
+  id: string;
+  mymind_id: string;
+  type: MymindItemType;
+  title: string;
+  content: string;
+  url: string;
+  image_url: string;
+  source: string;
+  tags: string[];
+  created_at: string;
+  saved_at: string;
+  dismissed: boolean;
+}
+
+export const mymindApi = {
+  async getAll(opts?: { limit?: number; offset?: number; all?: boolean }): Promise<{
+    items: MymindItem[];
+    total: number;
+    active: number;
+  }> {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    if (opts?.all) params.set('all', 'true');
+    const q = params.toString();
+    return request(`/mymind${q ? `?${q}` : ''}`);
+  },
+
+  async dismiss(mymindId: string): Promise<{ success: boolean }> {
+    return request('/mymind', {
+      method: 'PATCH',
+      body: JSON.stringify({ mymind_id: mymindId, dismissed: true }),
+    });
+  },
 };

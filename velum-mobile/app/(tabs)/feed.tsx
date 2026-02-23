@@ -14,7 +14,9 @@ import { colors } from '../../src/theme/colors';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
-import { booksApi, bookmarksApi, XBookmark } from '../../src/api/client';
+import { booksApi, bookmarksApi, mymindApi, XBookmark, MymindItem } from '../../src/api/client';
+import { BookmarkQueueCard } from '../../src/components/BookmarkQueueCard';
+import { MymindCard } from '../../src/components/MymindCard';
 import { DailyWisdom, BookPrinciple } from '../../src/types';
 
 type TopTab = 'bookmarks' | 'knowledge';
@@ -35,6 +37,18 @@ function timeAgo(dateStr: string): string {
   if (days < 7) return `${days}d ago`;
   const weeks = Math.floor(days / 7);
   return `${weeks}w ago`;
+}
+
+// Day-seeded shuffle — same order all day, rotates tomorrow
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  let s = seed;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    const j = Math.abs(s) % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 // ==================== X BOOKMARKS ====================
@@ -241,11 +255,17 @@ const bkStyles = StyleSheet.create({
 
 // ==================== BOOKS / KNOWLEDGE ====================
 
+// Queue item union type for the merged feed
+type QueueItem =
+  | { source: 'x'; data: XBookmark; key: string }
+  | { source: 'mymind'; data: MymindItem; key: string };
+
 function KnowledgeView() {
   const [wisdom, setWisdom] = useState<DailyWisdom | null>(null);
   const [allPrinciples, setAllPrinciples] = useState<BookPrinciple[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDomain, setActiveDomain] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const { insights: knowledgeInsights } = useInsights('knowledge');
 
   const fetchWisdom = useCallback(async () => {
@@ -262,6 +282,41 @@ function KnowledgeView() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // Fetch both sources, merge and shuffle by day seed (same 5 all day, rotate tomorrow)
+  useEffect(() => {
+    const daySeed = Math.floor(Date.now() / 86400000);
+
+    Promise.allSettled([
+      bookmarksApi.getAll({ limit: 50 }),
+      mymindApi.getAll({ limit: 50 }),
+    ]).then(([xResult, mmResult]) => {
+      const xItems: QueueItem[] = xResult.status === 'fulfilled'
+        ? xResult.value.bookmarks
+            .filter((b) => !b.dismissed)
+            .map((b) => ({ source: 'x' as const, data: b, key: `x-${b.tweet_id}` }))
+        : [];
+
+      const mmItems: QueueItem[] = mmResult.status === 'fulfilled'
+        ? mmResult.value.items
+            .filter((i) => !i.dismissed)
+            .map((i) => ({ source: 'mymind' as const, data: i, key: `mm-${i.mymind_id}` }))
+        : [];
+
+      const merged = seededShuffle([...xItems, ...mmItems], daySeed).slice(0, 6);
+      setQueue(merged);
+    });
+  }, []);
+
+  const handleXDismiss = useCallback(async (tweetId: string) => {
+    setQueue((prev) => prev.filter((q) => q.key !== `x-${tweetId}`));
+    try { await bookmarksApi.dismiss(tweetId); } catch { /* silent */ }
+  }, []);
+
+  const handleMymindDismiss = useCallback(async (mymindId: string) => {
+    setQueue((prev) => prev.filter((q) => q.key !== `mm-${mymindId}`));
+    try { await mymindApi.dismiss(mymindId); } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
@@ -324,6 +379,28 @@ function KnowledgeView() {
       {knowledgeInsights.map((ai) => (
         <AgentInsightCard key={ai.agentId} insight={ai} />
       ))}
+
+      {/* Read Queue — shuffled X bookmarks + mymind items */}
+      {queue.length > 0 && (
+        <>
+          <SectionHeader title={`Your Queue · ${queue.length}`} />
+          {queue.map((item) =>
+            item.source === 'mymind' ? (
+              <MymindCard
+                key={item.key}
+                item={item.data}
+                onDismiss={handleMymindDismiss}
+              />
+            ) : (
+              <BookmarkQueueCard
+                key={item.key}
+                bookmark={item.data}
+                onDismiss={handleXDismiss}
+              />
+            )
+          )}
+        </>
+      )}
 
       {/* Domain Explorer */}
       <SectionHeader title="Explore Domains" />

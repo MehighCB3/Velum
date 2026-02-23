@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
     const time = new Date().toTimeString().slice(0, 5)
     const id = `ql-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let data: any
 
     switch (type) {
