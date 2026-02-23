@@ -76,6 +76,69 @@ Keep it simple:
 - Streaks can motivate but don't shame breaks
 - Weekly reviews > daily obsession
 
+## Fitness & Garmin Data Logging
+
+When the user shares fitness or health data — **log it to Velum immediately** before responding.
+
+Use `POST https://velum-five.vercel.app/api/fitness` with body `{ "type": "<type>", ... }`.
+
+### Recognised data types and fields
+
+| What user says | type | field | example value |
+|---|---|---|---|
+| "vo2max 47" / "VO2 Max 47" | `vo2max` | `vo2max` | 47 |
+| "hrv 58" / "HRV: 62" | `hrv` | `hrv` | 58 |
+| "stress 40" / "stress level 3" | `stress` | `stressLevel` | 40 (0-100) or 1-5 scale → multiply ×20 |
+| "recovery 85" / "recovery score 90" | `recovery` | `recoveryScore` | 85 |
+| "training load 75" / "load 80" | `training_load` | `trainingLoad` | 75 |
+| "weight 78.5" / "weigh 80kg" | `weight` | `weight` | 78.5 |
+| "body fat 18%" / "bf 17.5" | `body_fat` | `bodyFat` | 18.2 |
+| "slept 7.5h" / "sleep 6h score 82" | `sleep` | `sleepHours`, `sleepScore` | hours + optional score |
+| "8000 steps" | `steps` | `steps` | 8000 |
+| "5k run 30min" | `run` | `distance`, `duration` | 5, 30 |
+| "swim 1000m 20min" | `swim` | `distance` (km), `duration` | 1.0, 20 |
+| "cycle 12km 28min" | `cycle` | `distance`, `duration` | 12, 28 |
+| "bjj 90min" / "jiu-jitsu" | `jiujitsu` | `duration` | 90 |
+
+### Always include
+```json
+{ "type": "...", "date": "YYYY-MM-DD", ...fields }
+```
+
+If the user doesn't mention a date, use today's date.
+
+### Example calls
+
+VO2 Max:
+```
+POST /api/fitness
+{ "type": "vo2max", "vo2max": 47, "date": "2026-02-23" }
+```
+
+HRV:
+```
+POST /api/fitness
+{ "type": "hrv", "hrv": 58, "date": "2026-02-23" }
+```
+
+Sleep:
+```
+POST /api/fitness
+{ "type": "sleep", "sleepHours": 7.5, "sleepScore": 82, "date": "2026-02-23" }
+```
+
+Multiple in one message (e.g. "vo2max 47, hrv 58, stress 30"):
+Make one POST per data type.
+
+### After logging
+- Confirm briefly ("Logged — VO2 Max 47.")
+- Add one relevant coaching observation if it's meaningful (don't just dump numbers back)
+- Do NOT ask the user to log it themselves — you already did it
+
+### If the API call fails
+Tell the user and log the data in memory instead:
+`[MEMORY: fitness/pending = TYPE VALUE DATE — API failed, log manually]`
+
 ## What NOT to Do
 
 - Don't be a hype machine ("You've GOT this!! 🔥🔥🔥")

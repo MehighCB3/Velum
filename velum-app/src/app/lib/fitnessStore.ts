@@ -24,7 +24,7 @@ export interface FitnessEntry {
   id: string
   date: string
   timestamp: string
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'gym' | 'other' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'gym' | 'other' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat' | 'sleep'
   name?: string
   steps?: number
   distanceKm?: number
@@ -39,6 +39,8 @@ export interface FitnessEntry {
   hrv?: number
   weight?: number
   bodyFat?: number
+  sleepHours?: number
+  sleepScore?: number
   notes?: string
 }
 
@@ -71,13 +73,15 @@ export interface FitnessWeek {
     latestHrv: number
     latestWeight: number
     latestBodyFat: number
+    avgSleepHours: number
+    avgSleepScore: number
   }
 }
 
 // In-memory fallback storage
 const fallbackStorage: Record<string, FitnessWeek> = {}
 
-export const VALID_TYPES = ['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'gym', 'other', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat']
+export const VALID_TYPES = ['steps', 'run', 'swim', 'cycle', 'jiujitsu', 'gym', 'other', 'vo2max', 'training_load', 'stress', 'recovery', 'hrv', 'weight', 'body_fat', 'sleep']
 
 // Calculate distance from steps
 export function calculateDistanceFromSteps(steps: number): number {
@@ -155,6 +159,14 @@ export function calculateWeekData(week: string, entries: FitnessEntry[]): Fitnes
   const hrvEntries = weekEntries.filter(e => e.type === 'hrv' && e.hrv).sort((a, b) => b.date.localeCompare(a.date))
   const weightEntries = weekEntries.filter(e => e.type === 'weight' && e.weight).sort((a, b) => b.date.localeCompare(a.date))
   const bodyFatEntries = weekEntries.filter(e => e.type === 'body_fat' && e.bodyFat).sort((a, b) => b.date.localeCompare(a.date))
+  const sleepEntries = weekEntries.filter(e => e.type === 'sleep' && e.sleepHours).sort((a, b) => b.date.localeCompare(a.date))
+
+  const avgSleepHours = sleepEntries.length > 0
+    ? Math.round(sleepEntries.reduce((a, e) => a + (e.sleepHours || 0), 0) / sleepEntries.length * 10) / 10
+    : 0
+  const avgSleepScore = sleepEntries.filter(e => e.sleepScore).length > 0
+    ? Math.round(sleepEntries.filter(e => e.sleepScore).reduce((a, e) => a + (e.sleepScore || 0), 0) / sleepEntries.filter(e => e.sleepScore).length)
+    : 0
 
   return {
     week,
@@ -170,6 +182,8 @@ export function calculateWeekData(week: string, entries: FitnessEntry[]): Fitnes
       latestHrv: hrvEntries.length > 0 ? hrvEntries[0].hrv! : 0,
       latestWeight: weightEntries.length > 0 ? weightEntries[0].weight! : 0,
       latestBodyFat: bodyFatEntries.length > 0 ? bodyFatEntries[0].bodyFat! : 0,
+      avgSleepHours,
+      avgSleepScore,
     }
   }
 }
@@ -203,10 +217,15 @@ export async function initializePostgresTables(): Promise<void> {
         hrv DECIMAL(5,2),
         weight DECIMAL(5,2),
         body_fat DECIMAL(4,2),
+        sleep_hours DECIMAL(4,2),
+        sleep_score INTEGER,
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `
+    // Migrate existing tables to add sleep columns if they don't exist
+    await sql`ALTER TABLE fitness_entries ADD COLUMN IF NOT EXISTS sleep_hours DECIMAL(4,2)`
+    await sql`ALTER TABLE fitness_entries ADD COLUMN IF NOT EXISTS sleep_score INTEGER`
     await sql`
       CREATE TABLE IF NOT EXISTS fitness_goals (
         week VARCHAR(10) UNIQUE NOT NULL PRIMARY KEY,
@@ -232,6 +251,7 @@ export async function readFromPostgres(week: string): Promise<FitnessWeek | null
       steps, distance_km as "distanceKm", duration, distance, pace, calories,
       vo2max, training_load as "trainingLoad", stress_level as "stressLevel",
       recovery_score as "recoveryScore", hrv, weight, body_fat as "bodyFat",
+      sleep_hours as "sleepHours", sleep_score as "sleepScore",
       notes, created_at as timestamp
     FROM fitness_entries
     WHERE week = ${week}
@@ -266,6 +286,8 @@ export async function readFromPostgres(week: string): Promise<FitnessWeek | null
     hrv: row.hrv != null ? Number(row.hrv) : undefined,
     weight: row.weight != null ? Number(row.weight) : undefined,
     bodyFat: row.bodyFat != null ? Number(row.bodyFat) : undefined,
+    sleepHours: row.sleepHours != null ? Number(row.sleepHours) : undefined,
+    sleepScore: row.sleepScore != null ? Number(row.sleepScore) : undefined,
     notes: (row.notes as string) ?? undefined,
   })) as FitnessEntry[]
 
@@ -292,14 +314,16 @@ export async function writeToPostgres(week: string, entry: FitnessEntry, goals?:
     INSERT INTO fitness_entries (
       entry_id, week, date, entry_type, name, steps, distance_km,
       duration, distance, pace, calories, vo2max, training_load,
-      stress_level, recovery_score, hrv, weight, body_fat, notes
+      stress_level, recovery_score, hrv, weight, body_fat,
+      sleep_hours, sleep_score, notes
     ) VALUES (
       ${entry.id}, ${week}, ${entry.date}, ${entry.type}, ${entry.name || null},
       ${entry.steps || null}, ${entry.distanceKm || null}, ${entry.duration || null},
       ${entry.distance || null}, ${entry.pace || null}, ${entry.calories || null},
       ${entry.vo2max || null}, ${entry.trainingLoad || null}, ${entry.stressLevel || null},
       ${entry.recoveryScore || null}, ${entry.hrv || null}, ${entry.weight || null},
-      ${entry.bodyFat || null}, ${entry.notes || null}
+      ${entry.bodyFat || null}, ${entry.sleepHours || null}, ${entry.sleepScore || null},
+      ${entry.notes || null}
     )
     ON CONFLICT (entry_id) DO UPDATE SET
       entry_type = EXCLUDED.entry_type, name = EXCLUDED.name,
@@ -309,7 +333,9 @@ export async function writeToPostgres(week: string, entry: FitnessEntry, goals?:
       vo2max = EXCLUDED.vo2max, training_load = EXCLUDED.training_load,
       stress_level = EXCLUDED.stress_level, recovery_score = EXCLUDED.recovery_score,
       hrv = EXCLUDED.hrv, weight = EXCLUDED.weight,
-      body_fat = EXCLUDED.body_fat, notes = EXCLUDED.notes
+      body_fat = EXCLUDED.body_fat,
+      sleep_hours = EXCLUDED.sleep_hours, sleep_score = EXCLUDED.sleep_score,
+      notes = EXCLUDED.notes
   `
 }
 
@@ -339,6 +365,7 @@ export function readFromFallback(week: string): FitnessWeek {
     advanced: {
       avgVo2max: 0, totalTrainingLoad: 0, avgStress: 0, avgRecovery: 0,
       recoveryStatus: 'good', latestHrv: 0, latestWeight: 0, latestBodyFat: 0,
+      avgSleepHours: 0, avgSleepScore: 0,
     }
   }
 }
@@ -398,6 +425,9 @@ export function buildEntry(resolvedEntry: Record<string, unknown>): FitnessEntry
     newEntry.weight = Number(resolvedEntry.weight) || 0
   } else if (resolvedEntry.type === 'body_fat') {
     newEntry.bodyFat = Number(resolvedEntry.bodyFat) || 0
+  } else if (resolvedEntry.type === 'sleep') {
+    newEntry.sleepHours = Number(resolvedEntry.sleepHours) || 0
+    if (resolvedEntry.sleepScore) newEntry.sleepScore = Number(resolvedEntry.sleepScore)
   } else if (resolvedEntry.type === 'jiujitsu' || resolvedEntry.type === 'gym' || resolvedEntry.type === 'other') {
     if (resolvedEntry.duration) newEntry.duration = Number(resolvedEntry.duration)
     if (resolvedEntry.calories) newEntry.calories = Number(resolvedEntry.calories)

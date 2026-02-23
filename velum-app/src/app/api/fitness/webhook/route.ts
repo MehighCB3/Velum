@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET
 
 interface ParsedFitnessEntry {
-  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat'
+  type: 'steps' | 'run' | 'swim' | 'cycle' | 'jiujitsu' | 'vo2max' | 'training_load' | 'stress' | 'recovery' | 'hrv' | 'weight' | 'body_fat' | 'sleep'
   name?: string
   steps?: number
   distance?: number      // in km
@@ -22,6 +22,8 @@ interface ParsedFitnessEntry {
   hrv?: number           // ms
   weight?: number        // kg
   bodyFat?: number       // percentage
+  sleepHours?: number    // decimal hours
+  sleepScore?: number    // 0-100
   date?: string
   notes?: string
 }
@@ -387,6 +389,48 @@ function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
     }
   }
 
+  // ==================== SLEEP PARSING ====================
+
+  // Patterns: "slept 7.5h" / "sleep 7h 45min" / "slept 8 hours score 82" / "sleep: 6.5h 75"
+  if (lowerText.includes('sleep') || lowerText.includes('slept') || lowerText.includes('sleeping')) {
+    // Extract hours — support "7.5h", "7h30", "7 hours", "7:30"
+    let sleepHours = 0
+    const hoursPattern = /(\d+(?:\.\d+)?)\s*h(?:ours?|r)?/i
+    const hoursMatch = text.match(hoursPattern)
+    if (hoursMatch) {
+      sleepHours = parseFloat(hoursMatch[1])
+    }
+    // Handle "7h30" or "7h 30min" formats
+    const hMinPattern = /(\d+)\s*h(?:ours?)?\s*(\d+)\s*(?:min|m\b)/i
+    const hMinMatch = text.match(hMinPattern)
+    if (hMinMatch) {
+      sleepHours = parseInt(hMinMatch[1]) + parseInt(hMinMatch[2]) / 60
+      sleepHours = Math.round(sleepHours * 10) / 10
+    }
+    // Try bare decimal: "sleep 7.5" (no unit)
+    if (!sleepHours) {
+      const barePattern = /(?:sleep|slept)\s+(\d+(?:\.\d+)?)/i
+      const bareMatch = text.match(barePattern)
+      if (bareMatch) {
+        const v = parseFloat(bareMatch[1])
+        if (v > 0 && v < 24) sleepHours = v
+      }
+    }
+
+    // Optional sleep quality/score
+    let sleepScore: number | undefined
+    const scorePattern = /(?:score|quality)[\s:]*(\d+)/i
+    const scoreMatch = text.match(scorePattern)
+    if (scoreMatch) {
+      const s = parseInt(scoreMatch[1])
+      if (s >= 0 && s <= 100) sleepScore = s
+    }
+
+    if (sleepHours > 0 && sleepHours <= 24) {
+      return { type: 'sleep', sleepHours, sleepScore, date: targetDate, notes }
+    }
+  }
+
   // ==================== JIU-JITSU PARSING ====================
 
   // Pattern: "bjj", "jiu-jitsu", "jiu jitsu", "jiujitsu", "bjj 90min", "jiu-jitsu 60min"
@@ -546,20 +590,30 @@ export async function POST(request: NextRequest) {
     
     // Extract message text from Telegram format
     const messageText = body.message?.text || body.text
+    // Telegram forum topic detection:
+    // - forum_topic_created.name: only on the message that CREATES the topic (first msg)
+    // - reply_to_message.forum_topic_created.name: on direct children of the root topic msg
+    // - is_topic_message: true for all messages in any forum topic (Telegram Bot API v6.3+)
+    // - message_thread_name: non-standard, not sent by Telegram, but may come from OpenClaw
     const topicName = body.message?.forum_topic_created?.name ||
                       body.message?.reply_to_message?.forum_topic_created?.name ||
-                      body.message?.message_thread_name
-    
+                      body.message?.reply_to_message?.reply_to_message?.forum_topic_created?.name ||
+                      body.message?.message_thread_name ||
+                      body.topic_name  // OpenClaw may set this when forwarding
+
     if (!messageText) {
       return NextResponse.json({ error: 'No message text' }, { status: 400 })
     }
-    
+
     console.log('Fitness webhook received:', messageText, 'Topic:', topicName)
-    
-    // Only process messages from "Fity" topic
-    const isFityTopic = topicName === 'Fity' || 
+
+    // Only process messages from "Fity" topic or tagged with #fity / fity:
+    // Also accept messages where is_topic_message=true with the known thread ID
+    const FITY_THREAD_ID = process.env.FITY_THREAD_ID ? parseInt(process.env.FITY_THREAD_ID) : null
+    const isFityTopic = topicName === 'Fity' ||
                         messageText.toLowerCase().includes('#fity') ||
-                        messageText.toLowerCase().startsWith('fity:')
+                        messageText.toLowerCase().startsWith('fity:') ||
+                        (FITY_THREAD_ID !== null && body.message?.message_thread_id === FITY_THREAD_ID)
     
     if (!isFityTopic) {
       return NextResponse.json({ 
@@ -619,6 +673,9 @@ export async function POST(request: NextRequest) {
       entryData.weight = parsed.weight
     } else if (parsed.type === 'body_fat') {
       entryData.bodyFat = parsed.bodyFat
+    } else if (parsed.type === 'sleep') {
+      entryData.sleepHours = parsed.sleepHours
+      entryData.sleepScore = parsed.sleepScore
     } else if (parsed.type === 'jiujitsu') {
       entryData.duration = parsed.duration
     }
@@ -645,6 +702,7 @@ export async function POST(request: NextRequest) {
       if (parsed.trainingLoad != null) contextLines.push(`Training load: ${parsed.trainingLoad}`)
       if (parsed.weight != null) contextLines.push(`Weight: ${parsed.weight}kg`)
       if (parsed.bodyFat != null) contextLines.push(`Body fat: ${parsed.bodyFat}%`)
+      if (parsed.sleepHours != null) contextLines.push(`Sleep: ${parsed.sleepHours}h${parsed.sleepScore != null ? ` (score: ${parsed.sleepScore})` : ''}`)
       if (savedData.totals) {
         const t = savedData.totals
         contextLines.push(`Week totals: ${t.runs} runs, ${t.swims} swims, ${t.cycles} rides, ${t.steps?.toLocaleString('en-US') ?? 0} steps, ${t.totalDistance?.toFixed(1) ?? 0}km`)
@@ -725,6 +783,14 @@ export async function POST(request: NextRequest) {
       successMessage = `✅ Logged: Weight ${parsed.weight} kg - ${entryDate}`
     } else if (parsed.type === 'body_fat') {
       successMessage = `✅ Logged: Body Fat ${parsed.bodyFat}% - ${entryDate}`
+    } else if (parsed.type === 'sleep') {
+      const h = parsed.sleepHours || 0
+      successMessage = `✅ Logged: Sleep ${h}h - ${entryDate}`
+      if (parsed.sleepScore) successMessage += ` (score: ${parsed.sleepScore})`
+      if (h >= 8) successMessage += '\n😴 Great sleep!'
+      else if (h >= 7) successMessage += '\n✅ Good sleep'
+      else if (h >= 6) successMessage += '\n⚠️ A bit short — aim for 7-9h'
+      else successMessage += '\n🔴 Sleep debt building — prioritise rest'
     } else if (parsed.type === 'jiujitsu') {
       successMessage = `✅ Logged: Jiu-Jitsu session - ${entryDate}`
       if (parsed.duration) successMessage += ` (${parsed.duration} min)`

@@ -5,64 +5,100 @@
  * Supports two modes:
  *
  *   1. JWT mode (automatic, recommended):
- *      Fetches items directly from mymind's internal API using your session JWT.
- *      MYMIND_JWT=<token> npx tsx scripts/sync-mymind.ts
+ *      Fetches items directly from mymind's internal API using your session cookies.
+ *      MYMIND_JWT=<token> MYMIND_CID=<cid> MYMIND_AUTH_TOKEN=<token> npx tsx scripts/sync-mymind.ts
  *
  *   2. CSV mode (manual export fallback):
  *      Import from a mymind export CSV (Account → Export my mind → cards.csv).
  *      MYMIND_CSV=/path/to/cards.csv npx tsx scripts/sync-mymind.ts
  *
  * Required env vars:
- *   MYMIND_JWT     — _jwt cookie value from access.mymind.com (mode 1)
- *   MYMIND_CSV     — path to exported cards.csv (mode 2)
- *   VELUM_API_BASE — e.g. https://velum-five.vercel.app (default)
- *   MYMIND_API_KEY — optional, must match server-side MYMIND_API_KEY
+ *   MYMIND_JWT         — _jwt cookie value from access.mymind.com (mode 1)
+ *   MYMIND_CID         — _cid cookie value from access.mymind.com (mode 1)
+ *   MYMIND_AUTH_TOKEN  — x-authenticity-token header value (mode 1, CSRF token)
+ *   MYMIND_CSV         — path to exported cards.csv (mode 2)
+ *   VELUM_API_BASE     — e.g. https://velum-five.vercel.app (default)
+ *   MYMIND_API_KEY     — optional, must match server-side MYMIND_API_KEY
  *
- * How to get your JWT (mode 1):
- *   1. Open mymind.com in Chrome, log in
+ * How to get your credentials (mode 1):
+ *   1. Open https://access.mymind.com in Chrome, log in
  *   2. DevTools → Application → Cookies → https://access.mymind.com
- *   3. Copy the "_jwt" cookie value → MYMIND_JWT
+ *      Copy "_jwt" → MYMIND_JWT
+ *      Copy "_cid" → MYMIND_CID
+ *   3. DevTools → Network → reload page → pick any XHR to access.mymind.com
+ *      Request headers → copy "x-authenticity-token" → MYMIND_AUTH_TOKEN
  *
- * If the JWT endpoint returns 404/403, inspect mymind's network traffic:
- *   DevTools → Network → filter "access.mymind.com" → find the GET request
- *   loading your items → note the URL path → set MYMIND_API_PATH env var.
+ * Note: mymind has no official API. This uses the same internal API the web
+ * app uses. Tokens expire when your browser session ends; re-extract if you
+ * get 401/403 errors.
  */
 
 import { createReadStream } from 'fs';
 import { parse } from 'csv-parse';
 
 const MYMIND_JWT = process.env.MYMIND_JWT;
+const MYMIND_CID = process.env.MYMIND_CID;
+const MYMIND_AUTH_TOKEN = process.env.MYMIND_AUTH_TOKEN;
 const MYMIND_CSV = process.env.MYMIND_CSV;
 const VELUM_API_BASE = process.env.VELUM_API_BASE || 'https://velum-five.vercel.app';
 const MYMIND_API_KEY = process.env.MYMIND_API_KEY || '';
 
-// mymind's internal API base — adjust MYMIND_API_PATH if they change it
 const MYMIND_BASE = 'https://access.mymind.com';
-const MYMIND_API_PATH = process.env.MYMIND_API_PATH || '/objects';
 
 // ==================== TYPES ====================
 
-interface MymindRawItem {
+// Prose node from mymind's ProseMirror-based editor
+interface ProseContent {
+  type: string;
+  text?: string;
+  content?: ProseContent[];
+}
+
+interface ProseDoc {
+  type: string;
+  content?: ProseContent[];
+}
+
+// Real mymind Card shape from GET /cards.json
+// Response is Record<slug, Card> — the key is the card's ID (slug)
+interface MymindCard {
+  title?: string;
+  siteName?: string;      // e.g. "YouTube", "Twitter"
+  domain?: string;        // e.g. "youtube.com"
+  description?: string;
+  brand?: string;
+  source?: { url?: string };
+  tags?: Array<{ id: string; name: string; flags?: number }>;
+  flags?: number;
+  created?: string;       // ISO timestamp
+  modified?: string;      // ISO timestamp
+  bumped?: string;
+  ocr?: string;           // OCR text for images
+  prose?: ProseDoc;       // Rich text (Notes)
+  note?: {
+    id: string;
+    prose: ProseDoc;
+  };
+  // type is not reliably present in cards.json — inferred from content
+  type?: string;
+}
+
+// CSV row shape
+interface MymindCsvRow {
   id?: string;
-  _id?: string;
   type?: string;
   title?: string;
-  note?: string;       // note text
-  text?: string;       // quote / highlight text
-  content?: string;    // alternative field name
+  text?: string;
+  content?: string;
   url?: string;
-  link?: string;
-  imageUrl?: string;
   image_url?: string;
-  thumbnail?: string;
-  description?: string;
-  author?: string;
+  imageUrl?: string;
   source?: string;
-  tags?: string[];
-  labels?: string[];
-  createdAt?: string;
+  tags?: string;
   created_at?: string;
-  savedAt?: string;
+  createdAt?: string;
+  date?: string;
+  [key: string]: string | undefined;
 }
 
 interface VelumMymindItem {
@@ -77,115 +113,87 @@ interface VelumMymindItem {
   created_at: string;
 }
 
+// ==================== PROSE HELPERS ====================
+
+/** Flatten a ProseMirror doc tree to plain text */
+function proseToText(node: ProseDoc | ProseContent): string {
+  if (!node) return '';
+  const parts: string[] = [];
+  if ('text' in node && node.text) parts.push(node.text);
+  if (node.content) {
+    for (const child of node.content) {
+      parts.push(proseToText(child));
+    }
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 // ==================== JWT MODE ====================
 
-async function fetchMymindPage(cursor?: string): Promise<{
-  items: MymindRawItem[];
-  nextCursor: string | null;
-}> {
+async function fetchAllJWT(): Promise<{ slug: string; card: MymindCard }[]> {
   if (!MYMIND_JWT) throw new Error('MYMIND_JWT is required for JWT mode');
+  if (!MYMIND_CID) throw new Error('MYMIND_CID is required for JWT mode');
+  if (!MYMIND_AUTH_TOKEN) throw new Error('MYMIND_AUTH_TOKEN is required for JWT mode');
 
-  const url = new URL(`${MYMIND_BASE}${MYMIND_API_PATH}`);
-  if (cursor) url.searchParams.set('cursor', cursor);
-  url.searchParams.set('limit', '100');
+  const url = `${MYMIND_BASE}/cards.json`;
+  console.log(`  GET ${url}`);
 
-  const res = await fetch(url.toString(), {
+  const res = await fetch(url, {
     headers: {
       accept: 'application/json',
       'content-type': 'application/json',
-      cookie: `_jwt=${MYMIND_JWT}`,
+      cookie: `_cid=${MYMIND_CID}; _jwt=${MYMIND_JWT}`,
+      'x-authenticity-token': MYMIND_AUTH_TOKEN,
       origin: MYMIND_BASE,
       referer: 'https://access.mymind.com/',
-      'user-agent': 'velum-sync/1.0',
+      'user-agent': 'Mozilla/5.0 (compatible; velum-sync/1.0)',
     },
   });
 
   if (!res.ok) {
     const body = await res.text();
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401 || res.status === 403 || res.status === 302) {
       throw new Error(
-        `mymind auth failed (${res.status}). Your _jwt token may be expired.\n` +
-        '  → Open mymind.com → DevTools → Application → Cookies → copy fresh _jwt value'
-      );
-    }
-    if (res.status === 404) {
-      throw new Error(
-        `mymind API path not found (${MYMIND_API_PATH}).\n` +
-        '  → Open mymind.com → DevTools → Network → filter "access.mymind.com" →\n' +
-        '    find the GET request that loads your items → copy the path →\n' +
-        '    re-run with: MYMIND_API_PATH=<new_path> npx tsx scripts/sync-mymind.ts'
+        `mymind auth failed (${res.status}). Your session tokens may be expired.\n` +
+        '  → Open https://access.mymind.com in Chrome\n' +
+        '  → DevTools → Application → Cookies → copy fresh _jwt and _cid\n' +
+        '  → DevTools → Network → copy x-authenticity-token header from any request'
       );
     }
     throw new Error(`mymind API ${res.status}: ${body.slice(0, 200)}`);
   }
 
-  const data = await res.json();
+  const data = await res.json() as Record<string, MymindCard>;
 
-  // Handle different response shapes mymind might use
-  let rawItems: MymindRawItem[] = [];
-  let nextCursor: string | null = null;
-
-  if (Array.isArray(data)) {
-    rawItems = data;
-  } else if (Array.isArray(data.items)) {
-    rawItems = data.items;
-    nextCursor = data.nextCursor || data.cursor || data.next || null;
-  } else if (Array.isArray(data.objects)) {
-    rawItems = data.objects;
-    nextCursor = data.nextCursor || null;
-  } else if (Array.isArray(data.data)) {
-    rawItems = data.data;
-    nextCursor = data.meta?.nextCursor || null;
+  if (typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`Unexpected mymind response shape: ${typeof data}`);
   }
 
-  return { items: rawItems, nextCursor };
-}
-
-async function fetchAllJWT(): Promise<MymindRawItem[]> {
-  const all: MymindRawItem[] = [];
-  let cursor: string | undefined;
-  let page = 0;
-  const MAX_PAGES = 20;
-
-  while (page < MAX_PAGES) {
-    console.log(`  Fetching page ${page + 1}...`);
-    const { items, nextCursor } = await fetchMymindPage(cursor);
-
-    all.push(...items);
-    console.log(`  Got ${items.length} items (total: ${all.length})`);
-
-    if (!nextCursor || items.length === 0) break;
-    cursor = nextCursor;
-    page++;
-
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-
-  return all;
+  return Object.entries(data).map(([slug, card]) => ({ slug, card }));
 }
 
 // ==================== CSV MODE ====================
 
-async function parseCsvFile(csvPath: string): Promise<MymindRawItem[]> {
+async function parseCsvFile(csvPath: string): Promise<{ slug: string; card: MymindCard }[]> {
   return new Promise((resolve, reject) => {
-    const items: MymindRawItem[] = [];
+    const items: { slug: string; card: MymindCard }[] = [];
     const parser = parse({ columns: true, skip_empty_lines: true, trim: true });
 
     parser.on('readable', () => {
-      let record;
+      let record: MymindCsvRow;
       while ((record = parser.read()) !== null) {
-        // Normalize common CSV column names mymind might use
+        const slug = record.id || `csv-${Date.now()}-${Math.random()}`;
+        const tagNames = (record.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
         items.push({
-          id: record.id || record.ID || record.uuid,
-          type: record.type || record.Type || record.kind,
-          title: record.title || record.Title || record.name,
-          text: record.text || record.Text || record.quote || record.content || record.Content,
-          url: record.url || record.URL || record.link || record.href,
-          image_url: record.image_url || record.imageUrl || record.image || record.thumbnail,
-          source: record.source || record.Source || record.author || record.Author,
-          tags: (record.tags || record.Tags || record.labels || '')
-            .split(',').map((t: string) => t.trim()).filter(Boolean),
-          created_at: record.created_at || record.createdAt || record.date || record.Date,
+          slug,
+          card: {
+            title: record.title,
+            description: record.text || record.content,
+            source: record.url ? { url: record.url } : undefined,
+            tags: tagNames.map((name) => ({ id: name, name })),
+            created: record.created_at || record.createdAt || record.date,
+            type: record.type,
+          },
         });
       }
     });
@@ -198,32 +206,48 @@ async function parseCsvFile(csvPath: string): Promise<MymindRawItem[]> {
 
 // ==================== NORMALIZE ====================
 
-function normalizeType(raw?: string): VelumMymindItem['type'] {
-  const t = (raw || '').toLowerCase();
+function inferType(card: MymindCard): VelumMymindItem['type'] {
+  const t = (card.type || '').toLowerCase();
   if (t.includes('note')) return 'note';
   if (t.includes('quote')) return 'quote';
   if (t.includes('highlight')) return 'highlight';
   if (t.includes('image') || t.includes('photo')) return 'image';
+
+  // Infer from content when type field absent
+  if (card.prose && !card.source?.url) return 'note';
+  if (card.source?.url) return 'bookmark';
+  if (card.ocr) return 'image';
   return 'bookmark';
 }
 
-function normalizeItem(raw: MymindRawItem): VelumMymindItem {
-  const id = raw.id || raw._id || `mm-${Date.now()}-${Math.random()}`;
-  const type = normalizeType(raw.type);
-  const content = raw.note || raw.text || raw.content || raw.description || '';
-  const url = raw.url || raw.link || '';
-  const imageUrl = raw.imageUrl || raw.image_url || raw.thumbnail || '';
-  const source = raw.author || raw.source || '';
-  const tags = Array.isArray(raw.tags) ? raw.tags : Array.isArray(raw.labels) ? raw.labels : [];
-  const createdAt = raw.createdAt || raw.created_at || raw.savedAt || new Date().toISOString();
+function normalizeCard(slug: string, card: MymindCard): VelumMymindItem {
+  // Extract text content: prefer prose (Notes), then description, then OCR
+  let content = '';
+  if (card.prose) {
+    content = proseToText(card.prose);
+  } else if (card.note?.prose) {
+    content = proseToText(card.note.prose);
+  }
+  if (!content && card.description) content = card.description;
+  if (!content && card.ocr) content = card.ocr;
+
+  const url = card.source?.url || '';
+  const tags = (card.tags || []).map((t) => t.name).filter(Boolean);
+  const createdAt = card.created || card.modified || new Date().toISOString();
+
+  // source label: siteName, domain, or extracted from URL
+  let source = card.siteName || card.domain || '';
+  if (!source && url) {
+    try { source = new URL(url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
+  }
 
   return {
-    mymind_id: String(id),
-    type,
-    title: raw.title || '',
+    mymind_id: slug,
+    type: inferType(card),
+    title: card.title || '',
     content,
     url,
-    image_url: imageUrl,
+    image_url: '',
     source,
     tags,
     created_at: createdAt,
@@ -268,12 +292,15 @@ async function main() {
   console.log('=== Velum mymind Sync ===\n');
 
   if (!MYMIND_JWT && !MYMIND_CSV) {
-    console.error('Error: provide either MYMIND_JWT or MYMIND_CSV.\n');
+    console.error('Error: provide either JWT credentials or MYMIND_CSV.\n');
     console.error('JWT mode (recommended):');
-    console.error('  1. Open mymind.com → log in');
-    console.error('  2. DevTools → Application → Cookies → https://access.mymind.com');
-    console.error('  3. Copy "_jwt" cookie value');
-    console.error('  MYMIND_JWT=<token> npx tsx scripts/sync-mymind.ts\n');
+    console.error('  1. Open https://access.mymind.com → log in');
+    console.error('  2. DevTools → Application → Cookies');
+    console.error('     Copy "_jwt" value → MYMIND_JWT');
+    console.error('     Copy "_cid" value → MYMIND_CID');
+    console.error('  3. DevTools → Network → any XHR to access.mymind.com');
+    console.error('     Copy "x-authenticity-token" header → MYMIND_AUTH_TOKEN');
+    console.error('  MYMIND_JWT=<jwt> MYMIND_CID=<cid> MYMIND_AUTH_TOKEN=<token> npx tsx scripts/sync-mymind.ts\n');
     console.error('CSV mode (manual export fallback):');
     console.error('  1. mymind.com → Account (cog icon) → Export my mind → cards.csv');
     console.error('  MYMIND_CSV=/path/to/cards.csv npx tsx scripts/sync-mymind.ts');
@@ -283,19 +310,22 @@ async function main() {
   console.log(`API target: ${VELUM_API_BASE}`);
   console.log(`Mode: ${MYMIND_JWT ? 'JWT (live sync)' : 'CSV import'}\n`);
 
-  let rawItems: MymindRawItem[] = [];
+  let entries: { slug: string; card: MymindCard }[] = [];
 
   if (MYMIND_JWT) {
     console.log('1. Fetching items from mymind API...');
-    rawItems = await fetchAllJWT();
+    entries = await fetchAllJWT();
   } else if (MYMIND_CSV) {
     console.log(`1. Parsing CSV: ${MYMIND_CSV}...`);
-    rawItems = await parseCsvFile(MYMIND_CSV);
+    entries = await parseCsvFile(MYMIND_CSV);
   }
 
-  console.log(`   Total raw items: ${rawItems.length}\n`);
+  console.log(`   Total raw items: ${entries.length}\n`);
 
-  const normalized = rawItems.map(normalizeItem).filter((i) => i.content || i.url || i.title);
+  const normalized = entries
+    .map(({ slug, card }) => normalizeCard(slug, card))
+    .filter((i) => i.content || i.url || i.title);
+
   console.log(`   Valid items: ${normalized.length}`);
 
   const byType = normalized.reduce((acc, item) => {
