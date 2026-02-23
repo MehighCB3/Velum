@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getISOWeek } from '../../../lib/weekUtils'
 import { addBudgetEntry, BudgetEntry, Category } from '../../../lib/budgetStore'
+import { saveInsight } from '../../../lib/insightsStore'
+import { generateAIInsight } from '../../../lib/aiInsights'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,7 +138,34 @@ export async function POST(request: NextRequest) {
     }
 
     const savedData = await addBudgetEntry(weekKey, entry)
-    
+
+    // ==================== PUSH INSIGHT TO BUDGY AGENT ====================
+    // Non-blocking: don't fail the webhook if insight push fails.
+    try {
+      const contextLines = [
+        `Expense logged: €${parsed.amount} ${parsed.description} (${parsed.category})`,
+        `Week: ${weekKey}`,
+        `Total spent this week: €${savedData.totalSpent?.toFixed(2) ?? parsed.amount}`,
+        `Remaining budget: €${savedData.remaining?.toFixed(2) ?? 'unknown'}`,
+      ]
+      if (parsed.reason) contextLines.push(`Reason: ${parsed.reason}`)
+
+      const aiResult = await generateAIInsight(contextLines.join('\n'), 'Budgy')
+      if (aiResult) {
+        await saveInsight({
+          agent: 'Budgy',
+          agentId: 'budget-agent',
+          emoji: '💰',
+          insight: aiResult.insight,
+          type: aiResult.type,
+          updatedAt: new Date().toISOString(),
+          section: 'budget',
+        })
+      }
+    } catch (insightErr) {
+      console.warn('Failed to push budget insight:', insightErr)
+    }
+
     return NextResponse.json({
       success: true,
       message: `✅ Logged: €${parsed.amount} ${parsed.description} (${parsed.category}) - Week ${parsed.week || 'current'}${parsed.reason ? ` for "${parsed.reason}"` : ''}`,
