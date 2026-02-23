@@ -1,0 +1,34 @@
+appId: com.velum.mobile
+---
+# Smoke test 3 — Add a manual nutrition entry end-to-end
+- launchApp
+- tapOn: "Nutrition"
+
+# Open the add-entry modal (the + button in the header)
+- tapOn:
+    id: "add-entry-button"
+    optional: true
+# Fallback: some builds use a floating action button with "+" text
+- tapOn:
+    text: "+"
+    optional: true
+
+# Wait for the modal to appear
+- waitForAnimationToEnd
+
+# Fill in food name
+- tapOn: "Name"
+- inputText: "Test Apple"
+- hideKeyboard
+
+# Fill in calories
+- tapOn: "Calories"
+- inputText: "95"
+- hideKeyboard
+
+# Submit
+- tapOn: "Save"
+- waitForAnimationToEnd
+
+# The entry should now appear in the list
+- assertVisible: "Test Apple"

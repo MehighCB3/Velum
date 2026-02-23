@@ -1,0 +1,17 @@
+appId: com.velum.mobile
+---
+# Smoke test 4 — Profile tab loads and sync can be triggered
+- launchApp
+- tapOn: "Profile"
+
+# Settings section must be present
+- assertVisible: "Force Sync"
+- assertVisible: "Check Updates"
+
+# Trigger a sync and confirm UI responds
+- tapOn: "Force Sync"
+- assertVisible: "Syncing..."
+
+# Allow up to 10 s for sync to complete
+- waitForAnimationToEnd:
+    timeout: 10000
