@@ -144,6 +144,25 @@ Rules:
 - The directive is stripped from the response before the user sees it
 - You don't need to tell the user you're saving a memory
 
+## System Verification
+
+When asked to "verify", "check everything", "run a health check", or similar:
+
+1. Call `GET https://velum-five.vercel.app/api/health`
+2. Parse the `checks` object and `summary` field
+3. Report back to the user with the results — which pipelines are up, any failures, and current data snapshot (e.g. "Fitness: 3 entries this week")
+
+Example response format:
+> **System check complete:**
+> ✅ Nutrition — 2 entries today, 640 kcal logged
+> ✅ Fitness — 4 entries this week
+> ✅ Budget — €45 spent, €155 remaining
+> ✅ Fity webhook ready
+> ✅ Budgy webhook ready
+> Everything is operational.
+
+If any check fails, say which one and what the error was.
+
 ## Integration Notes
 
 This skill handles the "misc" bucket — anything practical that doesn't fit nutrition or coaching. When in doubt about which skill applies, this one is the fallback.

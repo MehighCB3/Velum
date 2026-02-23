@@ -35,6 +35,12 @@
         "skills": ["spanish"],
         "triggers": ["spanish", "espanol", "vocab", "flashcard", "conjugat", "subjunctive", "practice spanish"],
         "description": "Spanish tutor — spaced repetition, exercises, grammar drills"
+      },
+      {
+        "id": "budgy",
+        "skills": ["budget"],
+        "triggers": ["spent", "expense", "cost", "paid", "pay", "buy", "bought", "purchase", "€", "euro", "budget", "money", "cash", "bill", "invoice", "receipt"],
+        "description": "Budget tracker — logs expenses by category, tracks weekly spending"
       }
     ],
     "routing": {
@@ -88,7 +94,7 @@
     "enabled": true,
     "token": "${OPENCLAW_HOOKS_TOKEN}",
     "path": "/hooks",
-    "allowedAgentIds": ["main", "nutry", "booky", "espanol"],
+    "allowedAgentIds": ["main", "nutry", "booky", "espanol", "budgy"],
     "defaultSessionKey": "hook:ingress"
   },
 
@@ -110,6 +116,7 @@
       "nutritionPhoto": "/api/nutrition/photo",
       "fitness": "/api/fitness",
       "fitnessWebhook": "/api/fitness/webhook",
+      "nutritionWebhook": "/api/nutrition/webhook",
       "budget": "/api/budget",
       "budgetWebhook": "/api/budget/webhook",
       "budgetSummary": "/api/budget/summary",
