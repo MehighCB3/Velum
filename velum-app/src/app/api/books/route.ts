@@ -119,9 +119,7 @@ interface FlashCard {
   total: number
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractRichText(richText: any[] = []): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return richText.map((r: any) => r.plain_text || '').join('')
 }
 
@@ -142,9 +140,7 @@ async function fetchFlashCard(index: number): Promise<FlashCard> {
       })
 
       if (dbRes.ok) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dbData: any = await dbRes.json()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const pages: any[] = dbData.results || []
 
         if (pages.length > 0) {
@@ -167,9 +163,7 @@ async function fetchFlashCard(index: number): Promise<FlashCard> {
           )
 
           if (blocksRes.ok) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const blocksData: any = await blocksRes.json()
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const blocks: any[] = blocksData.results || []
 
             const quotes = blocks

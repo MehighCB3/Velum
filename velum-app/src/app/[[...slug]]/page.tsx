@@ -2331,7 +2331,7 @@ function BudgetView() {
                       <p className="text-xs text-stone-400">
                         {entry.category}
                         {entry.reason && (
-                          <span className="ml-1 text-stone-500 italic">— "{entry.reason}"</span>
+                          <span className="ml-1 text-stone-500 italic">— &ldquo;{entry.reason}&rdquo;</span>
                         )}
                       </p>
                     </div>

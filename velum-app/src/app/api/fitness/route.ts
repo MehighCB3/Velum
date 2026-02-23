@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
     // If range is specified, return multiple weeks of data
     if (rangeParam) {
       const days = parseInt(rangeParam) || 7
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allEntries: any[] = []
       const now = new Date()
 

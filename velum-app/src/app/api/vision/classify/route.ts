@@ -105,7 +105,6 @@ export async function POST(request: NextRequest) {
     const raw = data.choices?.[0]?.message?.content || ''
     const clean = raw.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: any = JSON.parse(clean)
 
     // Sanitize numeric fields to avoid NaN/string issues on mobile
