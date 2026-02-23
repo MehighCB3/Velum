@@ -1,6 +1,6 @@
 {
   "name": "velum-mobile",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -42,7 +42,7 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
-    "react-native-volume-manager": "^5.0.0",
+    "react-native-volume-manager": "^2.0.0",
     "react-native-worklets": "^0.5.1"
   },
   "devDependencies": {

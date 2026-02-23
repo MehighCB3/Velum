@@ -199,7 +199,6 @@ export function SmartScanModal({ visible, onClose }: Props) {
           carbs:    Number(carbs)    || 0,
           fat:      Number(fat)      || 0,
           time,
-          date:     today,
           photoUrl: photoUri ?? undefined,
         })
 
@@ -251,6 +250,9 @@ export function SmartScanModal({ visible, onClose }: Props) {
     result?.confidence === 'high'   ? colors.success
     : result?.confidence === 'medium' ? colors.warning
     : colors.error
+
+  // Capture before JSX so narrowing inside scanState === 'result' blocks doesn't break this
+  const isSaving = scanState === 'saving'
 
   // ==================== RENDER ====================
 
@@ -389,11 +391,11 @@ export function SmartScanModal({ visible, onClose }: Props) {
                   <Text style={s.cancelText}>Cancel</Text>
                 </Pressable>
                 <Pressable
-                  style={[s.confirmBtn, scanState === 'saving' && s.confirmDisabled]}
+                  style={[s.confirmBtn, isSaving && s.confirmDisabled]}
                   onPress={handleConfirm}
-                  disabled={scanState === 'saving'}
+                  disabled={isSaving}
                 >
-                  {scanState === 'saving' ? (
+                  {isSaving ? (
                     <ActivityIndicator size="small" color={colors.darkText} />
                   ) : (
                     <Text style={s.confirmText}>Log It</Text>

@@ -349,7 +349,7 @@ export default function ProfileScreen() {
             <Ionicons name="sync-outline" size={18} color={colors.accent} />
             <Text style={styles.settingsLabel}>Force Sync</Text>
             <Text style={styles.settingsHint}>
-              {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'synced' ? 'Synced' : 'Tap to sync'}
+              {syncStatus.isSyncing ? 'Syncing...' : syncStatus.lastSynced ? 'Synced' : 'Tap to sync'}
             </Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
           </Pressable>

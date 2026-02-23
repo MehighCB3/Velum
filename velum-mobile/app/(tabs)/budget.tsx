@@ -145,7 +145,7 @@ function MonthComparisonCard({
             const barH = maxSpent > 0 ? (w.totalSpent / maxSpent) * BAR_MAX_HEIGHT : 0;
             const isOver = w.totalSpent > budget;
 
-            let barColor = colors.text; // past, under budget
+            let barColor: string = colors.text; // past, under budget
             if (w.isFuture) barColor = colors.border;
             else if (w.isCurrent) barColor = colors.accent;
             if (isOver && !w.isFuture) barColor = colors.error;
