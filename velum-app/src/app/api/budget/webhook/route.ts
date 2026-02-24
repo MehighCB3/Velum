@@ -125,8 +125,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log('Budget webhook received:', messageText, 'Topic:', topicName)
-    
     // Parse the expense
     const parsed = parseExpenseMessage(messageText)
     if (!parsed) {
