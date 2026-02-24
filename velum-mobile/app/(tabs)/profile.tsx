@@ -351,6 +351,18 @@ export default function ProfileScreen() {
         <Card style={styles.settingsList}>
           <Pressable
             style={styles.settingsRow}
+            onPress={() => router.push('/avatar')}
+          >
+            <Ionicons name="sparkles-outline" size={18} color={colors.purple} />
+            <Text style={styles.settingsLabel}>Coach</Text>
+            <Text style={styles.settingsHint}>AI avatar & insights</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+          </Pressable>
+
+          <View style={styles.settingsDivider} />
+
+          <Pressable
+            style={styles.settingsRow}
             onPress={() => router.push('/goals')}
           >
             <Ionicons name="trophy-outline" size={18} color={colors.warning} />

@@ -91,6 +91,7 @@ export default function TabLayout() {
         }}
       />
       {/* Hidden tabs — accessible via navigation but not in tab bar */}
+      <Tabs.Screen name="avatar" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="goals" options={{ href: null, headerShown: true, headerTitle: 'Goals' }} />
       <Tabs.Screen name="feed" options={{ href: null, headerShown: true, headerTitle: 'Feed' }} />
       <Tabs.Screen name="learn" options={{ href: null, headerShown: false }} />
