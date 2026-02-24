@@ -10,17 +10,33 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
+  Image,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { format } from 'date-fns';
 import { colors } from '../../src/theme/colors';
 import { spacing, SCREEN_WIDTH } from '../../src/theme/spacing';
 import { useAvatar } from '../../src/hooks/useAvatar';
 import { AvatarSVG } from '../../src/components/AvatarSVG';
 import { Card, DarkCard, SectionHeader } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
-import { chatApi } from '../../src/api/client';
+import { chatApi, nutritionApi } from '../../src/api/client';
+import { API_BASE } from '../../src/api/config';
 import { HealthSnapshot } from '../../src/types';
+
+// ==================== AGENT ROUTING ====================
+
+const NUTRITION_RE = /eat|ate|food|meal|calorie|protein|carb|fat|breakfast|lunch|dinner|snack|cook|recipe|hungry|diet|macro|pizza|chicken|rice|egg|salad|fruit/i;
+const BUDGET_RE = /spent|expense|cost|paid|pay|buy|bought|€|euro|budget|money|cash|bill|invoice|price/i;
+
+function detectAgent(message: string): 'main' | 'nutry' | 'budgy' {
+  if (NUTRITION_RE.test(message)) return 'nutry';
+  if (BUDGET_RE.test(message)) return 'budgy';
+  return 'main';
+}
 
 // ==================== METRIC HELPERS ====================
 
@@ -205,11 +221,25 @@ const ringStyles = StyleSheet.create({
   },
 });
 
+// ==================== FOOD SCAN RESULT ====================
+
+interface ScanResult {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  serving: string;
+  confidence: 'high' | 'medium' | 'low';
+  note?: string;
+}
+
 // ==================== CHAT MESSAGE ====================
 
 interface ChatMsg {
   role: 'user' | 'assistant';
   content: string;
+  photoUri?: string;
 }
 
 // ==================== SCREEN ====================
@@ -220,7 +250,29 @@ export default function AvatarScreen() {
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Load chat history on mount
+  useEffect(() => {
+    if (historyLoaded) return;
+    (async () => {
+      try {
+        const history = await chatApi.getHistory('main', 30);
+        if (history.length > 0) {
+          setChatMessages(
+            history
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .map((m) => ({ role: m.role, content: m.content })),
+          );
+        }
+      } catch {
+        // Silently fail — just show empty chat
+      } finally {
+        setHistoryLoaded(true);
+      }
+    })();
+  }, [historyLoaded]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -228,6 +280,80 @@ export default function AvatarScreen() {
     setRefreshing(false);
   }, [refresh]);
 
+  // ===== Camera scan =====
+  const handleScanFood = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Camera permission required', 'Please allow camera access in Settings to scan food.');
+      return;
+    }
+
+    const picked = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 0.6,
+      allowsEditing: false,
+    });
+
+    if (picked.canceled || !picked.assets?.[0]?.base64) return;
+
+    const asset = picked.assets[0];
+
+    // Show photo in chat as user message
+    setChatMessages(prev => [...prev, { role: 'user', content: 'Scanning food...', photoUri: asset.uri }]);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/nutrition/photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: asset.base64,
+          mimeType: asset.mimeType || 'image/jpeg',
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        let errMsg = `Server error (${res.status})`;
+        try { const j = JSON.parse(errBody); if (j.error) errMsg = j.error; } catch { /* not JSON */ }
+        throw new Error(errMsg);
+      }
+
+      const json = await res.json();
+      const result = json.result as ScanResult | undefined;
+
+      if (!result) throw new Error(json.error || 'No result from AI');
+
+      // Log the meal automatically
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const time = format(new Date(), 'HH:mm');
+      await nutritionApi.addEntry(today, {
+        id: `${Date.now()}`,
+        name: result.name,
+        calories: result.calories,
+        protein: result.protein,
+        carbs: result.carbs,
+        fat: result.fat,
+        time,
+        photoUrl: asset.uri,
+      });
+
+      // Show result in chat
+      const summary = `Logged: ${result.name}\n${result.calories} kcal | ${result.protein}g P | ${result.carbs}g C | ${result.fat}g F`;
+      setChatMessages(prev => [...prev, { role: 'assistant', content: summary }]);
+
+      // Refresh avatar to update health snapshot
+      refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to analyze photo';
+      setChatMessages(prev => [...prev, { role: 'assistant', content: `Scan failed: ${msg}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [refresh]);
+
+  // ===== Send message with smart routing =====
   const sendMessage = useCallback(async () => {
     const msg = chatInput.trim();
     if (!msg || chatLoading) return;
@@ -239,13 +365,19 @@ export default function AvatarScreen() {
     try {
       // Build health context for the coach
       const healthSummary = avatar?.health
-        ? `Weight: ${avatar.health.weight || '?'}kg, VO2: ${avatar.health.vo2max || '?'}, HRV: ${avatar.health.hrv || '?'}, Sleep: ${avatar.health.sleepHours || '?'}h, Steps: ${avatar.health.stepsToday || 0}/${avatar.health.stepsGoal}, Calories: ${avatar.health.caloriesToday || 0}/${avatar.health.caloriesGoal}`
+        ? `Weight: ${avatar.health.weight || '?'}kg, VO2: ${avatar.health.vo2max || '?'}, HRV: ${avatar.health.hrv || '?'}, Sleep: ${avatar.health.sleepHours || '?'}h, Steps: ${avatar.health.stepsToday || 0}/${avatar.health.stepsGoal}, Calories: ${avatar.health.caloriesToday || 0}/${avatar.health.caloriesGoal}, Budget: €${avatar.health.budgetSpent ?? '?'}/€${avatar.health.budgetTotal}`
         : '';
 
+      const agent = detectAgent(msg);
       const context = `[Avatar screen — bond level ${avatar?.bond.level || 1}] ${healthSummary}`;
-      const response = await chatApi.send(msg, { context, agent: 'main' });
+      const response = await chatApi.send(msg, { context, agent });
 
       setChatMessages(prev => [...prev, { role: 'assistant', content: response.content }]);
+
+      // Refresh avatar data after a data-writing message
+      if (agent !== 'main') {
+        setTimeout(() => refresh(), 2000);
+      }
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -254,7 +386,7 @@ export default function AvatarScreen() {
     } finally {
       setChatLoading(false);
     }
-  }, [chatInput, chatLoading, avatar]);
+  }, [chatInput, chatLoading, avatar, refresh]);
 
   // Auto-scroll to bottom when new chat messages arrive
   useEffect(() => {
@@ -350,9 +482,12 @@ export default function AvatarScreen() {
         {/* ===== Chat ===== */}
         <SectionHeader title="Ask Your Coach" />
         <Card style={styles.chatCard}>
-          {chatMessages.length === 0 && (
+          {chatMessages.length === 0 && !historyLoaded && (
+            <ActivityIndicator size="small" color={colors.accent} style={{ paddingVertical: 16 }} />
+          )}
+          {chatMessages.length === 0 && historyLoaded && (
             <Text style={styles.chatPlaceholder}>
-              Ask about your data, goals, or anything on your mind.
+              Ask about your data, goals, or snap a food photo to log a meal.
             </Text>
           )}
           {chatMessages.map((msg, i) => (
@@ -363,6 +498,13 @@ export default function AvatarScreen() {
                 msg.role === 'user' ? styles.userBubble : styles.assistantBubble,
               ]}
             >
+              {msg.photoUri && (
+                <Image
+                  source={{ uri: msg.photoUri }}
+                  style={styles.chatPhoto}
+                  resizeMode="cover"
+                />
+              )}
               <Text
                 style={[
                   styles.chatText,
@@ -385,6 +527,13 @@ export default function AvatarScreen() {
 
       {/* ===== Chat Input ===== */}
       <View style={styles.inputBar}>
+        <Pressable
+          onPress={handleScanFood}
+          style={[styles.cameraButton, chatLoading && styles.sendDisabled]}
+          disabled={chatLoading}
+        >
+          <Ionicons name="camera" size={22} color={colors.accent} />
+        </Pressable>
         <TextInput
           style={styles.textInput}
           value={chatInput}
@@ -545,6 +694,12 @@ const styles = StyleSheet.create({
   assistantText: {
     color: colors.text,
   },
+  chatPhoto: {
+    width: 180,
+    height: 120,
+    borderRadius: 10,
+    marginBottom: 6,
+  },
 
   // Input bar
   inputBar: {
@@ -556,7 +711,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    gap: 10,
+    gap: 8,
+  },
+  cameraButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textInput: {
     flex: 1,

@@ -301,6 +301,14 @@ export interface ChatResponse {
   memoriesSaved?: number;
 }
 
+export interface ChatHistoryMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  source: string;
+}
+
 export const chatApi = {
   /** Send a message to the OpenClaw gateway.
    *  @param agent  One of 'main' | 'nutry' | 'booky' | 'espanol' | 'budgy'.
@@ -314,6 +322,16 @@ export const chatApi = {
       method: 'POST',
       body: JSON.stringify({ message, ...opts }),
     });
+  },
+
+  async getHistory(
+    sessionKey = 'main',
+    limit = 30,
+  ): Promise<ChatHistoryMessage[]> {
+    const data = await request<{ messages: ChatHistoryMessage[] }>(
+      `/chat/history?sessionKey=${sessionKey}&limit=${limit}`,
+    );
+    return data.messages || [];
   },
 };
 
