@@ -1,17 +1,21 @@
-// Velum v2 design system — warm palette from redesign spec
-// Reference: VELUM-V2-SPEC.md + velum-redesign.jsx
+// Velum v3 design system — warm palette from redesign spec
+// Reference: VELUM-V3-SPEC.md + velum-redesign.jsx
 
 export const colors = {
-  // Core v2 palette
+  // Core v3 palette
   bg: '#faf8f5',
   card: '#ffffff',
   sidebar: '#faf8f5',
   hover: '#f5f3ef',
   border: '#f0ece6',
   borderSubtle: '#f5f3ef',
+  subtle: '#f5f3ef',
   text: '#2d2a26',
   textLight: '#b5b0a8',
   textMuted: '#a09b93',
+  muted: '#b5b0a8',
+  dimmed: '#a09b93',
+  faint: '#706b63',
   accent: '#c4956a',
 
   // Dark surfaces (hero cards)

@@ -9,17 +9,9 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
-import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
-import { AgentInsightCard } from '../../src/components/AgentInsightCard';
-import { useInsights } from '../../src/hooks/useInsights';
-import { booksApi, bookmarksApi, XBookmark } from '../../src/api/client';
-import { DailyWisdom, BookPrinciple } from '../../src/types';
-
-type TopTab = 'bookmarks' | 'knowledge';
-
-// ==================== HELPERS ====================
+import { Card } from '../../src/components/Card';
+import { bookmarksApi, XBookmark } from '../../src/api/client';
 
 function timeAgo(dateStr: string): string {
   if (!dateStr) return '';
@@ -37,481 +29,48 @@ function timeAgo(dateStr: string): string {
   return `${weeks}w ago`;
 }
 
-// Day-seeded shuffle — same order all day, rotates tomorrow
-function seededShuffle<T>(arr: T[], seed: number): T[] {
-  const a = [...arr];
-  let s = seed;
-  for (let i = a.length - 1; i > 0; i--) {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    const j = Math.abs(s) % (i + 1);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// ==================== X BOOKMARKS ====================
-
-function BookmarksView({ onRefreshDone }: { onRefreshDone?: () => void }) {
-  const [bookmarks, setBookmarks] = useState<XBookmark[]>([]);
-  const [total, setTotal] = useState(0);
-  const [active, setActive] = useState(0);
+export default function FeedScreen() {
+  const [items, setItems] = useState<XBookmark[]>([]);
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchBookmarks = useCallback(async () => {
+  const fetchItems = useCallback(async () => {
     try {
       const data = await bookmarksApi.getAll({ limit: 100 });
-      setBookmarks(data.bookmarks);
-      setTotal(data.total);
-      setActive(data.active);
-    } catch {
-      // silently fail — empty state will show
-    } finally {
+      setItems(data.bookmarks);
+    } catch { /* silently fail */ }
+    finally {
       setLoading(false);
-      onRefreshDone?.();
-    }
-  }, [onRefreshDone]);
-
-  useEffect(() => {
-    fetchBookmarks();
-  }, [fetchBookmarks]);
-
-  const handleDismiss = useCallback(async (tweetId: string) => {
-    // Optimistic UI update
-    setBookmarks((prev) => prev.filter((b) => b.tweet_id !== tweetId));
-    setActive((prev) => prev - 1);
-    try {
-      await bookmarksApi.dismiss(tweetId);
-    } catch {
-      // revert on error
-      fetchBookmarks();
-    }
-  }, [fetchBookmarks]);
-
-  if (loading) {
-    return (
-      <View style={bkStyles.loadingContainer}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
-  }
-
-  if (bookmarks.length === 0) {
-    return (
-      <View>
-        <DarkCard style={bkStyles.heroCard}>
-          <View style={bkStyles.heroRow}>
-            <View style={bkStyles.heroStat}>
-              <Text style={bkStyles.heroNumber}>{total}</Text>
-              <Text style={bkStyles.heroLabel}>Total</Text>
-            </View>
-            <View style={[bkStyles.heroStat, bkStyles.heroStatCenter]}>
-              <Text style={bkStyles.heroNumber}>{active}</Text>
-              <Text style={bkStyles.heroLabel}>Unread</Text>
-            </View>
-            <View style={bkStyles.heroStat}>
-              <Text style={[bkStyles.heroNumber, { color: colors.success }]}>
-                {total - active}
-              </Text>
-              <Text style={bkStyles.heroLabel}>Read</Text>
-            </View>
-          </View>
-        </DarkCard>
-
-        <EmptyState
-          icon="📚"
-          title="No bookmarks yet"
-          subtitle={'Run the sync script to import\nyour X bookmarks'}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      {/* Hero stats */}
-      <DarkCard style={bkStyles.heroCard}>
-        <View style={bkStyles.heroRow}>
-          <View style={bkStyles.heroStat}>
-            <Text style={bkStyles.heroNumber}>{total}</Text>
-            <Text style={bkStyles.heroLabel}>Total</Text>
-          </View>
-          <View style={[bkStyles.heroStat, bkStyles.heroStatCenter]}>
-            <Text style={[bkStyles.heroNumber, { color: colors.accent }]}>{active}</Text>
-            <Text style={bkStyles.heroLabel}>Unread</Text>
-          </View>
-          <View style={bkStyles.heroStat}>
-            <Text style={[bkStyles.heroNumber, { color: colors.success }]}>
-              {total - active}
-            </Text>
-            <Text style={bkStyles.heroLabel}>Read</Text>
-          </View>
-        </View>
-      </DarkCard>
-
-      {/* Bookmarks list — flat card */}
-      <Card style={bkStyles.listCard}>
-        {bookmarks.map((bk, idx) => (
-          <Pressable
-            key={bk.tweet_id}
-            style={[
-              bkStyles.bookmarkRow,
-              idx < bookmarks.length - 1 && bkStyles.bookmarkRowBorder,
-            ]}
-            onPress={() => bk.url && Linking.openURL(bk.url)}
-          >
-            {/* X icon */}
-            <View style={bkStyles.xIcon}>
-              <Text style={bkStyles.xIconText}>{'\u{1D54F}'}</Text>
-            </View>
-
-            {/* Content */}
-            <View style={bkStyles.bookmarkContent}>
-              <View style={bkStyles.bookmarkHeader}>
-                <Text style={bkStyles.authorHandle}>{bk.author_handle}</Text>
-                <Text style={bkStyles.bookmarkTime}>
-                  {timeAgo(bk.bookmarked_at)}
-                </Text>
-              </View>
-              <Text style={bkStyles.bookmarkText} numberOfLines={3}>
-                {bk.text}
-              </Text>
-              {bk.tags.length > 0 && (
-                <View style={bkStyles.tagRow}>
-                  {bk.tags.map((tag) => (
-                    <View key={tag} style={bkStyles.tag}>
-                      <Text style={bkStyles.tagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* Dismiss button */}
-            <Pressable
-              style={bkStyles.dismissBtn}
-              onPress={(e) => {
-                e.stopPropagation();
-                handleDismiss(bk.tweet_id);
-              }}
-              hitSlop={8}
-            >
-              <Ionicons name="close" size={16} color={colors.textLight} />
-            </Pressable>
-          </Pressable>
-        ))}
-      </Card>
-    </View>
-  );
-}
-
-const bkStyles = StyleSheet.create({
-  loadingContainer: { alignItems: 'center', paddingTop: 40 },
-
-  // Hero
-  heroCard: { padding: 16, marginBottom: 10 },
-  heroRow: { flexDirection: 'row', alignItems: 'center' },
-  heroStat: { flex: 1, alignItems: 'center' },
-  heroStatCenter: {
-    borderLeftWidth: 1, borderRightWidth: 1,
-    borderLeftColor: colors.darkInner, borderRightColor: colors.darkInner,
-  },
-  heroNumber: { fontSize: 24, fontWeight: '700', color: colors.darkText },
-  heroLabel: { fontSize: 10, color: colors.darkTextMuted, marginTop: 2, letterSpacing: 0.3 },
-
-  // List
-  listCard: { padding: 0, overflow: 'hidden' },
-  bookmarkRow: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 12,
-  },
-  bookmarkRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
-
-  xIcon: {
-    width: 24, height: 24, borderRadius: 6, backgroundColor: '#1a1a1a',
-    alignItems: 'center', justifyContent: 'center', marginTop: 2,
-  },
-  xIconText: { fontSize: 11, color: '#ffffff', fontWeight: '700' },
-
-  bookmarkContent: { flex: 1 },
-  bookmarkHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 4,
-  },
-  authorHandle: { fontSize: 12, fontWeight: '600', color: colors.text },
-  bookmarkTime: { fontSize: 10, color: colors.textLight },
-  bookmarkText: { fontSize: 13, color: colors.text, lineHeight: 19 },
-
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
-  tag: {
-    backgroundColor: colors.hover, paddingHorizontal: 7, paddingVertical: 2,
-    borderRadius: 4,
-  },
-  tagText: { fontSize: 10, fontWeight: '500', color: colors.textLight },
-
-  dismissBtn: { paddingTop: 2 },
-});
-
-// ==================== BOOKS / KNOWLEDGE ====================
-
-function KnowledgeView() {
-  const [wisdom, setWisdom] = useState<DailyWisdom | null>(null);
-  const [allPrinciples, setAllPrinciples] = useState<BookPrinciple[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeDomain, setActiveDomain] = useState<string | null>(null);
-  const [queue, setQueue] = useState<XBookmark[]>([]);
-  const { insights: knowledgeInsights } = useInsights('knowledge');
-
-  const fetchWisdom = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [daily, princData] = await Promise.all([
-        booksApi.getDaily(),
-        booksApi.getPrinciples(),
-      ]);
-      setWisdom(daily);
-      setAllPrinciples(princData.principles || []);
-    } catch {
-      // silently fail
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch bookmarks for the reading queue
-  useEffect(() => {
-    const daySeed = Math.floor(Date.now() / 86400000);
-
-    bookmarksApi.getAll({ limit: 50 }).then((data) => {
-      const items = data.bookmarks.filter((b) => !b.dismissed);
-      setQueue(seededShuffle(items, daySeed).slice(0, 6));
-    }).catch(() => {
-      // silently fail
-    });
-  }, []);
-
-  const handleDismiss = useCallback(async (tweetId: string) => {
-    setQueue((prev) => prev.filter((b) => b.tweet_id !== tweetId));
-    try { await bookmarksApi.dismiss(tweetId); } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => {
-    fetchWisdom();
-  }, [fetchWisdom]);
-
-  if (loading) {
-    return (
-      <View style={kStyles.loadingContainer}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
-  }
-
-  if (!wisdom) {
-    return <EmptyState icon="📖" title="No wisdom today" subtitle="Pull to refresh" />;
-  }
-
-  const filteredPrinciples = activeDomain
-    ? allPrinciples.filter((p) => p.domain === activeDomain)
-    : allPrinciples.filter((p) => p.domain === wisdom.currentDomain);
-
-  return (
-    <View>
-      {/* Domain Hero */}
-      <DarkCard style={kStyles.heroCard}>
-        <Text style={kStyles.heroLabel}>
-          Week {wisdom.domainIndex} of {wisdom.totalDomains}
-        </Text>
-        <Text style={kStyles.heroDomain}>{wisdom.currentDomain}</Text>
-        <Text style={kStyles.heroInsight}>{wisdom.contextInsight}</Text>
-      </DarkCard>
-
-      {/* Daily Principle */}
-      {wisdom.weekPrinciple && (
-        <Card style={kStyles.principleCard}>
-          <View style={kStyles.principleHeader}>
-            <Ionicons name="bulb-outline" size={16} color={colors.accent} />
-            <Text style={kStyles.principleLabel}>Today's Principle</Text>
-          </View>
-          <Text style={kStyles.principleTitle}>{wisdom.weekPrinciple.title}</Text>
-          <Text style={kStyles.principleText}>{wisdom.weekPrinciple.principle}</Text>
-          <Text style={kStyles.principleSource}>{wisdom.weekPrinciple.source}</Text>
-          <View style={kStyles.actionPromptBox}>
-            <Ionicons name="arrow-forward-circle-outline" size={14} color={colors.accent} />
-            <Text style={kStyles.actionPromptText}>{wisdom.weekPrinciple.actionPrompt}</Text>
-          </View>
-        </Card>
-      )}
-
-      {/* Daily Quote */}
-      {wisdom.rawCapture && (
-        <Card style={kStyles.quoteCard}>
-          <Text style={kStyles.quoteText}>{wisdom.rawCapture.text}</Text>
-          <Text style={kStyles.quoteSource}>-- {wisdom.rawCapture.source}</Text>
-        </Card>
-      )}
-
-      {/* Agent Insights */}
-      {knowledgeInsights.map((ai) => (
-        <AgentInsightCard key={ai.agentId} insight={ai} />
-      ))}
-
-      {/* Reading Queue */}
-      {queue.length > 0 && (
-        <>
-          <SectionHeader title={`Your Queue · ${queue.length}`} />
-          {queue.map((bk) => (
-            <Card key={bk.tweet_id} style={kStyles.queueCard}>
-              <View style={kStyles.queueRow}>
-                <View style={kStyles.queueContent}>
-                  <Text style={kStyles.queueAuthor}>{bk.author_handle}</Text>
-                  <Text style={kStyles.queueText} numberOfLines={3}>{bk.text}</Text>
-                </View>
-                <Pressable onPress={() => handleDismiss(bk.tweet_id)} hitSlop={8}>
-                  <Ionicons name="close" size={14} color={colors.textLight} />
-                </Pressable>
-              </View>
-            </Card>
-          ))}
-        </>
-      )}
-
-      {/* Domain Explorer */}
-      <SectionHeader title="Explore Domains" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={kStyles.domainScroll}>
-        <View style={kStyles.domainRow}>
-          {wisdom.allDomains.map((domain) => (
-            <Pressable
-              key={domain}
-              style={[
-                kStyles.domainPill,
-                (activeDomain === domain || (!activeDomain && domain === wisdom.currentDomain)) && kStyles.domainPillActive,
-              ]}
-              onPress={() => setActiveDomain(domain === activeDomain ? null : domain)}
-            >
-              <Text
-                style={[
-                  kStyles.domainPillText,
-                  (activeDomain === domain || (!activeDomain && domain === wisdom.currentDomain)) && kStyles.domainPillTextActive,
-                ]}
-              >
-                {domain}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Principles for selected/current domain */}
-      {filteredPrinciples.map((principle) => (
-        <Card key={principle.id} style={kStyles.smallPrincipleCard}>
-          <Text style={kStyles.smallPrincipleTitle}>{principle.title}</Text>
-          <Text style={kStyles.smallPrincipleText} numberOfLines={3}>
-            {principle.principle}
-          </Text>
-          <Text style={kStyles.smallPrincipleSource}>{principle.source}</Text>
-        </Card>
-      ))}
-
-      {filteredPrinciples.length === 0 && (
-        <EmptyState
-          icon="📚"
-          title="No principles"
-          subtitle={`No principles found for ${activeDomain || wisdom.currentDomain}`}
-        />
-      )}
-    </View>
-  );
-}
-
-const kStyles = StyleSheet.create({
-  loadingContainer: { alignItems: 'center', paddingTop: 40 },
-  heroCard: { marginBottom: 12, paddingVertical: 20 },
-  heroLabel: { fontSize: 11, color: colors.darkTextSecondary, textTransform: 'uppercase', letterSpacing: 0.8 },
-  heroDomain: { fontSize: 24, fontWeight: '800', color: colors.darkText, marginTop: 4 },
-  heroInsight: { fontSize: 13, color: colors.darkTextSecondary, marginTop: 8, lineHeight: 20 },
-  principleCard: { marginBottom: 12, padding: 16 },
-  principleHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  principleLabel: { fontSize: 11, fontWeight: '600', color: colors.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
-  principleTitle: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 8 },
-  principleText: { fontSize: 14, color: colors.text, lineHeight: 22 },
-  principleSource: { fontSize: 12, color: colors.textLight, marginTop: 8, fontStyle: 'italic' },
-  actionPromptBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    marginTop: 12, padding: 12, backgroundColor: colors.accent + '10', borderRadius: 8,
-  },
-  actionPromptText: { fontSize: 13, color: colors.accent, flex: 1, lineHeight: 20, fontWeight: '500' },
-  quoteCard: { marginBottom: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: colors.accent },
-  quoteText: { fontSize: 15, color: colors.text, fontStyle: 'italic', lineHeight: 24 },
-  quoteSource: { fontSize: 12, color: colors.textLight, marginTop: 8 },
-  queueCard: { marginBottom: 8, padding: 14 },
-  queueRow: { flexDirection: 'row', gap: 8 },
-  queueContent: { flex: 1 },
-  queueAuthor: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 4 },
-  queueText: { fontSize: 13, color: colors.textLight, lineHeight: 19 },
-  domainScroll: { marginBottom: 12 },
-  domainRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
-  domainPill: {
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16,
-    backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
-  },
-  domainPillActive: { backgroundColor: colors.dark, borderColor: colors.dark },
-  domainPillText: { fontSize: 12, fontWeight: '600', color: colors.textLight },
-  domainPillTextActive: { color: colors.darkText },
-  smallPrincipleCard: { marginBottom: 8, padding: 14 },
-  smallPrincipleTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  smallPrincipleText: { fontSize: 13, color: colors.textLight, lineHeight: 20 },
-  smallPrincipleSource: { fontSize: 11, color: colors.textLight, marginTop: 6, fontStyle: 'italic' },
-});
-
-// ==================== MAIN SCREEN ====================
-
-export default function FeedScreen() {
-  const [activeTab, setActiveTab] = useState<TopTab>('knowledge');
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    setRefreshKey((k) => k + 1);
-    // Knowledge tab refresh handled by remount; bookmarks by onRefreshDone
-    if (activeTab === 'knowledge') {
-      await new Promise((r) => setTimeout(r, 800));
       setRefreshing(false);
     }
-  }, [activeTab]);
+  }, []);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchItems();
+  }, [fetchItems]);
+
+  const toggleSave = useCallback((id: string) => {
+    setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const savedCount = Object.values(saved).filter(Boolean).length;
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Top tabs */}
-      <View style={styles.tabBar}>
-        <Pressable
-          style={[styles.tabBtn, activeTab === 'knowledge' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('knowledge')}
-        >
-          <Ionicons
-            name="book-outline"
-            size={15}
-            color={activeTab === 'knowledge' ? colors.darkText : colors.textLight}
-          />
-          <Text style={[styles.tabBtnText, activeTab === 'knowledge' && styles.tabBtnTextActive]}>
-            Knowledge
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabBtn, activeTab === 'bookmarks' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('bookmarks')}
-        >
-          <Ionicons
-            name="bookmark-outline"
-            size={15}
-            color={activeTab === 'bookmarks' ? colors.darkText : colors.textLight}
-          />
-          <Text style={[styles.tabBtnText, activeTab === 'bookmarks' && styles.tabBtnTextActive]}>
-            Bookmarks
-          </Text>
-        </Pressable>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -519,39 +78,163 @@ export default function FeedScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
         }
       >
-        {activeTab === 'knowledge' ? (
-          <KnowledgeView key={`k-${refreshKey}`} />
-        ) : (
-          <BookmarksView
-            key={`b-${refreshKey}`}
-            onRefreshDone={() => setRefreshing(false)}
-          />
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Feed</Text>
+          {savedCount > 0 && (
+            <Text style={styles.savedCount}>{savedCount} saved</Text>
+          )}
+        </View>
+        <Text style={styles.subtitle}>{items.length} items</Text>
+
+        {/* Feed cards */}
+        {items.map((it) => {
+          const isSaved = saved[it.tweet_id];
+          const isX = !it.tags?.includes('mymind');
+
+          return (
+            <Card key={it.tweet_id} style={styles.feedCard}>
+              {/* Header row */}
+              <View style={styles.cardHeader}>
+                <View style={styles.sourceRow}>
+                  {isX ? (
+                    <View style={styles.xIcon}>
+                      <Text style={styles.xIconText}>{'\u{1D54F}'}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.mmIcon}>
+                      <Text style={styles.mmIconText}>m</Text>
+                    </View>
+                  )}
+                  <Text style={styles.authorName}>
+                    {it.author_handle || 'mymind'}
+                  </Text>
+                  <Text style={styles.timestamp}>{timeAgo(it.bookmarked_at)}</Text>
+                </View>
+
+                {/* Bookmark toggle */}
+                <Pressable
+                  onPress={() => toggleSave(it.tweet_id)}
+                  style={[
+                    styles.bookmarkBtn,
+                    isSaved && styles.bookmarkBtnSaved,
+                  ]}
+                  hitSlop={8}
+                >
+                  <Text
+                    style={[
+                      styles.bookmarkStar,
+                      { color: isSaved ? colors.accent : colors.muted },
+                    ]}
+                  >
+                    {isSaved ? '★' : '☆'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Content */}
+              <Pressable onPress={() => it.url && Linking.openURL(it.url)}>
+                <Text style={styles.cardText} numberOfLines={4}>
+                  {it.text}
+                </Text>
+              </Pressable>
+
+              {/* Tags */}
+              {it.tags && it.tags.length > 0 && (
+                <View style={styles.tagRow}>
+                  {it.tags.map((tag) => (
+                    <View key={tag} style={styles.tag}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </Card>
+          );
+        })}
+
+        {items.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📰</Text>
+            <Text style={styles.emptyTitle}>No feed items yet</Text>
+            <Text style={styles.emptySubtitle}>Pull to refresh</Text>
+          </View>
         )}
-        <View style={{ height: 40 }} />
+
+        <View style={{ height: 60 }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.sidebar },
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { justifyContent: 'center', alignItems: 'center' },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
-  tabBar: {
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12 },
+
+  header: {
     flexDirection: 'row',
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  tabBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 8,
-    borderRadius: 20, backgroundColor: colors.sidebar, gap: 6,
+  title: { fontSize: 18, fontWeight: '700', color: colors.text },
+  savedCount: { fontSize: 11, color: colors.accent, fontWeight: '600' },
+  subtitle: { fontSize: 12, color: colors.muted, marginBottom: 20 },
+
+  feedCard: { marginBottom: 8, padding: 14 },
+
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
   },
-  tabBtnActive: { backgroundColor: colors.dark },
-  tabBtnText: { fontSize: 14, fontWeight: '600', color: colors.textLight },
-  tabBtnTextActive: { color: colors.darkText },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  xIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: '#1a1a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  xIconText: { fontSize: 11, color: '#fff', fontWeight: '700' },
+  mmIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mmIconText: { fontSize: 10, color: '#fff', fontWeight: '700' },
+  authorName: { fontSize: 12, fontWeight: '600', color: colors.text },
+  timestamp: { fontSize: 10, color: colors.muted },
+
+  bookmarkBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookmarkBtnSaved: { backgroundColor: `${colors.accent}15` },
+  bookmarkStar: { fontSize: 15 },
+
+  cardText: { fontSize: 13, color: colors.text, lineHeight: 20, marginBottom: 6 },
+
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tag: {
+    backgroundColor: colors.subtle,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  tagText: { fontSize: 10, fontWeight: '500', color: '#8a857d' },
+
+  emptyState: { alignItems: 'center', paddingTop: 60 },
+  emptyIcon: { fontSize: 40, marginBottom: 12 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+  emptySubtitle: { fontSize: 13, color: colors.muted, marginTop: 4 },
 });

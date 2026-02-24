@@ -119,6 +119,9 @@ export default function FitnessScreen() {
           <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />
         }
       >
+        {/* Screen title */}
+        <Text style={styles.screenTitle}>Fitness</Text>
+
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
         {/* Unified Fitness Card */}
@@ -248,7 +251,8 @@ export default function FitnessScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12 },
+  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
 
   // Hero card
   unifiedCard: { padding: 16, marginBottom: 8 },

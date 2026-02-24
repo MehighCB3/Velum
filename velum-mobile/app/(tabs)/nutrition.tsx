@@ -849,8 +849,10 @@ export default function NutritionScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Sub-tabs */}
-      <View style={styles.tabBar}>
+      {/* Header + Sub-tabs */}
+      <View style={styles.headerRow}>
+        <Text style={styles.screenTitle}>Nutrition</Text>
+        <View style={styles.tabBar}>
         {(['today', '30days'] as Tab[]).map((t) => (
           <Pressable
             key={t}
@@ -862,6 +864,7 @@ export default function NutritionScreen() {
             </Text>
           </Pressable>
         ))}
+        </View>
       </View>
 
       <ScrollView
@@ -877,10 +880,9 @@ export default function NutritionScreen() {
             <DarkCard style={styles.heroCard}>
               <View style={styles.heroTopRow}>
                 <View>
-                  <Text style={styles.heroLabel}>Calories today</Text>
+                  <Text style={styles.heroLabel}>CALORIES</Text>
                   <View style={styles.heroValueRow}>
                     <Text style={styles.heroValue}>{fmt(Math.round(data.totals.calories))}</Text>
-                    <Text style={styles.heroGoal}> / {fmt(data.goals.calories)}</Text>
                   </View>
                   <Text style={[styles.heroRemaining, caloriesRemaining < 0 && { color: colors.error }]}>
                     {caloriesRemaining >= 0
@@ -907,12 +909,11 @@ export default function NutritionScreen() {
                 </View>
               </View>
 
-              {/* P / C / F bars */}
+              {/* P / C bars (fat shown only in meal detail per v3 spec) */}
               <View style={styles.macroBars}>
                 {[
-                  { label: 'P', current: data.totals.protein, goal: data.goals.protein, color: colors.protein },
-                  { label: 'C', current: data.totals.carbs, goal: data.goals.carbs, color: colors.carbs },
-                  { label: 'F', current: data.totals.fat, goal: data.goals.fat, color: colors.fat },
+                  { label: 'Protein', current: data.totals.protein, goal: data.goals.protein, color: colors.protein },
+                  { label: 'Carbs', current: data.totals.carbs, goal: data.goals.carbs, color: colors.carbs },
                 ].map((m) => {
                   const pct = m.goal > 0 ? Math.min(m.current / m.goal, 1) : 0;
                   return (
@@ -1041,23 +1042,35 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
 
-  // Tabs
+  // Header
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    marginBottom: 8,
+  },
+  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+
+  // Tabs — v3 segmented control style
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: '#f0ece6',
+    borderRadius: 8,
+    padding: 2,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    alignSelf: 'flex-end',
   },
   tabBtn: {
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: colors.sidebar,
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: 6,
   },
-  tabBtnActive: { backgroundColor: colors.dark },
-  tabBtnText: { fontSize: 13, fontWeight: '600', color: colors.textLight },
-  tabBtnTextActive: { color: colors.darkText },
+  tabBtnActive: { backgroundColor: colors.text },
+  tabBtnText: { fontSize: 11, fontWeight: '600', color: colors.muted },
+  tabBtnTextActive: { color: '#fff' },
 
   // Hero card
   heroCard: { marginBottom: 12 },

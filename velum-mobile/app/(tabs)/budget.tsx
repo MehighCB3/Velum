@@ -263,6 +263,9 @@ export default function BudgetScreen() {
           <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />
         }
       >
+        {/* Screen title */}
+        <Text style={styles.screenTitle}>Budget</Text>
+
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
         {/* Budget Hero */}
@@ -448,7 +451,8 @@ export default function BudgetScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
   heroCard: { marginBottom: 12 },
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeft: {},

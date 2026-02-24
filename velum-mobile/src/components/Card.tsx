@@ -65,15 +65,15 @@ export function EmptyState({ icon, title, subtitle }: EmptyStateProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.bg,
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
   darkCard: {
     backgroundColor: colors.dark,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
   },
   sectionHeader: {
@@ -81,11 +81,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-    marginTop: 8,
+    marginTop: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text,
   },
   sectionAction: {
