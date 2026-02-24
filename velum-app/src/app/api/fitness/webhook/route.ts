@@ -607,8 +607,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No message text' }, { status: 400 })
     }
 
-    console.log('Fitness webhook received:', messageText, 'Topic:', topicName)
-
     // Only process messages from "Fity" topic or tagged with #fity / fity:
     // Also accept messages where is_topic_message=true with the known thread ID
     const FITY_THREAD_ID = process.env.FITY_THREAD_ID ? parseInt(process.env.FITY_THREAD_ID) : null

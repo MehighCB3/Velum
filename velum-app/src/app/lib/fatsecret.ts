@@ -24,7 +24,7 @@ let tokenExpiresAt = 0
 
 async function getAccessToken(): Promise<string | null> {
   if (!CLIENT_ID || !CLIENT_SECRET) {
-    console.log('FatSecret credentials not configured')
+    // FatSecret credentials not configured
     return null
   }
 

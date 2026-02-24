@@ -30,8 +30,6 @@ export async function GET(request: NextRequest) {
         const startDate = dates[0]
         const endDateQuery = dates[6]
         
-        console.log('Fetching week data:', { startDate, endDateQuery, dates })
-        
         // Fetch all entries for the date range
         const entriesResult = await sql`
           SELECT date::text as date, entry_id as id, name, calories, protein, carbs, fat, entry_time as time
@@ -39,8 +37,6 @@ export async function GET(request: NextRequest) {
           WHERE date >= ${startDate}::date AND date <= ${endDateQuery}::date
           ORDER BY date, entry_time
         `
-        
-        console.log('Entries found:', entriesResult.rows.length)
         
         // Fetch goals for the range
         const goalsResult = await sql`

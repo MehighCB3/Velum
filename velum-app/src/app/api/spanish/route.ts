@@ -898,7 +898,7 @@ async function initTables() {
     const countResult = await sql`SELECT COUNT(*) as count FROM spanish_cards`
     const cardCount = Number(countResult.rows[0]?.count || 0)
     if (cardCount === 0) {
-      console.log(`Auto-seeding ${SEED_CARDS.length} Spanish cards into Postgres...`)
+      // Auto-seeding Spanish cards into Postgres
       for (const card of SEED_CARDS) {
         await sql`
           INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
@@ -907,7 +907,7 @@ async function initTables() {
         `
         await sql`INSERT INTO spanish_progress (card_id) VALUES (${card.id}) ON CONFLICT (card_id) DO NOTHING`
       }
-      console.log('Auto-seed complete')
+      // Auto-seed complete
     }
   } catch (error) {
     console.error('Failed to init Spanish tables:', error)

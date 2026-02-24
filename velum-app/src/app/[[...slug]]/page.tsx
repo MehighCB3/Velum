@@ -709,7 +709,7 @@ function NutritionTodayView({
           </div>
         </>
       ) : (
-        <WeekView onDayClick={(day) => console.log('Selected:', day)} />
+        <WeekView onDayClick={() => {}} />
       )}
       {nutritionInsights.map((ni) => (
         <AgentInsight key={ni.agentId} agent={ni.agent} emoji={ni.emoji} insight={ni.insight} updatedAt={ni.updatedAt} type={ni.type} />
