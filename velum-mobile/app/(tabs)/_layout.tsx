@@ -11,7 +11,7 @@ export default function TabLayout() {
           backgroundColor: colors.bg,
           shadowColor: 'transparent',
           elevation: 0,
-          borderBottomWidth: 1,
+          borderBottomWidth: 0,
           borderBottomColor: colors.border,
         },
         headerTitleStyle: {
@@ -30,18 +30,27 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.tabActive,
         tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '500',
         },
+        headerShown: false,
       }}
     >
       <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="radio-button-on-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          headerTitle: 'Velum',
+          title: 'Year',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+            <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />
@@ -49,7 +58,6 @@ export default function TabLayout() {
         name="nutrition"
         options={{
           title: 'Nutrition',
-          headerTitle: 'Nutrition',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="nutrition-outline" size={size} color={color} />
           ),
@@ -59,7 +67,6 @@ export default function TabLayout() {
         name="fitness"
         options={{
           title: 'Fitness',
-          headerTitle: 'Fitness',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="fitness-outline" size={size} color={color} />
           ),
@@ -69,19 +76,8 @@ export default function TabLayout() {
         name="budget"
         options={{
           title: 'Budget',
-          headerTitle: 'Budget',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="wallet-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="feed"
-        options={{
-          title: 'Library',
-          headerTitle: 'Library',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="library-outline" size={size} color={color} />
           ),
         }}
       />
@@ -89,15 +85,15 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          headerTitle: 'Profile',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />
-      {/* Hidden tabs — accessible via Profile but not in tab bar */}
-      <Tabs.Screen name="goals" options={{ href: null, headerTitle: 'Goals' }} />
-      <Tabs.Screen name="learn" options={{ href: null, headerTitle: 'Spanish' }} />
+      {/* Hidden tabs — accessible via navigation but not in tab bar */}
+      <Tabs.Screen name="goals" options={{ href: null, headerShown: true, headerTitle: 'Goals' }} />
+      <Tabs.Screen name="feed" options={{ href: null, headerShown: true, headerTitle: 'Feed' }} />
+      <Tabs.Screen name="learn" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

@@ -18,6 +18,7 @@ import { colors } from '../../src/theme/colors';
 import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
 import { DarkCard, Card } from '../../src/components/Card';
+import { ScreenTitle } from '../../src/components/ScreenTitle';
 import { SyncIndicator } from '../../src/components/SyncIndicator';
 import { useSync } from '../../src/hooks/useSync';
 import { useAppUpdate } from '../../src/hooks/useAppUpdate';
@@ -187,6 +188,8 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={loading} onRefresh={fetchProfile} tintColor={colors.accent} />
         }
       >
+        <ScreenTitle title="Profile" marginBottom={4} />
+
         {/* Sync indicator */}
         <View style={styles.syncRow}>
           <SyncIndicator status={syncStatus} onSync={sync} />
@@ -360,11 +363,11 @@ export default function ProfileScreen() {
 
           <Pressable
             style={styles.settingsRow}
-            onPress={() => router.push('/learn')}
+            onPress={() => router.push('/feed')}
           >
-            <Ionicons name="language-outline" size={18} color={colors.success} />
-            <Text style={styles.settingsLabel}>Spanish</Text>
-            <Text style={styles.settingsHint}>Cards, exercises, speak</Text>
+            <Ionicons name="bookmark-outline" size={18} color={colors.accent} />
+            <Text style={styles.settingsLabel}>Feed</Text>
+            <Text style={styles.settingsHint}>Bookmarks & reading</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
           </Pressable>
         </Card>
@@ -624,8 +627,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
-
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12 },
   // Sync
   syncRow: { alignItems: 'flex-end', marginBottom: 8 },
 

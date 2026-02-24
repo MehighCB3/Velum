@@ -24,6 +24,9 @@ import { DarkCard, Card, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
+import { ScreenTitle } from '../../src/components/ScreenTitle';
+import { SegmentedControl } from '../../src/components/SegmentedControl';
+import { FAB } from '../../src/components/FAB';
 import { nutritionApi } from '../../src/api/client';
 import { API_BASE } from '../../src/api/config';
 import { NutritionDay, NutritionEntry } from '../../src/types';
@@ -849,19 +852,15 @@ export default function NutritionScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Sub-tabs */}
-      <View style={styles.tabBar}>
-        {(['today', '30days'] as Tab[]).map((t) => (
-          <Pressable
-            key={t}
-            style={[styles.tabBtn, activeTab === t && styles.tabBtnActive]}
-            onPress={() => setActiveTab(t)}
-          >
-            <Text style={[styles.tabBtnText, activeTab === t && styles.tabBtnTextActive]}>
-              {t === 'today' ? 'Today' : '30 Days'}
-            </Text>
-          </Pressable>
-        ))}
+      {/* Header + Sub-tabs */}
+      <View style={styles.headerRow}>
+        <ScreenTitle title="Nutrition" marginBottom={0} />
+        <SegmentedControl
+          tabs={[{ key: 'today', label: 'Today' }, { key: '30days', label: '30 Days' }]}
+          activeTab={activeTab}
+          onTabChange={(key) => setActiveTab(key as Tab)}
+          style={{ alignSelf: 'flex-end', marginTop: 12, marginBottom: 4 }}
+        />
       </View>
 
       <ScrollView
@@ -877,10 +876,9 @@ export default function NutritionScreen() {
             <DarkCard style={styles.heroCard}>
               <View style={styles.heroTopRow}>
                 <View>
-                  <Text style={styles.heroLabel}>Calories today</Text>
+                  <Text style={styles.heroLabel}>CALORIES</Text>
                   <View style={styles.heroValueRow}>
                     <Text style={styles.heroValue}>{fmt(Math.round(data.totals.calories))}</Text>
-                    <Text style={styles.heroGoal}> / {fmt(data.goals.calories)}</Text>
                   </View>
                   <Text style={[styles.heroRemaining, caloriesRemaining < 0 && { color: colors.error }]}>
                     {caloriesRemaining >= 0
@@ -907,12 +905,11 @@ export default function NutritionScreen() {
                 </View>
               </View>
 
-              {/* P / C / F bars */}
+              {/* P / C bars (fat shown only in meal detail per v3 spec) */}
               <View style={styles.macroBars}>
                 {[
-                  { label: 'P', current: data.totals.protein, goal: data.goals.protein, color: colors.protein },
-                  { label: 'C', current: data.totals.carbs, goal: data.goals.carbs, color: colors.carbs },
-                  { label: 'F', current: data.totals.fat, goal: data.goals.fat, color: colors.fat },
+                  { label: 'Protein', current: data.totals.protein, goal: data.goals.protein, color: colors.protein },
+                  { label: 'Carbs', current: data.totals.carbs, goal: data.goals.carbs, color: colors.carbs },
                 ].map((m) => {
                   const pct = m.goal > 0 ? Math.min(m.current / m.goal, 1) : 0;
                   return (
@@ -1004,9 +1001,7 @@ export default function NutritionScreen() {
 
       {/* FAB — camera icon, scan food (primary action) */}
       {activeTab === 'today' && (
-        <Pressable style={styles.fab} onPress={handleScanFood}>
-          <Ionicons name="camera" size={26} color={colors.darkText} />
-        </Pressable>
+        <FAB icon="camera" onPress={handleScanFood} size={26} />
       )}
 
       <AddEntryModal
@@ -1041,24 +1036,15 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
 
-  // Tabs
-  tabBar: {
+  // Header
+  headerRow: {
     flexDirection: 'row',
-    backgroundColor: colors.bg,
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: 12,
+    marginBottom: 8,
   },
-  tabBtn: {
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: colors.sidebar,
-  },
-  tabBtnActive: { backgroundColor: colors.dark },
-  tabBtnText: { fontSize: 13, fontWeight: '600', color: colors.textLight },
-  tabBtnTextActive: { color: colors.darkText },
-
   // Hero card
   heroCard: { marginBottom: 12 },
   heroTopRow: {
@@ -1155,19 +1141,4 @@ const styles = StyleSheet.create({
   mealMacro: { fontSize: 10, fontWeight: '600' },
   mealMacroDot: { fontSize: 10, color: colors.border },
 
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 24, right: 20,
-    width: 56, height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.dark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
 });
