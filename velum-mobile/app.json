@@ -52,7 +52,6 @@
       "expo-router",
       "expo-sqlite",
       "expo-updates",
-      "react-native-volume-manager",
       [
         "expo-av",
         {
