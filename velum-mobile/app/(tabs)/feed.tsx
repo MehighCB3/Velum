@@ -14,9 +14,7 @@ import { colors } from '../../src/theme/colors';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
-import { booksApi, bookmarksApi, mymindApi, XBookmark, MymindItem } from '../../src/api/client';
-import { BookmarkQueueCard } from '../../src/components/BookmarkQueueCard';
-import { MymindCard } from '../../src/components/MymindCard';
+import { booksApi, bookmarksApi, XBookmark } from '../../src/api/client';
 import { DailyWisdom, BookPrinciple } from '../../src/types';
 
 type TopTab = 'bookmarks' | 'knowledge';
@@ -255,17 +253,12 @@ const bkStyles = StyleSheet.create({
 
 // ==================== BOOKS / KNOWLEDGE ====================
 
-// Queue item union type for the merged feed
-type QueueItem =
-  | { source: 'x'; data: XBookmark; key: string }
-  | { source: 'mymind'; data: MymindItem; key: string };
-
 function KnowledgeView() {
   const [wisdom, setWisdom] = useState<DailyWisdom | null>(null);
   const [allPrinciples, setAllPrinciples] = useState<BookPrinciple[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDomain, setActiveDomain] = useState<string | null>(null);
-  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [queue, setQueue] = useState<XBookmark[]>([]);
   const { insights: knowledgeInsights } = useInsights('knowledge');
 
   const fetchWisdom = useCallback(async () => {
@@ -284,39 +277,21 @@ function KnowledgeView() {
     }
   }, []);
 
-  // Fetch both sources, merge and shuffle by day seed (same 5 all day, rotate tomorrow)
+  // Fetch bookmarks for the reading queue
   useEffect(() => {
     const daySeed = Math.floor(Date.now() / 86400000);
 
-    Promise.allSettled([
-      bookmarksApi.getAll({ limit: 50 }),
-      mymindApi.getAll({ limit: 50 }),
-    ]).then(([xResult, mmResult]) => {
-      const xItems: QueueItem[] = xResult.status === 'fulfilled'
-        ? xResult.value.bookmarks
-            .filter((b) => !b.dismissed)
-            .map((b) => ({ source: 'x' as const, data: b, key: `x-${b.tweet_id}` }))
-        : [];
-
-      const mmItems: QueueItem[] = mmResult.status === 'fulfilled'
-        ? mmResult.value.items
-            .filter((i) => !i.dismissed)
-            .map((i) => ({ source: 'mymind' as const, data: i, key: `mm-${i.mymind_id}` }))
-        : [];
-
-      const merged = seededShuffle([...xItems, ...mmItems], daySeed).slice(0, 6);
-      setQueue(merged);
+    bookmarksApi.getAll({ limit: 50 }).then((data) => {
+      const items = data.bookmarks.filter((b) => !b.dismissed);
+      setQueue(seededShuffle(items, daySeed).slice(0, 6));
+    }).catch(() => {
+      // silently fail
     });
   }, []);
 
-  const handleXDismiss = useCallback(async (tweetId: string) => {
-    setQueue((prev) => prev.filter((q) => q.key !== `x-${tweetId}`));
+  const handleDismiss = useCallback(async (tweetId: string) => {
+    setQueue((prev) => prev.filter((b) => b.tweet_id !== tweetId));
     try { await bookmarksApi.dismiss(tweetId); } catch { /* silent */ }
-  }, []);
-
-  const handleMymindDismiss = useCallback(async (mymindId: string) => {
-    setQueue((prev) => prev.filter((q) => q.key !== `mm-${mymindId}`));
-    try { await mymindApi.dismiss(mymindId); } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
@@ -380,25 +355,23 @@ function KnowledgeView() {
         <AgentInsightCard key={ai.agentId} insight={ai} />
       ))}
 
-      {/* Read Queue — shuffled X bookmarks + mymind items */}
+      {/* Reading Queue */}
       {queue.length > 0 && (
         <>
           <SectionHeader title={`Your Queue · ${queue.length}`} />
-          {queue.map((item) =>
-            item.source === 'mymind' ? (
-              <MymindCard
-                key={item.key}
-                item={item.data}
-                onDismiss={handleMymindDismiss}
-              />
-            ) : (
-              <BookmarkQueueCard
-                key={item.key}
-                bookmark={item.data}
-                onDismiss={handleXDismiss}
-              />
-            )
-          )}
+          {queue.map((bk) => (
+            <Card key={bk.tweet_id} style={kStyles.queueCard}>
+              <View style={kStyles.queueRow}>
+                <View style={kStyles.queueContent}>
+                  <Text style={kStyles.queueAuthor}>{bk.author_handle}</Text>
+                  <Text style={kStyles.queueText} numberOfLines={3}>{bk.text}</Text>
+                </View>
+                <Pressable onPress={() => handleDismiss(bk.tweet_id)} hitSlop={8}>
+                  <Ionicons name="close" size={14} color={colors.textLight} />
+                </Pressable>
+              </View>
+            </Card>
+          ))}
         </>
       )}
 
@@ -470,6 +443,11 @@ const kStyles = StyleSheet.create({
   quoteCard: { marginBottom: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: colors.accent },
   quoteText: { fontSize: 15, color: colors.text, fontStyle: 'italic', lineHeight: 24 },
   quoteSource: { fontSize: 12, color: colors.textLight, marginTop: 8 },
+  queueCard: { marginBottom: 8, padding: 14 },
+  queueRow: { flexDirection: 'row', gap: 8 },
+  queueContent: { flex: 1 },
+  queueAuthor: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  queueText: { fontSize: 13, color: colors.textLight, lineHeight: 19 },
   domainScroll: { marginBottom: 12 },
   domainRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   domainPill: {
