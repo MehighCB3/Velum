@@ -15,8 +15,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useGoals } from '../../src/hooks/useGoals';
+import { useInsights } from '../../src/hooks/useInsights';
 import { DarkCard, Card, EmptyState } from '../../src/components/Card';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
+import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { GoalHorizon, Goal } from '../../src/types';
 
 const HORIZONS: { key: GoalHorizon; label: string; icon: string }[] = [
@@ -47,6 +49,7 @@ const goalFields: FormField[] = [
 export default function GoalsScreen() {
   const { goals, loading, refresh, createGoal, updateProgress, markComplete, removeGoal } =
     useGoals();
+  const { insights: aiInsights } = useInsights('tasks');
   const [activeHorizon, setActiveHorizon] = useState<GoalHorizon>('year');
   const [showAddModal, setShowAddModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -165,6 +168,14 @@ export default function GoalsScreen() {
             />
           </View>
         </DarkCard>
+
+        {aiInsights.length > 0 && (
+          <View style={styles.insightsSection}>
+            {aiInsights.map((ai) => (
+              <AgentInsightCard key={ai.agentId} insight={ai} />
+            ))}
+          </View>
+        )}
 
         {/* Goals List */}
         <View style={styles.sectionHeader}>
@@ -482,6 +493,7 @@ const styles = StyleSheet.create({
     height: 4, backgroundColor: colors.darkInner, borderRadius: 2, overflow: 'hidden',
   },
   heroBarFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 2 },
+  insightsSection: { marginBottom: 8 },
 
   // Section header
   sectionHeader: {
