@@ -13,6 +13,7 @@ import {
   SpanishCard,
   UserProfile,
   AgentInsight,
+  AvatarState,
   DailyWisdom,
   BookPrinciple,
 } from '../types';
@@ -322,6 +323,14 @@ export const insightsApi = {
   async getAll(section?: string): Promise<AgentInsight[]> {
     const data = await request<AgentInsight[]>('/insights');
     return section ? data.filter((i) => i.section === section) : data;
+  },
+};
+
+// ==================== AVATAR ====================
+
+export const avatarApi = {
+  async getState(): Promise<AvatarState> {
+    return request<AvatarState>('/avatar');
   },
 };
 

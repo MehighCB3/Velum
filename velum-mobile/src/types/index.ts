@@ -245,6 +245,55 @@ export interface DailyWisdom {
   source: 'notion' | 'seed';
 }
 
+// ==================== AVATAR ====================
+
+export type BondLevel = 1 | 2 | 3 | 4 | 5;
+export type AvatarExpression = 'neutral' | 'curious' | 'happy' | 'proud' | 'glowing';
+
+export interface AvatarParams {
+  warmth: number;
+  energy: number;
+  expression: AvatarExpression;
+  glow: number;
+}
+
+export interface BondInfo {
+  score: number;
+  level: BondLevel;
+  label: string;
+  streak: number;
+}
+
+export interface HealthSnapshot {
+  weight: number | null;
+  bodyFat: number | null;
+  vo2max: number | null;
+  hrv: number | null;
+  sleepHours: number | null;
+  sleepScore: number | null;
+  stressAvg: number | null;
+  recoveryAvg: number | null;
+  trainingLoad: number | null;
+  stepsToday: number | null;
+  stepsGoal: number;
+  runsThisWeek: number;
+  runsGoal: number;
+  caloriesToday: number | null;
+  caloriesGoal: number;
+  proteinToday: number | null;
+  proteinGoal: number;
+  budgetSpent: number | null;
+  budgetTotal: number;
+}
+
+export interface AvatarState {
+  bond: BondInfo;
+  avatarParams: AvatarParams;
+  health: HealthSnapshot;
+  insights: AgentInsight[];
+  greeting: string;
+}
+
 // ==================== SYNC ====================
 
 export interface SyncStatus {

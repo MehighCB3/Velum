@@ -131,7 +131,8 @@
       "books": "/api/books",
       "chat": "/api/chat",
       "chatHistory": "/api/chat/history",
-      "appVersion": "/api/app-version"
+      "appVersion": "/api/app-version",
+      "avatar": "/api/avatar"
     }
   }
 }
