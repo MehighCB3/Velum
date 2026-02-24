@@ -98,9 +98,9 @@ function computeLoggingFrequency(
   for (const entry of budgetWeek.entries) {
     datesWithEntries.add(entry.date)
   }
-  for (const date of nutritionDates) {
+  Array.from(nutritionDates).forEach(date => {
     datesWithEntries.add(date)
-  }
+  })
 
   return Math.min(datesWithEntries.size / 7, 1)
 }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { spacing, SCREEN_WIDTH } from '../../src/theme/spacing';
@@ -123,6 +124,14 @@ function buildMetrics(health: HealthSnapshot): MetricItem[] {
     sub: `/ ${health.proteinGoal}g`,
     color: colors.protein,
   });
+  if (health.sleepScore) {
+    items.push({
+      label: 'Sleep Score',
+      value: `${health.sleepScore}`,
+      sub: '/ 100',
+      color: colors.info,
+    });
+  }
   if (health.budgetSpent !== null) {
     items.push({
       label: 'Budget',
@@ -135,6 +144,67 @@ function buildMetrics(health: HealthSnapshot): MetricItem[] {
   return items;
 }
 
+// ==================== BOND RING ====================
+
+const RING_SIZE = 210;
+const RING_STROKE = 6;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function BondRing({ score, children }: { score: number; children: React.ReactNode }) {
+  const progress = Math.min(score / 100, 1);
+  const strokeDashoffset = RING_CIRCUMFERENCE * (1 - progress);
+
+  return (
+    <View style={ringStyles.container}>
+      <Svg width={RING_SIZE} height={RING_SIZE} style={ringStyles.svg}>
+        {/* Background track */}
+        <Circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={RING_RADIUS}
+          stroke={colors.darkInner}
+          strokeWidth={RING_STROKE}
+          fill="none"
+        />
+        {/* Progress arc */}
+        <Circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={RING_RADIUS}
+          stroke={colors.accent}
+          strokeWidth={RING_STROKE}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${RING_CIRCUMFERENCE}`}
+          strokeDashoffset={strokeDashoffset}
+          rotation="-90"
+          origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+        />
+      </Svg>
+      <View style={ringStyles.inner}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+const ringStyles = StyleSheet.create({
+  container: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  svg: {
+    position: 'absolute',
+  },
+  inner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 // ==================== CHAT MESSAGE ====================
 
 interface ChatMsg {
@@ -145,11 +215,12 @@ interface ChatMsg {
 // ==================== SCREEN ====================
 
 export default function AvatarScreen() {
-  const { avatar, loading, refresh } = useAvatar();
+  const { avatar, loading, error, refresh } = useAvatar();
   const [refreshing, setRefreshing] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -185,10 +256,30 @@ export default function AvatarScreen() {
     }
   }, [chatInput, chatLoading, avatar]);
 
+  // Auto-scroll to bottom when new chat messages arrive
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [chatMessages.length]);
+
   if (loading && !avatar) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
+
+  if (error && !avatar) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="cloud-offline-outline" size={40} color={colors.textMuted} />
+        <Text style={styles.errorTitle}>Couldn't load coach data</Text>
+        <Text style={styles.errorSub}>{error}</Text>
+        <Pressable style={styles.retryBtn} onPress={refresh}>
+          <Text style={styles.retryText}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
@@ -208,6 +299,7 @@ export default function AvatarScreen() {
       keyboardVerticalOffset={90}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -217,7 +309,9 @@ export default function AvatarScreen() {
       >
         {/* ===== Avatar Hero ===== */}
         <DarkCard style={styles.heroCard}>
-          <AvatarSVG params={avatarParams} size={180} />
+          <BondRing score={avatar?.bond.score || 0}>
+            <AvatarSVG params={avatarParams} size={170} />
+          </BondRing>
           <Text style={styles.bondLabel}>
             {avatar?.bond.label || 'Stranger'}
           </Text>
@@ -332,6 +426,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 12,
+  },
+  errorSub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: 16,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
 
   // Hero
