@@ -95,9 +95,9 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* Hidden tabs — accessible from other screens but not in tab bar */}
-      <Tabs.Screen name="goals" options={{ href: null }} />
-      <Tabs.Screen name="learn" options={{ href: null }} />
+      {/* Hidden tabs — accessible via Profile but not in tab bar */}
+      <Tabs.Screen name="goals" options={{ href: null, headerTitle: 'Goals' }} />
+      <Tabs.Screen name="learn" options={{ href: null, headerTitle: 'Spanish' }} />
     </Tabs>
   );
 }

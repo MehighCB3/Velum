@@ -85,7 +85,7 @@ async function fetchBookmarksPage(cursor?: string): Promise<{
 
   const res = await fetch(`${BOOKMARKS_URL}?${params}`, {
     headers: {
-      authorization: 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
+      authorization: `Bearer ${process.env.X_BEARER_TOKEN || ''}`,
       cookie: `auth_token=${X_AUTH_TOKEN}; ct0=${X_CSRF_TOKEN}`,
       'x-csrf-token': X_CSRF_TOKEN,
       'x-twitter-auth-type': 'OAuth2Session',

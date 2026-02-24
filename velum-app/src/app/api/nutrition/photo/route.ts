@@ -30,6 +30,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 })
     }
 
+    // Guard against oversized payloads (max 10MB base64 ~ 7.5MB image)
+    const MAX_BASE64_LENGTH = 10 * 1024 * 1024
+    if (imageBase64.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json(
+        { error: 'Image too large. Maximum size is ~7.5 MB.' },
+        { status: 413 },
+      )
+    }
+
+    // Validate MIME type to prevent content-type confusion
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+    if (!allowedMimeTypes.includes(mimeType)) {
+      return NextResponse.json(
+        { error: `Unsupported image type: ${mimeType}` },
+        { status: 400 },
+      )
+    }
+
     // Fallback if no OpenRouter key
     if (!OPENROUTER_API_KEY) {
       console.error('OPENROUTER_API_KEY not configured')
