@@ -5,9 +5,18 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // Require auth for destructive operation
+    const CLEANUP_SECRET = process.env.MIGRATE_SECRET || process.env.VELUM_API_KEY
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
+
+    if (!CLEANUP_SECRET || token !== CLEANUP_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized — destructive operation requires auth' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const confirm = searchParams.get('confirm')
-    
+
     if (confirm !== 'yes') {
       return NextResponse.json(
         { error: 'Add ?confirm=yes to confirm budget data deletion' },

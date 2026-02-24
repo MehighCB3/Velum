@@ -24,11 +24,11 @@ export async function POST(request: NextRequest) {
   const results: string[] = []
   
   try {
-    // Check auth (simple secret check)
-    const { searchParams } = new URL(request.url)
-    const secret = searchParams.get('secret')
-    
-    if (secret !== process.env.MIGRATE_SECRET?.trim()) {
+    // Check auth via Authorization header (not query string — avoids secret leaking in logs/URLs)
+    const authHeader = request.headers.get('authorization')
+    const secret = authHeader?.replace('Bearer ', '') || request.nextUrl.searchParams.get('secret')
+
+    if (!process.env.MIGRATE_SECRET?.trim() || secret !== process.env.MIGRATE_SECRET.trim()) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -216,13 +216,8 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Migration error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { 
-        error: 'Migration failed', 
-        details: errorMessage,
-        results 
-      },
+      { error: 'Migration failed', results },
       { status: 500 }
     )
   }
@@ -265,10 +260,10 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    message: 'Migration API - Use POST with ?secret=YOUR_SECRET to run migration',
+    message: 'Migration API — authenticate via Authorization header',
     note: 'Set MIGRATE_SECRET env var in Vercel dashboard first',
     usage: {
-      migrate: 'POST /api/migrate?secret=YOUR_SECRET',
+      migrate: 'POST /api/migrate with header "Authorization: Bearer YOUR_SECRET"',
       checkData: 'GET /api/migrate?check=data'
     }
   })

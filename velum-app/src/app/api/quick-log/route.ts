@@ -16,8 +16,9 @@ export const dynamic = 'force-dynamic'
 const QUICK_LOG_TOKEN = process.env.QUICK_LOG_TOKEN || ''
 const usePostgres = !!process.env.POSTGRES_URL
 
+// CORS is handled by middleware — these are kept for OPTIONS preflight only
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://velum-five.vercel.app',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }

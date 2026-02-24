@@ -11,8 +11,9 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // Fallback when GitHub is unreachable
 const FALLBACK_VERSION = '1.6.0';
 
+// CORS is handled by middleware — these are kept for OPTIONS preflight only
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://velum-five.vercel.app',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Cache-Control': 'public, max-age=300',

@@ -7,8 +7,9 @@ const usePostgres = !!process.env.POSTGRES_URL
 
 const DEFAULT_GOALS = { calories: 2600, protein: 160, carbs: 310, fat: 80 }
 
+// CORS is handled by middleware — these are kept for OPTIONS preflight only
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://velum-five.vercel.app',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }

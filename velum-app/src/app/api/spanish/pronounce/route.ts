@@ -28,6 +28,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing audio or expected field' }, { status: 400 })
     }
 
+    // Guard against oversized audio files (max 5MB)
+    const MAX_AUDIO_SIZE = 5 * 1024 * 1024
+    if (audio.size > MAX_AUDIO_SIZE) {
+      return NextResponse.json(
+        { error: 'Audio file too large. Maximum size is 5 MB.' },
+        { status: 413 },
+      )
+    }
+
+    // Validate expected text length to prevent abuse
+    if (expected.length > 500) {
+      return NextResponse.json(
+        { error: 'Expected text too long (max 500 characters)' },
+        { status: 400 },
+      )
+    }
+
     // Forward to OpenAI Whisper API
     const whisperForm = new FormData()
     whisperForm.append('file', audio, audio.name || 'recording.m4a')
