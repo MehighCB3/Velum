@@ -17,6 +17,8 @@ import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { WeekSelector } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
+import { ScreenTitle } from '../../src/components/ScreenTitle';
+import { FAB } from '../../src/components/FAB';
 import { FitnessEntryType } from '../../src/types';
 import { fmt } from '../../src/utils/formatters';
 
@@ -119,8 +121,7 @@ export default function FitnessScreen() {
           <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />
         }
       >
-        {/* Screen title */}
-        <Text style={styles.screenTitle}>Fitness</Text>
+        <ScreenTitle title="Fitness" />
 
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
@@ -233,9 +234,7 @@ export default function FitnessScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color={colors.darkText} />
-      </Pressable>
+      <FAB icon="add" onPress={() => setShowAddModal(true)} color={colors.accent} />
 
       <AddEntryModal
         visible={showAddModal}
@@ -252,8 +251,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 12 },
-  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
-
   // Hero card
   unifiedCard: { padding: 16, marginBottom: 8 },
 
@@ -310,11 +307,4 @@ const styles = StyleSheet.create({
   activityDetail: { fontSize: 11, color: colors.textLight, marginTop: 2 },
   activityTime: { fontSize: 11, color: colors.textLight },
 
-  fab: {
-    position: 'absolute', right: 20, bottom: 24, width: 56, height: 56,
-    borderRadius: 28, backgroundColor: colors.accent,
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 4,
-  },
 });

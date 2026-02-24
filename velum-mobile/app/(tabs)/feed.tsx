@@ -12,22 +12,7 @@ import {
 import { colors } from '../../src/theme/colors';
 import { Card } from '../../src/components/Card';
 import { bookmarksApi, XBookmark } from '../../src/api/client';
-
-function timeAgo(dateStr: string): string {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return '';
-  const now = Date.now();
-  const diffMs = now - date.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  return `${weeks}w ago`;
-}
+import { timeAgo } from '../../src/utils/timeAgo';
 
 export default function FeedScreen() {
   const [items, setItems] = useState<XBookmark[]>([]);

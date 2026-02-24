@@ -24,6 +24,9 @@ import { DarkCard, Card, EmptyState } from '../../src/components/Card';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
+import { ScreenTitle } from '../../src/components/ScreenTitle';
+import { SegmentedControl } from '../../src/components/SegmentedControl';
+import { FAB } from '../../src/components/FAB';
 import { nutritionApi } from '../../src/api/client';
 import { API_BASE } from '../../src/api/config';
 import { NutritionDay, NutritionEntry } from '../../src/types';
@@ -851,20 +854,13 @@ export default function NutritionScreen() {
     <View style={styles.container}>
       {/* Header + Sub-tabs */}
       <View style={styles.headerRow}>
-        <Text style={styles.screenTitle}>Nutrition</Text>
-        <View style={styles.tabBar}>
-        {(['today', '30days'] as Tab[]).map((t) => (
-          <Pressable
-            key={t}
-            style={[styles.tabBtn, activeTab === t && styles.tabBtnActive]}
-            onPress={() => setActiveTab(t)}
-          >
-            <Text style={[styles.tabBtnText, activeTab === t && styles.tabBtnTextActive]}>
-              {t === 'today' ? 'Today' : '30 Days'}
-            </Text>
-          </Pressable>
-        ))}
-        </View>
+        <ScreenTitle title="Nutrition" marginBottom={0} />
+        <SegmentedControl
+          tabs={[{ key: 'today', label: 'Today' }, { key: '30days', label: '30 Days' }]}
+          activeTab={activeTab}
+          onTabChange={(key) => setActiveTab(key as Tab)}
+          style={{ alignSelf: 'flex-end', marginTop: 12, marginBottom: 4 }}
+        />
       </View>
 
       <ScrollView
@@ -1005,9 +1001,7 @@ export default function NutritionScreen() {
 
       {/* FAB — camera icon, scan food (primary action) */}
       {activeTab === 'today' && (
-        <Pressable style={styles.fab} onPress={handleScanFood}>
-          <Ionicons name="camera" size={26} color={colors.darkText} />
-        </Pressable>
+        <FAB icon="camera" onPress={handleScanFood} size={26} />
       )}
 
       <AddEntryModal
@@ -1051,27 +1045,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginBottom: 8,
   },
-  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-
-  // Tabs — v3 segmented control style
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#f0ece6',
-    borderRadius: 8,
-    padding: 2,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    alignSelf: 'flex-end',
-  },
-  tabBtn: {
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 6,
-  },
-  tabBtnActive: { backgroundColor: colors.text },
-  tabBtnText: { fontSize: 11, fontWeight: '600', color: colors.muted },
-  tabBtnTextActive: { color: '#fff' },
-
   // Hero card
   heroCard: { marginBottom: 12 },
   heroTopRow: {
@@ -1168,19 +1141,4 @@ const styles = StyleSheet.create({
   mealMacro: { fontSize: 10, fontWeight: '600' },
   mealMacroDot: { fontSize: 10, color: colors.border },
 
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 24, right: 20,
-    width: 56, height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.dark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
 });

@@ -5,16 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  Dimensions,
 } from 'react-native';
 import Svg, { Circle, Polygon, Line, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { colors } from '../../src/theme/colors';
+import { SCREEN_WIDTH } from '../../src/theme/spacing';
 import { useNutrition } from '../../src/hooks/useNutrition';
 import { useFitness } from '../../src/hooks/useFitness';
 import { useBudget } from '../../src/hooks/useBudget';
 import { format } from 'date-fns';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 const SVG_SIZE = Math.min(SCREEN_WIDTH - 64, 300);
 const CENTER = SVG_SIZE / 2;
 const MAX_R = SVG_SIZE * 0.28; // radar radius

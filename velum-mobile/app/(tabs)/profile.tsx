@@ -18,6 +18,7 @@ import { colors } from '../../src/theme/colors';
 import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
 import { DarkCard, Card } from '../../src/components/Card';
+import { ScreenTitle } from '../../src/components/ScreenTitle';
 import { SyncIndicator } from '../../src/components/SyncIndicator';
 import { useSync } from '../../src/hooks/useSync';
 import { useAppUpdate } from '../../src/hooks/useAppUpdate';
@@ -187,8 +188,7 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={loading} onRefresh={fetchProfile} tintColor={colors.accent} />
         }
       >
-        {/* Screen title */}
-        <Text style={styles.screenTitle}>Profile</Text>
+        <ScreenTitle title="Profile" marginBottom={4} />
 
         {/* Sync indicator */}
         <View style={styles.syncRow}>
@@ -628,8 +628,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 12 },
-  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4 },
-
   // Sync
   syncRow: { alignItems: 'flex-end', marginBottom: 8 },
 

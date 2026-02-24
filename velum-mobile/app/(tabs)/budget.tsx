@@ -18,6 +18,8 @@ import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { WeekSelector, getISOWeekKey } from '../../src/components/WeekSelector';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
+import { ScreenTitle } from '../../src/components/ScreenTitle';
+import { FAB } from '../../src/components/FAB';
 import { BudgetCategory, BudgetWeek } from '../../src/types';
 import { fmtDecimal as fmt } from '../../src/utils/formatters';
 
@@ -263,8 +265,7 @@ export default function BudgetScreen() {
           <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />
         }
       >
-        {/* Screen title */}
-        <Text style={styles.screenTitle}>Budget</Text>
+        <ScreenTitle title="Budget" />
 
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
@@ -433,9 +434,7 @@ export default function BudgetScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
-        <Ionicons name="add" size={28} color={colors.darkText} />
-      </Pressable>
+      <FAB icon="add" onPress={() => setShowAddModal(true)} />
 
       <AddEntryModal
         visible={showAddModal}
@@ -452,7 +451,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
-  screenTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
   heroCard: { marginBottom: 12 },
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeft: {},
@@ -495,22 +493,6 @@ const styles = StyleSheet.create({
   entryDesc: { fontSize: 15, fontWeight: '600', color: colors.text },
   entryMeta: { fontSize: 12, color: colors.textLight, marginTop: 2 },
   entryAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.dark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
 });
 
 // ---- Chart styles ----
