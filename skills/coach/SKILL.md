@@ -78,9 +78,16 @@ Keep it simple:
 
 ## Fitness & Garmin Data Logging
 
-When the user shares fitness or health data — **log it to Velum immediately** before responding.
+**Data is auto-logged by the Velum backend.** When a message arrives via the Coach chat screen, the server parses it and logs fitness/budget entries directly to the store before forwarding to you. You will see an `[Auto-logged]` tag in the context when this happens.
 
-Use `POST https://velum-five.vercel.app/api/fitness` with body `{ "type": "<type>", ... }`.
+**Do NOT call the fitness or budget APIs yourself** — the data is already saved. Just acknowledge it and provide coaching insight.
+
+If you see `[Auto-logged] fitness: ...` or `[Auto-logged] budget: ...`:
+- Confirm briefly ("Logged — VO2 Max 47.")
+- Add one relevant coaching observation if meaningful
+- Do NOT make any POST calls to `/api/fitness` or `/api/budget`
+
+If there is NO `[Auto-logged]` tag and the user shares data that looks like it should be logged (e.g. from Telegram where auto-logging doesn't apply), then use `POST https://velum-five.vercel.app/api/fitness` with body `{ "type": "<type>", ... }`.
 
 ### Recognised data types and fields
 
