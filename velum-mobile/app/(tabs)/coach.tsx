@@ -13,6 +13,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { useAvatar } from '../../src/hooks/useAvatar';
@@ -255,8 +256,9 @@ export default function CoachScreen() {
   // ==================== RENDER ====================
 
   return (
+    <SafeAreaView style={styles.screen} edges={['top']}>
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
@@ -446,6 +448,7 @@ export default function CoachScreen() {
         </Pressable>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -461,7 +464,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.screenPaddingLarge,
-    paddingTop: spacing.screenPaddingTop + 40,
+    paddingTop: spacing.screenPaddingTop,
   },
 
   // Loading / Error

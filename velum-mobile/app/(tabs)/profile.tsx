@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
@@ -180,7 +181,7 @@ export default function ProfileScreen() {
   const lifeExp = profile?.life_expectancy || 85;
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -632,7 +633,7 @@ export default function ProfileScreen() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

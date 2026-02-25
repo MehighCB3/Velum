@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { useFitness } from '../../src/hooks/useFitness';
 import { useInsights } from '../../src/hooks/useInsights';
@@ -113,7 +114,7 @@ export default function FitnessScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -243,7 +244,7 @@ export default function FitnessScreen() {
         onSubmit={handleAddEntry}
         onClose={() => setShowAddModal(false)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
