@@ -299,6 +299,7 @@ export interface ChatResponse {
   content: string;
   source: string;
   memoriesSaved?: number;
+  logged?: { type: 'fitness' | 'budget'; summary: string };
 }
 
 export interface ChatHistoryMessage {

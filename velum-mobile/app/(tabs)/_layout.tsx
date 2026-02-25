@@ -37,15 +37,6 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="radio-button-on-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="coach"
         options={{
           title: 'Coach',
@@ -54,6 +45,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="dashboard" options={{ href: null, headerShown: false }} />
       <Tabs.Screen
         name="index"
         options={{

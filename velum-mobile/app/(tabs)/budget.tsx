@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { useBudget } from '../../src/hooks/useBudget';
 import { budgetApi } from '../../src/api/client';
@@ -257,7 +258,7 @@ export default function BudgetScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -443,7 +444,7 @@ export default function BudgetScreen() {
         onSubmit={handleAddEntry}
         onClose={() => setShowAddModal(false)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

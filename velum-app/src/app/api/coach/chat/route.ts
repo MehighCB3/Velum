@@ -6,6 +6,13 @@ import {
   saveMemory,
   type MemoryCategory,
 } from '../../../lib/memoryStore'
+import { parseFitnessMessage, buildEntryData } from '../../../lib/fitnessParser'
+import { parseExpenseMessage } from '../../../lib/budgetParser'
+import { buildEntry, addFitnessEntry } from '../../../lib/fitnessStore'
+import { addBudgetEntry, type BudgetEntry, type Category } from '../../../lib/budgetStore'
+import { getWeekKey, getISOWeek, parseWeekKey } from '../../../lib/weekUtils'
+import { saveInsight } from '../../../lib/insightsStore'
+import { generateAIInsight } from '../../../lib/aiInsights'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,10 +76,176 @@ async function relayToTelegram(userMsg: string, assistantReply: string) {
   }
 }
 
+// ── Data logging ──
+// Parse user messages and log directly to fitness/budget stores,
+// so the Coach screen can feed data into all dashboards.
+
+interface LogResult {
+  type: 'fitness' | 'budget'
+  summary: string
+}
+
+async function tryLogData(message: string): Promise<LogResult | null> {
+  // Try fitness first
+  const fitnessEntry = parseFitnessMessage(message)
+  if (fitnessEntry) {
+    try {
+      const entryDate = fitnessEntry.date || new Date().toISOString().split('T')[0]
+      const weekKey = getWeekKey(new Date(entryDate))
+      const entryData = buildEntryData(fitnessEntry)
+      const newEntry = buildEntry(entryData)
+      const savedData = await addFitnessEntry(weekKey, newEntry)
+
+      // Generate insight (non-blocking)
+      generateFitnessInsight(fitnessEntry, savedData, weekKey).catch(err =>
+        console.warn('[coach/chat] Failed to generate fitness insight:', err)
+      )
+
+      return {
+        type: 'fitness',
+        summary: formatFitnessSummary(fitnessEntry),
+      }
+    } catch (err) {
+      console.error('[coach/chat] Failed to log fitness entry:', err)
+    }
+  }
+
+  // Try budget
+  const budgetEntry = parseExpenseMessage(message)
+  if (budgetEntry) {
+    try {
+      const weekKey = getWeekKeyForBudget(budgetEntry.week)
+      const entryDate = budgetEntry.week
+        ? parseWeekKey(weekKey).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0]
+
+      const entry: BudgetEntry = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        amount: budgetEntry.amount,
+        category: budgetEntry.category as Category,
+        description: budgetEntry.description,
+        date: entryDate,
+        timestamp: new Date().toISOString(),
+        reason: budgetEntry.reason,
+      }
+
+      const savedData = await addBudgetEntry(weekKey, entry)
+
+      // Generate insight (non-blocking)
+      generateBudgetInsight(budgetEntry, savedData, weekKey).catch(err =>
+        console.warn('[coach/chat] Failed to generate budget insight:', err)
+      )
+
+      return {
+        type: 'budget',
+        summary: `€${budgetEntry.amount} ${budgetEntry.description} (${budgetEntry.category})`,
+      }
+    } catch (err) {
+      console.error('[coach/chat] Failed to log budget entry:', err)
+    }
+  }
+
+  return null
+}
+
+function getWeekKeyForBudget(weekNum: number | null): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  if (weekNum) return `${year}-W${String(weekNum).padStart(2, '0')}`
+  const weekNumber = getISOWeek(now)
+  return `${year}-W${String(weekNumber).padStart(2, '0')}`
+}
+
+function formatFitnessSummary(parsed: ReturnType<typeof parseFitnessMessage>): string {
+  if (!parsed) return ''
+  switch (parsed.type) {
+    case 'steps': return `${(parsed.steps || 0).toLocaleString('en-US')} steps`
+    case 'run': return `Run ${parsed.distance || 0}km${parsed.duration ? ` in ${parsed.duration}min` : ''}`
+    case 'swim': return `Swim ${parsed.distance || 0}km${parsed.duration ? ` in ${parsed.duration}min` : ''}`
+    case 'cycle': return `Ride ${parsed.distance || 0}km${parsed.duration ? ` in ${parsed.duration}min` : ''}`
+    case 'jiujitsu': return `BJJ${parsed.duration ? ` ${parsed.duration}min` : ''}`
+    case 'vo2max': return `VO2 Max ${parsed.vo2max}`
+    case 'hrv': return `HRV ${parsed.hrv}ms`
+    case 'weight': return `Weight ${parsed.weight}kg`
+    case 'body_fat': return `Body fat ${parsed.bodyFat}%`
+    case 'sleep': return `Sleep ${parsed.sleepHours}h`
+    case 'stress': return `Stress ${parsed.stressLevel}%`
+    case 'recovery': return `Recovery ${parsed.recoveryScore}%`
+    case 'training_load': return `Training load ${parsed.trainingLoad}`
+    default: return parsed.type
+  }
+}
+
+async function generateFitnessInsight(
+  parsed: NonNullable<ReturnType<typeof parseFitnessMessage>>,
+  savedData: Record<string, unknown>,
+  weekKey: string,
+) {
+  const contextLines: string[] = [`Activity logged: ${parsed.type}`]
+  if (parsed.steps) contextLines.push(`Steps: ${parsed.steps.toLocaleString('en-US')}`)
+  if (parsed.distance) contextLines.push(`Distance: ${parsed.distance}km`)
+  if (parsed.duration) contextLines.push(`Duration: ${parsed.duration}min`)
+  if (parsed.recoveryScore != null) contextLines.push(`Recovery score: ${parsed.recoveryScore}%`)
+  if (parsed.stressLevel != null) contextLines.push(`Stress level: ${parsed.stressLevel}%`)
+  if (parsed.hrv != null) contextLines.push(`HRV: ${parsed.hrv}ms`)
+  if (parsed.vo2max != null) contextLines.push(`VO2 Max: ${parsed.vo2max}`)
+  if (parsed.weight != null) contextLines.push(`Weight: ${parsed.weight}kg`)
+  if (parsed.sleepHours != null) contextLines.push(`Sleep: ${parsed.sleepHours}h`)
+
+  const aiResult = await generateAIInsight(contextLines.join('\n'), 'Fity')
+  if (aiResult) {
+    await saveInsight({
+      agent: 'Fity',
+      agentId: 'fitness-agent',
+      emoji: '🏋️',
+      insight: aiResult.insight,
+      type: aiResult.type,
+      updatedAt: new Date().toISOString(),
+      section: 'fitness',
+    })
+  }
+}
+
+async function generateBudgetInsight(
+  parsed: NonNullable<ReturnType<typeof parseExpenseMessage>>,
+  savedData: { totalSpent?: number; remaining?: number },
+  weekKey: string,
+) {
+  const contextLines = [
+    `Expense logged: €${parsed.amount} ${parsed.description} (${parsed.category})`,
+    `Week: ${weekKey}`,
+    `Total spent this week: €${savedData.totalSpent?.toFixed(2) ?? parsed.amount}`,
+    `Remaining budget: €${savedData.remaining?.toFixed(2) ?? 'unknown'}`,
+  ]
+  if (parsed.reason) contextLines.push(`Reason: ${parsed.reason}`)
+
+  const aiResult = await generateAIInsight(contextLines.join('\n'), 'Budgy')
+  if (aiResult) {
+    await saveInsight({
+      agent: 'Budgy',
+      agentId: 'budget-agent',
+      emoji: '💰',
+      insight: aiResult.insight,
+      type: aiResult.type,
+      updatedAt: new Date().toISOString(),
+      section: 'budget',
+    })
+  }
+}
+
 // ── Local fallback ──
 
-function generateLocalResponse(message: string, context?: string): string {
+function generateLocalResponse(message: string, context?: string, logResult?: LogResult | null): string {
   const lower = message.toLowerCase()
+
+  // If we logged data, acknowledge it
+  if (logResult) {
+    const prefix = `✅ Logged: ${logResult.summary}.`
+    if (logResult.type === 'fitness') {
+      return `${prefix} Your fitness dashboard has been updated.`
+    }
+    return `${prefix} Your budget dashboard has been updated.`
+  }
 
   if (lower.includes('how am i doing') || lower.includes('review') || lower.includes('summary')) {
     return context
@@ -115,9 +288,17 @@ export async function POST(request: NextRequest) {
       source: 'gateway',
     })
 
+    // ── Try to parse and log fitness/budget data directly ──
+    // This runs regardless of whether the gateway is available,
+    // so data always reaches the dashboards.
+    const logResult = await tryLogData(message)
+    if (logResult) {
+      console.log(`[coach/chat] Logged ${logResult.type} entry: ${logResult.summary}`)
+    }
+
     // No gateway — use local fallback
     if (!GATEWAY_URL || !GATEWAY_TOKEN) {
-      const localContent = generateLocalResponse(message, context)
+      const localContent = generateLocalResponse(message, context, logResult)
 
       await appendMessage(sessionKey, {
         id: `${Date.now()}-assistant`,
@@ -130,7 +311,11 @@ export async function POST(request: NextRequest) {
       // Relay to Telegram even for local responses
       relayToTelegram(message, localContent).catch(() => {})
 
-      return NextResponse.json({ content: localContent, source: 'local' })
+      return NextResponse.json({
+        content: localContent,
+        source: 'local',
+        ...(logResult && { logged: logResult }),
+      })
     }
 
     // Build enriched context with scoped memory
@@ -144,6 +329,8 @@ export async function POST(request: NextRequest) {
     if (memoryContext) contextParts.push(memoryContext)
     if (recentHistory) contextParts.push(`[Recent Conversation]\n${recentHistory}`)
     if (context) contextParts.push(`[Dashboard Data]\n${context}`)
+    // Tell the agent that we already logged the data so it can respond accordingly
+    if (logResult) contextParts.push(`[Auto-logged] ${logResult.type}: ${logResult.summary}`)
     contextParts.push(`User: ${message}`)
 
     const fullMessage = contextParts.join('\n\n')
@@ -165,7 +352,7 @@ export async function POST(request: NextRequest) {
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`[coach/chat] Gateway error ${response.status}:`, errorText)
-        const fallback = generateLocalResponse(message, context)
+        const fallback = generateLocalResponse(message, context, logResult)
 
         await appendMessage(sessionKey, {
           id: `${Date.now()}-assistant`,
@@ -176,7 +363,11 @@ export async function POST(request: NextRequest) {
         })
 
         relayToTelegram(message, fallback).catch(() => {})
-        return NextResponse.json({ content: fallback, source: 'local_fallback' })
+        return NextResponse.json({
+          content: fallback,
+          source: 'local_fallback',
+          ...(logResult && { logged: logResult }),
+        })
       }
 
       const data = await response.json()
@@ -219,10 +410,11 @@ export async function POST(request: NextRequest) {
         content: cleaned,
         source: 'gateway',
         ...(memories.length > 0 && { memoriesSaved: memories.length }),
+        ...(logResult && { logged: logResult }),
       })
     } catch (fetchError) {
       console.error('[coach/chat] Gateway fetch error:', fetchError)
-      const fallback = generateLocalResponse(message, context)
+      const fallback = generateLocalResponse(message, context, logResult)
 
       await appendMessage(sessionKey, {
         id: `${Date.now()}-assistant`,
@@ -233,7 +425,11 @@ export async function POST(request: NextRequest) {
       })
 
       relayToTelegram(message, fallback).catch(() => {})
-      return NextResponse.json({ content: fallback, source: 'local_fallback' })
+      return NextResponse.json({
+        content: fallback,
+        source: 'local_fallback',
+        ...(logResult && { logged: logResult }),
+      })
     }
   } catch (error) {
     console.error('[coach/chat] API error:', error)

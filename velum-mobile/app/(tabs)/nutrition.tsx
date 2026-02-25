@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { format, subDays } from 'date-fns';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { useNutrition } from '../../src/hooks/useNutrition';
 import { DarkCard, Card, EmptyState } from '../../src/components/Card';
@@ -851,7 +852,7 @@ export default function NutritionScreen() {
   const calorieProgress = data.goals.calories > 0 ? data.totals.calories / data.goals.calories : 0;
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header + Sub-tabs */}
       <View style={styles.headerRow}>
         <ScreenTitle title="Nutrition" marginBottom={0} />
@@ -1027,7 +1028,7 @@ export default function NutritionScreen() {
         onClose={() => { setShowScanModal(false); setScanResult(null); setScanPhotoUri(null); }}
         onConfirm={handleConfirmScan}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

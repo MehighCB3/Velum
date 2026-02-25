@@ -3,69 +3,14 @@ import { getISOWeek, parseWeekKey } from '../../../lib/weekUtils'
 import { addBudgetEntry, BudgetEntry, Category } from '../../../lib/budgetStore'
 import { saveInsight } from '../../../lib/insightsStore'
 import { generateAIInsight } from '../../../lib/aiInsights'
-import { inferBudgetCategory } from '../../../lib/budgetCategories'
+import { parseExpenseMessage } from '../../../lib/budgetParser'
 
 export const dynamic = 'force-dynamic'
 
 // Budget webhook handler for Telegram "Budgy" topic
-// Parses messages like: "15€ lunch food week 2" or "20€ drinks fun"
+// parseExpenseMessage imported from shared lib/budgetParser
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET
-
-interface ParsedExpense {
-  amount: number
-  description: string
-  category: 'Food' | 'Fun' | 'Transport' | 'Subscriptions' | 'Other'
-  week: number | null // null = current week
-  reason?: string
-}
-
-function parseExpenseMessage(text: string): ParsedExpense | null {
-  // Patterns:
-  // "15€ lunch food week 2" -> amount: 15, desc: lunch, category: Food, week: 2
-  // "20€ drinks fun" -> amount: 20, desc: drinks, category: Fun, week: current
-  // "25€ dinner food" -> amount: 25, desc: dinner, category: Food, week: current
-  // "30€ movie fun w3" -> amount: 30, desc: movie, category: Fun, week: 3
-  // "40€ dinner food for team celebration" -> reason: "team celebration"
-  
-  // Extract amount (€ symbol or just number at start)
-  const amountMatch = text.match(/^(\d+(?:\.\d{1,2})?)\s*(?:€|eur|euros?)?/i)
-  if (!amountMatch) return null
-  
-  const amount = parseFloat(amountMatch[1])
-  let remaining = text.slice(amountMatch[0].length).trim()
-  
-  // Extract reason (after "for" or similar keywords)
-  let reason: string | undefined
-  const reasonMatch = remaining.match(/\b(?:for|because|reason)\s+(.+)$/i)
-  if (reasonMatch) {
-    reason = reasonMatch[1].trim()
-    remaining = remaining.replace(reasonMatch[0], '').trim()
-  }
-  
-  // Extract week if specified
-  let week: number | null = null
-  const weekMatch = remaining.match(/\b(?:week|w)\s*(\d{1,2})\b/i)
-  if (weekMatch) {
-    week = parseInt(weekMatch[1])
-    remaining = remaining.replace(weekMatch[0], '').trim()
-  }
-  
-  // Determine category — delegate to shared lib so webhook + agent stay in sync
-  const category = inferBudgetCategory(remaining)
-  
-  // Clean up description (remove category words for cleaner description)
-  let description = remaining
-    .replace(/\b(?:food|fun|transport|subscriptions|other)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!description) {
-    description = `${category} expense`
-  }
-  
-  return { amount, description, category, week, reason }
-}
 
 function getWeekKeyForBudget(weekNum: number | null): string {
   const now = new Date()
