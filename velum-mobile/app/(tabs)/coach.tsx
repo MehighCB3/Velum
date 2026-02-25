@@ -196,9 +196,9 @@ export default function CoachScreen() {
 
       setChatMessages(prev => [...prev, { role: 'assistant', content: response.content }]);
 
-      // Refresh data after domain-specific messages
-      if (agent !== 'main') {
-        setTimeout(() => refresh(), 2000);
+      // Refresh data after any logged entry or domain-specific messages
+      if (response.logged || agent !== 'main') {
+        setTimeout(() => refresh(), 1500);
       }
     } catch {
       setChatMessages(prev => [
