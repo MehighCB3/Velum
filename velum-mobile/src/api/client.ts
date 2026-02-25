@@ -344,6 +344,39 @@ export const insightsApi = {
   },
 };
 
+// ==================== COACH ====================
+
+export interface CoachState {
+  name: string;
+  relState: number;
+  relLabel: string;
+  relKey: string;
+  streak: number;
+  bond: { score: number; level: number; label: string; streak: number };
+  avatarParams: AvatarState['avatarParams'];
+  health: AvatarState['health'];
+  insights: AgentInsight[];
+  greeting: string;
+}
+
+export const coachApi = {
+  /** Fetch aggregated coach state (avatar + metrics + insights). */
+  async getState(): Promise<CoachState> {
+    return request<CoachState>('/coach');
+  },
+
+  /** Send a message through the coach chat (routes to OpenClaw + Telegram relay). */
+  async sendMessage(
+    message: string,
+    opts?: { context?: string; agent?: string },
+  ): Promise<ChatResponse> {
+    return request<ChatResponse>('/coach/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, ...opts }),
+    });
+  },
+};
+
 // ==================== AVATAR ====================
 
 export const avatarApi = {
