@@ -80,6 +80,9 @@
     "rateLimit": {
       "windowMs": 60000,
       "maxRequests": 30
+    },
+    "tools": {
+      "allow": ["sessions_send"]
     }
   },
 
@@ -102,6 +105,9 @@
     "http": {
       "enabled": true,
       "allowedDomains": ["velum-five.vercel.app"]
+    },
+    "sessions": {
+      "visibility": "all"
     },
     "deny": ["group:automation", "group:runtime", "group:fs"]
   },
