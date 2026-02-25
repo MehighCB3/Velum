@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  FlatList,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
@@ -127,7 +127,7 @@ export default function CoachScreen() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const chatListRef = useRef<FlatList<ChatMsg>>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   // Derived state
   const relStateIdx = avatar ? bondToRelState(avatar.bond.level) : 0;
@@ -214,9 +214,20 @@ export default function CoachScreen() {
   // Auto-scroll on new messages
   useEffect(() => {
     if (chatMessages.length > 0) {
-      setTimeout(() => chatListRef.current?.scrollToEnd({ animated: true }), 150);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
     }
   }, [chatMessages.length]);
+
+  // Scroll to bottom when keyboard opens so chat stays visible
+  useEffect(() => {
+    const sub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      },
+    );
+    return () => sub.remove();
+  }, []);
 
   // ==================== LOADING / ERROR ====================
 
@@ -246,10 +257,11 @@ export default function CoachScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
