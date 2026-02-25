@@ -94,10 +94,10 @@ async function tryLogData(message: string): Promise<LogResult | null> {
       const weekKey = getWeekKey(new Date(entryDate))
       const entryData = buildEntryData(fitnessEntry)
       const newEntry = buildEntry(entryData)
-      const savedData = await addFitnessEntry(weekKey, newEntry)
+      await addFitnessEntry(weekKey, newEntry)
 
       // Generate insight (non-blocking)
-      generateFitnessInsight(fitnessEntry, savedData, weekKey).catch(err =>
+      generateFitnessInsight(fitnessEntry, weekKey).catch(err =>
         console.warn('[coach/chat] Failed to generate fitness insight:', err)
       )
 
@@ -178,7 +178,6 @@ function formatFitnessSummary(parsed: ReturnType<typeof parseFitnessMessage>): s
 
 async function generateFitnessInsight(
   parsed: NonNullable<ReturnType<typeof parseFitnessMessage>>,
-  savedData: Record<string, unknown>,
   weekKey: string,
 ) {
   const contextLines: string[] = [`Activity logged: ${parsed.type}`]
