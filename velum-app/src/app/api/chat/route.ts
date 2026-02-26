@@ -190,11 +190,24 @@ export async function POST(request: NextRequest) {
 
       const data = await response.json()
 
-      // OpenClaw tools/invoke returns { ok: true, result: { ... } }
+      // OpenClaw tools/invoke returns:
+      // { ok: true, result: { content: [{type:"text", text:"..."}], details: { status, reply, ... } } }
       let responseContent: string
       if (data.ok && data.result) {
         const result = data.result
-        responseContent = result.reply || result.response || result.message || result.content || result.text || 'No response received'
+        const details = result.details || {}
+
+        if (details.status === 'timeout') {
+          responseContent = 'The assistant is taking a moment to think. Please try again shortly.'
+        } else {
+          // Try details.reply first, then parse content array, then fallbacks
+          responseContent = details.reply
+            || (Array.isArray(result.content) && result.content[0]?.text
+              ? (() => { try { const p = JSON.parse(result.content[0].text); return p.reply || p.response || p.message } catch { return result.content[0].text } })()
+              : null)
+            || result.reply || result.response || result.message || result.text
+            || 'No response received'
+        }
       } else {
         responseContent = data.response || data.message || data.content || data.reply || 'No response received'
       }

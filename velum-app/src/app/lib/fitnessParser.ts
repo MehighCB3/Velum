@@ -146,7 +146,7 @@ export function parseFitnessMessage(text: string): ParsedFitnessEntry | null {
   // ==================== VO2 MAX PARSING ====================
 
   if (lowerText.includes('vo2') || lowerText.includes('vo2max')) {
-    const valuePattern = /(\d+(?:\.\d+)?)/
+    const valuePattern = /(?:vo2\s*(?:max)?)\s*(\d+(?:\.\d+)?)/i
     const valueMatch = text.match(valuePattern)
     if (valueMatch) {
       const vo2max = parseFloat(valueMatch[1])
