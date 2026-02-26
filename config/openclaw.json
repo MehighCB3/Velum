@@ -76,10 +76,13 @@
 
   "gateway": {
     "port": 18789,
-    "bind": "loopback",
+    "bind": "0.0.0.0",
+    "auth": {
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
     "rateLimit": {
       "windowMs": 60000,
-      "maxRequests": 30
+      "maxRequests": 60
     },
     "tools": {
       "allow": ["sessions_send"]
