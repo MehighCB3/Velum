@@ -163,10 +163,10 @@ export async function POST(request: NextRequest) {
           args: {
             sessionKey,
             message: fullMessage,
-            timeoutSeconds: 25
+            timeoutSeconds: 55
           }
         }),
-        signal: AbortSignal.timeout(30000)
+        signal: AbortSignal.timeout(60000)
       })
 
       if (!response.ok) {
