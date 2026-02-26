@@ -343,9 +343,9 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           tool: 'sessions_send',
-          args: { sessionKey, message: fullMessage, timeoutSeconds: 25 },
+          args: { sessionKey, message: fullMessage, timeoutSeconds: 55 },
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(60000),
       })
 
       if (!response.ok) {
