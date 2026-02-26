@@ -1,0 +1,50 @@
+name: Web CI
+
+# Runs on every push that touches web app code.
+# Catches TypeScript errors, lint failures, and test regressions
+# before they reach production via Vercel deploy.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - main
+    paths:
+      - 'velum-app/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'velum-app/**'
+
+jobs:
+  check:
+    name: Lint + TypeCheck + Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: velum-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: velum-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
