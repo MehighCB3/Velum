@@ -6,6 +6,7 @@ import {
   saveMemory,
   type MemoryCategory,
 } from '../../lib/memoryStore'
+import { NUTRITION_RE, BUDGET_RE, FITNESS_RE, LEARNING_RE, VALID_AGENTS } from '../../lib/agentRouting'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,10 +62,10 @@ function generateLocalResponse(message: string, context?: string): string {
 function getRelevantMemoryCategories(message: string): MemoryCategory[] | undefined {
   const lower = message.toLowerCase()
 
-  const isNutrition = /eat|food|meal|calorie|protein|carb|fat|breakfast|lunch|dinner|snack|cook|recipe|hungry|diet|macro/.test(lower)
-  const isFitness = /workout|run|swim|cycle|step|sleep|weight|vo2|hrv|stress|recovery|training|bjj|jiu/.test(lower)
-  const isBudget = /spent|expense|cost|paid|pay|buy|bought|€|euro|budget|money|cash|bill|invoice/.test(lower)
-  const isLearning = /spanish|book|read|learn|wisdom|principle|flashcard|conjugat|vocab/.test(lower)
+  const isNutrition = NUTRITION_RE.test(lower)
+  const isFitness = FITNESS_RE.test(lower)
+  const isBudget = BUDGET_RE.test(lower)
+  const isLearning = LEARNING_RE.test(lower)
 
   // General coaching / open-ended — inject everything
   if (!isNutrition && !isFitness && !isBudget && !isLearning) return undefined
@@ -101,8 +102,7 @@ export async function POST(request: NextRequest) {
 
     // sessionKey mirrors the agent so conversation history stays per-context.
     // Defaults to "main" for the general assistant.
-    const validAgents = ['main', 'nutry', 'booky', 'espanol', 'budgy']
-    const sessionKey = validAgents.includes(agent) ? agent : 'main'
+    const sessionKey = (VALID_AGENTS as readonly string[]).includes(agent) ? agent : 'main'
 
     // Store the user's message in session history
     await appendMessage(sessionKey, {
@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
       // OpenClaw tools/invoke HTTP API.
       // Pass sessionKey so the gateway routes directly to the right agent
       // instead of relying on keyword matching for every message.
+      const gatewayStart = Date.now()
       const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
         method: 'POST',
         headers: {
@@ -168,6 +169,7 @@ export async function POST(request: NextRequest) {
         }),
         signal: AbortSignal.timeout(60000)
       })
+      const responseTimeMs = Date.now() - gatewayStart
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -237,9 +239,12 @@ export async function POST(request: NextRequest) {
         metadata: memories.length > 0 ? { memoriesExtracted: memories.length } : undefined,
       })
 
+      console.log(`[chat] Gateway responded in ${responseTimeMs}ms`)
+
       return NextResponse.json({
         content: cleaned,
         source: 'gateway',
+        responseTimeMs,
         ...(memories.length > 0 && { memoriesSaved: memories.length }),
       })
 

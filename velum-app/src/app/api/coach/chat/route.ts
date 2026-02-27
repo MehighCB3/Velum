@@ -8,6 +8,8 @@ import {
 } from '../../../lib/memoryStore'
 import { parseFitnessMessage, buildEntryData } from '../../../lib/fitnessParser'
 import { parseExpenseMessage } from '../../../lib/budgetParser'
+import { parseNutritionMessage, mealTimeEstimate } from '../../../lib/nutritionParser'
+import { searchFatSecret } from '../../../lib/fatsecret'
 import { buildEntry, addFitnessEntry } from '../../../lib/fitnessStore'
 import { addBudgetEntry, type BudgetEntry, type Category } from '../../../lib/budgetStore'
 import { getWeekKey, getISOWeek, parseWeekKey } from '../../../lib/weekUtils'
@@ -23,18 +25,9 @@ const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID
 
-// ── Agent routing ──
+// ── Agent routing (shared) ──
 
-const NUTRITION_RE = /eat|ate|food|meal|calorie|protein|carb|fat|breakfast|lunch|dinner|snack|cook|recipe|hungry|diet|macro|pizza|chicken|rice|egg|salad|fruit/i
-const BUDGET_RE = /spent|expense|cost|paid|pay|buy|bought|€|euro|budget|money|cash|bill|invoice|price/i
-const FITNESS_RE = /workout|run|swim|cycle|step|sleep|weight|vo2|hrv|stress|recovery|training|bjj|jiu|gym|exercise/i
-
-function detectAgent(message: string): string {
-  if (NUTRITION_RE.test(message)) return 'nutry'
-  if (BUDGET_RE.test(message)) return 'budgy'
-  if (FITNESS_RE.test(message)) return 'main' // Fity routes through main for now
-  return 'main'
-}
+import { detectAgent, NUTRITION_RE, BUDGET_RE, FITNESS_RE, VALID_AGENTS } from '../../../lib/agentRouting'
 
 function getRelevantMemoryCategories(message: string): MemoryCategory[] | undefined {
   const lower = message.toLowerCase()
@@ -81,7 +74,7 @@ async function relayToTelegram(userMsg: string, assistantReply: string) {
 // so the Coach screen can feed data into all dashboards.
 
 interface LogResult {
-  type: 'fitness' | 'budget'
+  type: 'fitness' | 'budget' | 'nutrition'
   summary: string
 }
 
@@ -142,6 +135,54 @@ async function tryLogData(message: string): Promise<LogResult | null> {
       }
     } catch (err) {
       console.error('[coach/chat] Failed to log budget entry:', err)
+    }
+  }
+
+  // Try nutrition
+  const nutritionEntry = parseNutritionMessage(message)
+  if (nutritionEntry) {
+    try {
+      const fsResults = await searchFatSecret(nutritionEntry.foodDescription, 1)
+      if (fsResults && fsResults.length > 0) {
+        const fs = fsResults[0]
+        const entryDate = nutritionEntry.date || new Date().toISOString().split('T')[0]
+        const entryTime = mealTimeEstimate(nutritionEntry.mealHint)
+
+        // POST to our own nutrition API to create the entry
+        const { sql } = await import('@vercel/postgres')
+        const entryId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+        await sql`
+          INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
+          VALUES (${entryId}, ${entryDate}, ${fs.name}, ${Math.round(fs.calories)}, ${Math.round(fs.protein)}, ${Math.round(fs.carbs)}, ${Math.round(fs.fat)}, ${entryTime})
+          ON CONFLICT (entry_id) DO NOTHING
+        `
+
+        // Generate insight (non-blocking)
+        generateAIInsight(
+          `Food logged: ${fs.name} — ${Math.round(fs.calories)} kcal, ${Math.round(fs.protein)}g protein`,
+          'Nutry',
+        ).then(aiResult => {
+          if (aiResult) {
+            saveInsight({
+              agent: 'Nutry',
+              agentId: 'nutrition-agent',
+              emoji: '\uD83C\uDF4E',
+              insight: aiResult.insight,
+              type: aiResult.type,
+              updatedAt: new Date().toISOString(),
+              section: 'nutrition',
+            })
+          }
+        }).catch(err => console.warn('[coach/chat] Failed to generate nutrition insight:', err))
+
+        return {
+          type: 'nutrition',
+          summary: `${fs.name} (${Math.round(fs.calories)} kcal, ${Math.round(fs.protein)}g protein)`,
+        }
+      }
+    } catch (err) {
+      console.error('[coach/chat] Failed to log nutrition entry:', err)
     }
   }
 
@@ -239,9 +280,12 @@ function generateLocalResponse(message: string, context?: string, logResult?: Lo
 
   // If we logged data, acknowledge it
   if (logResult) {
-    const prefix = `✅ Logged: ${logResult.summary}.`
+    const prefix = `Logged: ${logResult.summary}.`
     if (logResult.type === 'fitness') {
       return `${prefix} Your fitness dashboard has been updated.`
+    }
+    if (logResult.type === 'nutrition') {
+      return `${prefix} Your nutrition dashboard has been updated.`
     }
     return `${prefix} Your budget dashboard has been updated.`
   }
@@ -275,8 +319,7 @@ export async function POST(request: NextRequest) {
     }
 
     const agent = requestedAgent || detectAgent(message)
-    const validAgents = ['main', 'nutry', 'booky', 'espanol', 'budgy']
-    const sessionKey = validAgents.includes(agent) ? agent : 'main'
+    const sessionKey = (VALID_AGENTS as readonly string[]).includes(agent) ? agent : 'main'
 
     // Store user message
     await appendMessage(sessionKey, {
@@ -335,6 +378,7 @@ export async function POST(request: NextRequest) {
     const fullMessage = contextParts.join('\n\n')
 
     try {
+      const gatewayStart = Date.now()
       const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
         method: 'POST',
         headers: {
@@ -347,6 +391,7 @@ export async function POST(request: NextRequest) {
         }),
         signal: AbortSignal.timeout(60000),
       })
+      const responseTimeMs = Date.now() - gatewayStart
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -365,6 +410,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           content: fallback,
           source: 'local_fallback',
+          responseTimeMs,
           ...(logResult && { logged: logResult }),
         })
       }
@@ -417,9 +463,12 @@ export async function POST(request: NextRequest) {
       // Relay to Telegram
       relayToTelegram(message, cleaned).catch(() => {})
 
+      console.log(`[coach/chat] Gateway responded in ${responseTimeMs}ms`)
+
       return NextResponse.json({
         content: cleaned,
         source: 'gateway',
+        responseTimeMs,
         ...(memories.length > 0 && { memoriesSaved: memories.length }),
         ...(logResult && { logged: logResult }),
       })

@@ -11,16 +11,19 @@ import {
   Platform,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { useAvatar } from '../../src/hooks/useAvatar';
 import { AvatarSVG } from '../../src/components/AvatarSVG';
-import { chatApi, insightsApi, coachApi } from '../../src/api/client';
+import { chatApi, insightsApi, coachApi, nutritionApi } from '../../src/api/client';
 import { AgentInsight, HealthSnapshot } from '../../src/types';
 import { timeAgo } from '../../src/utils/timeAgo';
+import { API_BASE } from '../../src/api/config';
 
 // ==================== RELATIONSHIP STATES ====================
 
@@ -115,6 +118,7 @@ const QUICK_ACTIONS = [
 interface ChatMsg {
   role: 'user' | 'assistant';
   content: string;
+  responseTimeMs?: number;
 }
 
 // ==================== COACH SCREEN ====================
@@ -194,7 +198,11 @@ export default function CoachScreen() {
       const context = `[Coach screen \u2014 bond level ${avatar?.bond.level || 1}] ${healthSummary}`;
       const response = await coachApi.sendMessage(msg, { context, agent });
 
-      setChatMessages(prev => [...prev, { role: 'assistant', content: response.content }]);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: response.content,
+        responseTimeMs: response.responseTimeMs,
+      }]);
 
       // Refresh data after any logged entry or domain-specific messages
       if (response.logged || agent !== 'main') {
@@ -211,6 +219,102 @@ export default function CoachScreen() {
   }, [chatInput, chatLoading, avatar, refresh]);
 
   const handleSend = useCallback(() => sendMessage(), [sendMessage]);
+
+  // Camera: take or pick a photo and analyze it for nutrition
+  const handleCamera = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera access is required to snap food photos.');
+      return;
+    }
+
+    Alert.alert('Log food', 'How would you like to add a photo?', [
+      {
+        text: 'Take photo',
+        onPress: async () => {
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            base64: true,
+            quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0].base64) {
+            analyzePhoto(result.assets[0].base64, result.assets[0].mimeType || 'image/jpeg');
+          }
+        },
+      },
+      {
+        text: 'Choose from library',
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            base64: true,
+            quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0].base64) {
+            analyzePhoto(result.assets[0].base64, result.assets[0].mimeType || 'image/jpeg');
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, []);
+
+  const analyzePhoto = useCallback(async (base64: string, mimeType: string) => {
+    setChatMessages(prev => [...prev, { role: 'user', content: '[Sent a food photo for analysis]' }]);
+    setChatLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/nutrition/photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
+      });
+
+      if (!response.ok) throw new Error(`Photo analysis failed (${response.status})`);
+
+      const data = await response.json();
+      const food = data.result;
+
+      if (food) {
+        // Log the entry to nutrition
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        await nutritionApi.addEntry(today, {
+          id: `${Date.now()}-photo`,
+          name: food.name,
+          calories: food.calories,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+          time: timeStr,
+        });
+
+        const summary = `${food.name} — ${food.calories} kcal, ${food.protein}g protein, ${food.carbs}g carbs, ${food.fat}g fat`;
+        const confidence = food.confidence === 'high' ? '' : ` (${food.confidence} confidence)`;
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Logged: ${summary}${confidence}${food.note ? `\n${food.note}` : ''}`,
+        }]);
+
+        // Refresh dashboard data
+        setTimeout(() => refresh(), 1000);
+      } else {
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: "Couldn't identify the food in that photo. Try again with better lighting, or type what you ate.",
+        }]);
+      }
+    } catch (err) {
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Failed to analyze the photo. Check your connection and try again.',
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [refresh]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -391,6 +495,13 @@ export default function CoachScreen() {
                   {msg.content}
                 </Text>
               </View>
+              {msg.role === 'assistant' && msg.responseTimeMs != null && (
+                <Text style={styles.responseTime}>
+                  {msg.responseTimeMs < 1000
+                    ? `${msg.responseTimeMs}ms`
+                    : `${(msg.responseTimeMs / 1000).toFixed(1)}s`}
+                </Text>
+              )}
             </View>
           ))}
           {chatLoading && (
@@ -426,6 +537,13 @@ export default function CoachScreen() {
 
       {/* ═══════ Input Bar (fixed at bottom) ═══════ */}
       <View style={styles.inputBar}>
+        <Pressable
+          onPress={handleCamera}
+          style={styles.cameraButton}
+          disabled={chatLoading}
+        >
+          <Ionicons name="camera-outline" size={20} color={chatLoading ? colors.muted : colors.accent} />
+        </Pressable>
         <TextInput
           style={styles.textInput}
           value={chatInput}
@@ -677,7 +795,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    minHeight: 160,
+    minHeight: 300,
     padding: 14,
     paddingBottom: 8,
   },
@@ -725,6 +843,12 @@ const styles = StyleSheet.create({
   msgTextAssistant: {
     color: colors.text,
   },
+  responseTime: {
+    fontSize: 9,
+    color: colors.muted,
+    marginTop: 2,
+    marginLeft: 4,
+  },
 
   // ═══════ Quick Actions ═══════
   quickActionsScroll: {
@@ -759,6 +883,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: 8,
+  },
+  cameraButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textInput: {
     flex: 1,
