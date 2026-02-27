@@ -298,8 +298,9 @@ export interface ChatMessage {
 export interface ChatResponse {
   content: string;
   source: string;
+  responseTimeMs?: number;
   memoriesSaved?: number;
-  logged?: { type: 'fitness' | 'budget'; summary: string };
+  logged?: { type: 'fitness' | 'budget' | 'nutrition'; summary: string };
 }
 
 export interface ChatHistoryMessage {

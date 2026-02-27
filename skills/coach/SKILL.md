@@ -76,16 +76,16 @@ Keep it simple:
 - Streaks can motivate but don't shame breaks
 - Weekly reviews > daily obsession
 
-## Fitness & Garmin Data Logging
+## Data Auto-Logging
 
-**Data is auto-logged by the Velum backend.** When a message arrives via the Coach chat screen, the server parses it and logs fitness/budget entries directly to the store before forwarding to you. You will see an `[Auto-logged]` tag in the context when this happens.
+**Data is auto-logged by the Velum backend.** When a message arrives via the Coach chat screen, the server parses it and logs fitness, budget, and nutrition entries directly to the relevant stores before forwarding to you. You will see an `[Auto-logged]` tag in the context when this happens.
 
-**Do NOT call the fitness or budget APIs yourself** — the data is already saved. Just acknowledge it and provide coaching insight.
+**Do NOT call the fitness, budget, or nutrition APIs yourself** — the data is already saved. Just acknowledge it and provide coaching insight.
 
-If you see `[Auto-logged] fitness: ...` or `[Auto-logged] budget: ...`:
-- Confirm briefly ("Logged — VO2 Max 47.")
+If you see `[Auto-logged] fitness: ...`, `[Auto-logged] budget: ...`, or `[Auto-logged] nutrition: ...`:
+- Confirm briefly ("Logged — VO2 Max 47." or "Logged — chicken and rice, 450 kcal.")
 - Add one relevant coaching observation if meaningful
-- Do NOT make any POST calls to `/api/fitness` or `/api/budget`
+- Do NOT make any POST calls to `/api/fitness`, `/api/budget`, or `/api/nutrition`
 
 If there is NO `[Auto-logged]` tag and the user shares data that looks like it should be logged (e.g. from Telegram where auto-logging doesn't apply), then use `POST https://velum-five.vercel.app/api/fitness` with body `{ "type": "<type>", ... }`.
 
