@@ -1,12 +1,12 @@
 'use client'
 
-import { C, FONT, FONT_SANS, StatusBar, LightCard } from '../components'
+import { C, FONT, FONT_SANS, StatusBar, LightCard, SectionLabel } from '../components'
 
 export default function ProfileScreen() {
   const goals = [
     { label: "Run Barcelona Marathon", pct: 62, deadline: "W12 \u00B7 3w", color: C.accent },
-    { label: "Reach 52kg body weight", pct: 45, deadline: "W20 \u00B7 11w", color: "#8aab6e" },
-    { label: "Log food 30 days straight", pct: 80, deadline: "W11 \u00B7 2w", color: "#6ab3c8" },
+    { label: "Reach 52kg body weight", pct: 45, deadline: "W20 \u00B7 11w", color: C.carbsGreen },
+    { label: "Log food 30 days straight", pct: 80, deadline: "W11 \u00B7 2w", color: C.fatBlue },
     { label: "Launch Velum 1.0", pct: 90, deadline: "W10 \u00B7 1w", color: C.accentWarm },
   ]
   const streaks = [
@@ -62,9 +62,7 @@ export default function ProfileScreen() {
       <div style={{ padding: "16px 16px 0" }}>
         {/* Streaks */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, marginBottom: 10, textTransform: "uppercase" }}>
-            Active Streaks
-          </div>
+          <SectionLabel>Active Streaks</SectionLabel>
           <div style={{ display: "flex", gap: 8 }}>
             {streaks.map(s => (
               <LightCard key={s.label} style={{ flex: 1, padding: "12px 10px", textAlign: "center" }}>
@@ -86,9 +84,7 @@ export default function ProfileScreen() {
         {/* Goals */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, textTransform: "uppercase" }}>
-              Goals
-            </div>
+            <span style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, textTransform: "uppercase" as const }}>Goals</span>
             <button style={{ fontSize: 11, color: C.accent, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_SANS, fontWeight: 600 }}>
               + Add
             </button>
@@ -119,18 +115,19 @@ export default function ProfileScreen() {
             { label: "Connected Apps", icon: "\u{1F517}" },
             { label: "Teky Settings", icon: "\u{1F916}" },
           ].map((item, i, arr) => (
-            <div key={item.label} style={{
+            <button key={item.label} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "14px 16px",
+              padding: "14px 16px", width: "100%",
+              cursor: "pointer", background: "none",
+              border: "none",
               borderBottom: i < arr.length - 1 ? `1px solid ${C.borderLight}` : "none",
-              cursor: "pointer",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 18 }}>{item.icon}</span>
                 <span style={{ fontSize: 13.5, color: C.text, fontFamily: FONT_SANS }}>{item.label}</span>
               </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
-            </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
           ))}
         </LightCard>
       </div>

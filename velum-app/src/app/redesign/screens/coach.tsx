@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { C, FONT, FONT_SANS, StatusBar } from '../components'
 import { TekyIcon } from '../icons'
 
@@ -17,23 +17,50 @@ const QUICK_ACTIONS = [
   "Suggest a dinner",
   "Weekly review",
   "What should I train?",
-]
+] as const
+
+// ── Card data types (discriminated union) ──
+type RecoveryCard = {
+  type: 'recovery'
+  data: { recovery: number; protein: number; proteinGoal: number; steps: number; stepsGoal: number }
+}
+type NutritionCard = {
+  type: 'nutrition'
+  data: { name: string; kcal: number; protein: number; carbs: number; fat: number }
+}
+type SummaryCard = {
+  type: 'summary'
+  data: { recovery: number; avgKcal: number; avgProtein: number; streak: number }
+}
+type ContextCard = RecoveryCard | NutritionCard | SummaryCard
 
 interface ChatMsg {
+  id: string
   role: 'user' | 'assistant'
   text: string
   time: string
-  card?: {
-    type: 'nutrition' | 'recovery' | 'summary'
-    data: Record<string, string | number>
-  }
+  card?: ContextCard
 }
+
+let msgCounter = 0
+function nextMsgId(): string {
+  return `msg-${Date.now()}-${++msgCounter}`
+}
+
+// ── Static metrics (would come from API in prod) ──
+const METRICS = [
+  { label: "Recovery", value: "78%", color: C.green },
+  { label: "Protein", value: "47/140g", color: C.accentWarm },
+  { label: "Steps", value: "3.2k", color: C.accent },
+  { label: "Budget", value: "\u20AC70", color: C.green },
+] as const
 
 export default function CoachScreen() {
   const [input, setInput] = useState("")
   const [metricsExpanded, setMetricsExpanded] = useState(true)
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
+      id: nextMsgId(),
       role: "assistant",
       text: "Good morning, Mihai! Recovery is strong today. Nutrition is slightly low on protein this week. Want me to suggest a high-protein lunch?",
       time: "9:38",
@@ -44,41 +71,49 @@ export default function CoachScreen() {
     }
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
 
-  // Collapse metrics strip when scrolling into chat
-  const chatAreaRef = useRef<HTMLDivElement>(null)
+  // Cleanup simulated response timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
-  const send = (text?: string) => {
+  const send = useCallback((text?: string) => {
     const msg = (text || input).trim()
     if (!msg) return
-    const userMsg: ChatMsg = { role: "user", text: msg, time: "now" }
+    const userMsg: ChatMsg = { id: nextMsgId(), role: "user", text: msg, time: "now" }
     setMessages(m => [...m, userMsg])
     if (!text) setInput("")
-    // Collapse metrics after first user interaction
     setMetricsExpanded(false)
 
-    // Simulate response
-    setTimeout(() => {
+    // Simulate response (would be API call in prod)
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    timeoutRef.current = setTimeout(() => {
       let response: ChatMsg
-      if (msg.toLowerCase().includes('lunch') || msg.toLowerCase().includes('dinner') || msg.toLowerCase().includes('suggest')) {
+      const lower = msg.toLowerCase()
+      if (lower.includes('lunch') || lower.includes('dinner') || lower.includes('suggest')) {
         response = {
+          id: nextMsgId(),
           role: "assistant",
-          text: "Based on your targets, here's a high-protein option that would close the gap nicely. Want me to log it?",
+          text: "Based on your targets, here\u2019s a high-protein option that would close the gap nicely. Want me to log it?",
           time: "now",
           card: {
             type: 'nutrition',
             data: { name: 'Grilled chicken + quinoa salad', kcal: 520, protein: 48, carbs: 35, fat: 18 }
           }
         }
-      } else if (msg.toLowerCase().includes('doing') || msg.toLowerCase().includes('review')) {
+      } else if (lower.includes('doing') || lower.includes('review')) {
         response = {
+          id: nextMsgId(),
           role: "assistant",
-          text: "You're doing well this week! Recovery is up, and you've been consistent with logging. Protein intake could use a boost — you've been averaging 89g against your 140g target.",
+          text: "You\u2019re doing well this week! Recovery is up, and you\u2019ve been consistent with logging. Protein intake could use a boost \u2014 you\u2019ve been averaging 89g against your 140g target.",
           time: "now",
           card: {
             type: 'summary',
@@ -87,28 +122,25 @@ export default function CoachScreen() {
         }
       } else {
         response = {
+          id: nextMsgId(),
           role: "assistant",
-          text: "On it. I've checked your data — things are looking solid. Let me know if you need anything specific about nutrition, fitness, or your budget.",
+          text: "On it. I\u2019ve checked your data \u2014 things are looking solid. Let me know if you need anything specific about nutrition, fitness, or your budget.",
           time: "now",
         }
       }
       setMessages(m => [...m, response])
     }, 800)
-  }
+  }, [input])
 
-  // Metrics data
-  const metrics = [
-    { label: "Recovery", value: "78%", color: C.green, status: "good" },
-    { label: "Protein", value: "47/140g", color: C.accentWarm, status: "low" },
-    { label: "Steps", value: "3.2k", color: C.accent, status: "ok" },
-    { label: "Budget", value: "€70", color: C.green, status: "good" },
-  ]
+  const toggleMetrics = useCallback(() => {
+    setMetricsExpanded(v => !v)
+  }, [])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bg }}>
       <StatusBar light />
 
-      {/* ── COMPACT HEADER — chat-contact style ── */}
+      {/* ── COMPACT HEADER ── */}
       <div style={{
         background: `linear-gradient(180deg, #1e1a16 0%, #231c15 100%)`,
         padding: "10px 16px 12px",
@@ -119,7 +151,6 @@ export default function CoachScreen() {
         overflow: "hidden",
         flexShrink: 0,
       }}>
-        {/* Faint glow */}
         <div style={{
           position: "absolute", left: 6, top: "50%",
           transform: "translateY(-50%)",
@@ -128,7 +159,7 @@ export default function CoachScreen() {
           pointerEvents: "none",
         }} />
 
-        {/* Avatar — blue capybara in a clipping circle */}
+        {/* Avatar */}
         <div style={{
           flexShrink: 0, position: "relative",
           width: 48, height: 48,
@@ -150,7 +181,6 @@ export default function CoachScreen() {
           zIndex: 2,
         }} />
 
-        {/* Name + subtitle */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 18, fontWeight: 400, color: "#fff",
@@ -162,11 +192,11 @@ export default function CoachScreen() {
             fontSize: 10.5, color: "rgba(255,255,255,0.35)",
             fontFamily: FONT_SANS, marginTop: 2, letterSpacing: "0.03em",
           }}>
-            your life coach · online
+            your life coach \u00B7 online
           </div>
         </div>
 
-        {/* Status chips — compact */}
+        {/* Status chips */}
         <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end" }}>
           {[
             { label: "78% recovery", color: C.green },
@@ -187,7 +217,12 @@ export default function CoachScreen() {
 
       {/* ── COLLAPSIBLE METRICS STRIP ── */}
       <div
-        onClick={() => setMetricsExpanded(!metricsExpanded)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={metricsExpanded}
+        aria-label="Toggle metrics summary"
+        onClick={toggleMetrics}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMetrics() } }}
         style={{
           display: "flex",
           alignItems: "center",
@@ -196,16 +231,16 @@ export default function CoachScreen() {
           background: C.surface,
           borderBottom: `1px solid ${C.border}`,
           cursor: "pointer",
-          transition: "all 0.2s ease",
+          transition: "padding 0.2s ease",
           flexShrink: 0,
         }}
       >
         {metricsExpanded ? (
           <div style={{ display: "flex", width: "100%", justifyContent: "space-between" }}>
-            {metrics.map((m, i) => (
+            {METRICS.map((m, i) => (
               <div key={m.label} style={{
                 flex: 1, textAlign: "center",
-                borderRight: i < metrics.length - 1 ? `1px solid ${C.borderLight}` : "none",
+                borderRight: i < METRICS.length - 1 ? `1px solid ${C.borderLight}` : "none",
                 padding: "0 4px",
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT_SANS }}>{m.value}</div>
@@ -219,7 +254,7 @@ export default function CoachScreen() {
         ) : (
           <>
             <div style={{ display: "flex", gap: 6, flex: 1 }}>
-              {metrics.map(m => (
+              {METRICS.map(m => (
                 <span key={m.label} style={{
                   fontSize: 10, fontFamily: FONT_SANS, fontWeight: 500,
                   padding: "2px 6px", borderRadius: 4,
@@ -229,44 +264,42 @@ export default function CoachScreen() {
                 </span>
               ))}
             </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M6 9l6 6 6-6" />
             </svg>
           </>
         )}
       </div>
 
-      {/* ── CHAT MESSAGES AREA ── */}
-      <div ref={chatAreaRef} style={{
+      {/* ── CHAT MESSAGES ── */}
+      <div style={{
         flex: 1, overflowY: "auto", padding: "12px 14px 0",
         display: "flex", flexDirection: "column",
-      }}>
+      }} role="log" aria-label="Chat messages">
         {messages.map((m, i) => {
           const isFirst = i === 0 || messages[i - 1].role !== m.role
           return (
-            <div key={i}>
+            <div key={m.id}>
               <div style={{
                 display: "flex",
                 justifyContent: m.role === "user" ? "flex-end" : "flex-start",
                 marginBottom: m.card ? 4 : 8,
                 marginTop: isFirst && i > 0 ? 4 : 0,
               }}>
-                {/* Teky mini-icon for first message in group */}
                 {m.role === "assistant" && isFirst && (
                   <div style={{
                     width: 26, height: 26, marginRight: 7, marginTop: 2, flexShrink: 0,
                     borderRadius: "50%", background: "#d8eef5",
                     overflow: "hidden",
                     boxShadow: `0 0 0 1.5px #7aafca30`,
-                  }}>
+                  }} aria-hidden="true">
                     <div style={{ marginTop: -2, marginLeft: -1 }}>
                       <TekyIcon size={30} />
                     </div>
                   </div>
                 )}
-                {/* Spacer when no icon but same sender */}
                 {m.role === "assistant" && !isFirst && (
-                  <div style={{ width: 33, flexShrink: 0 }} />
+                  <div style={{ width: 33, flexShrink: 0 }} aria-hidden="true" />
                 )}
 
                 <div style={{
@@ -274,9 +307,7 @@ export default function CoachScreen() {
                   padding: "10px 13px",
                   borderRadius: m.role === "user"
                     ? "16px 16px 4px 16px"
-                    : isFirst
-                      ? "4px 16px 16px 16px"
-                      : "16px 16px 16px 16px",
+                    : isFirst ? "4px 16px 16px 16px" : "16px",
                   background: m.role === "user" ? C.text : C.surface,
                   border: m.role === "assistant" ? `1px solid ${C.border}` : "none",
                   color: m.role === "user" ? "#fff" : C.text,
@@ -291,7 +322,7 @@ export default function CoachScreen() {
                 </div>
               </div>
 
-              {/* ── INLINE CONTEXT CARD — data widget after message ── */}
+              {/* ── INLINE CONTEXT CARD ── */}
               {m.card && m.role === "assistant" && (
                 <div style={{
                   marginLeft: 33, marginBottom: 10,
@@ -306,7 +337,7 @@ export default function CoachScreen() {
                       {[
                         { label: "Recovery", val: `${m.card.data.recovery}%`, color: C.green },
                         { label: "Protein", val: `${m.card.data.protein}/${m.card.data.proteinGoal}g`, color: C.accentWarm },
-                        { label: "Steps", val: `${((m.card.data.steps as number) / 1000).toFixed(1)}k`, color: C.accent },
+                        { label: "Steps", val: `${(m.card.data.steps / 1000).toFixed(1)}k`, color: C.accent },
                       ].map(d => (
                         <div key={d.label} style={{ textAlign: "center", flex: 1 }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: d.color, fontFamily: FONT_SANS }}>{d.val}</div>
@@ -318,14 +349,14 @@ export default function CoachScreen() {
                   {m.card.type === 'nutrition' && (
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: FONT_SANS, marginBottom: 6 }}>
-                        {m.card.data.name as string}
+                        {m.card.data.name}
                       </div>
                       <div style={{ display: "flex", gap: 10 }}>
                         {[
                           { label: "kcal", val: m.card.data.kcal, color: C.text },
                           { label: "protein", val: `${m.card.data.protein}g`, color: C.accentWarm },
-                          { label: "carbs", val: `${m.card.data.carbs}g`, color: "#8aab6e" },
-                          { label: "fat", val: `${m.card.data.fat}g`, color: "#6ab3c8" },
+                          { label: "carbs", val: `${m.card.data.carbs}g`, color: C.carbsGreen },
+                          { label: "fat", val: `${m.card.data.fat}g`, color: C.fatBlue },
                         ].map(d => (
                           <div key={d.label} style={{ textAlign: "center" }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: d.color, fontFamily: FONT_SANS }}>{d.val}</div>
@@ -363,12 +394,12 @@ export default function CoachScreen() {
         <div ref={bottomRef} />
       </div>
 
-      {/* ── QUICK REPLY CHIPS — ephemeral, above input ── */}
+      {/* ── QUICK REPLY CHIPS ── */}
       {messages.length <= 2 && (
         <div style={{
           display: "flex", gap: 6, padding: "8px 14px 4px",
           overflowX: "auto", flexShrink: 0,
-        }}>
+        }} role="group" aria-label="Suggested replies">
           {QUICK_ACTIONS.map(action => (
             <button
               key={action}
@@ -383,46 +414,49 @@ export default function CoachScreen() {
                 transition: "all 0.15s",
               }}
               onMouseOver={e => {
-                (e.target as HTMLElement).style.background = C.accentLight;
-                (e.target as HTMLElement).style.borderColor = C.accent;
+                const el = e.currentTarget
+                el.style.background = C.accentLight
+                el.style.borderColor = C.accent
               }}
               onMouseOut={e => {
-                (e.target as HTMLElement).style.background = "none";
-                (e.target as HTMLElement).style.borderColor = C.border;
+                const el = e.currentTarget
+                el.style.background = "none"
+                el.style.borderColor = C.border
               }}
             >{action}</button>
           ))}
         </div>
       )}
 
-      {/* ── INPUT BAR — camera + text + send ── */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "8px 12px 12px",
-        borderTop: `1px solid ${C.border}`,
-        background: C.bg,
-        flexShrink: 0,
-      }}>
-        {/* Camera button */}
-        <button style={{
+      {/* ── INPUT BAR ── */}
+      <form
+        onSubmit={e => { e.preventDefault(); send() }}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 12px 12px",
+          borderTop: `1px solid ${C.border}`,
+          background: C.bg,
+          flexShrink: 0,
+        }}
+      >
+        <button type="button" aria-label="Take food photo" style={{
           flexShrink: 0, width: 36, height: 36,
           background: "none", border: "none", cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: 0,
         }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke={C.textMuted} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            stroke={C.textMuted} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
             <circle cx="12" cy="13" r="4"/>
           </svg>
         </button>
 
-        {/* Text input */}
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && send()}
-          placeholder="Message Teky…"
+          placeholder="Message Teky\u2026"
+          aria-label="Message input"
           style={{
             flex: 1,
             border: `1.5px solid ${C.border}`,
@@ -434,23 +468,23 @@ export default function CoachScreen() {
           }}
         />
 
-        {/* Send button */}
-        <button onClick={() => send()} style={{
+        <button type="submit" aria-label="Send message" disabled={!input.trim()} style={{
           flexShrink: 0,
           width: 36, height: 36, borderRadius: "50%",
           background: input.trim() ? C.accent : C.borderLight,
-          border: "none", cursor: "pointer",
+          border: "none", cursor: input.trim() ? "pointer" : "default",
           display: "flex", alignItems: "center", justifyContent: "center",
           transition: "background 0.15s",
+          opacity: input.trim() ? 1 : 0.6,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke={input.trim() ? "#fff" : C.textMuted}
-            strokeWidth="2.2" strokeLinecap="round">
+            strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <line x1="22" y1="2" x2="11" y2="13"/>
             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
           </svg>
         </button>
-      </div>
+      </form>
     </div>
   )
 }

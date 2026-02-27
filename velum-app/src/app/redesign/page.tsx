@@ -25,7 +25,7 @@ const tabs: { id: TabId; icon: ComponentType<{ active: boolean }>; label: string
 ]
 
 const BottomNav = ({ active, setActive }: { active: TabId; setActive: (id: TabId) => void }) => (
-  <div style={{
+  <div role="tablist" aria-label="App navigation" style={{
     display: "flex", justifyContent: "space-around",
     padding: "10px 0 20px",
     borderTop: `1px solid ${C.border}`,
@@ -34,7 +34,7 @@ const BottomNav = ({ active, setActive }: { active: TabId; setActive: (id: TabId
     {tabs.map(t => {
       const isActive = active === t.id
       return (
-        <button key={t.id} onClick={() => setActive(t.id)} style={{
+        <button key={t.id} role="tab" aria-selected={isActive} onClick={() => setActive(t.id)} style={{
           display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
           background: "none", border: "none", cursor: "pointer",
           padding: "4px 6px",
@@ -87,18 +87,18 @@ export default function VelumRedesign() {
       {/* Title */}
       <div style={{ marginBottom: 32, textAlign: "center" }}>
         <div style={{
-          fontSize: 11, letterSpacing: "0.14em", color: "#8c8278",
+          fontSize: 11, letterSpacing: "0.14em", color: C.textMuted,
           fontFamily: FONT_SANS, textTransform: "uppercase", marginBottom: 6,
         }}>
           Complete Redesign
         </div>
         <div style={{
-          fontSize: 34, fontWeight: 800, color: "#1a1814",
+          fontSize: 34, fontWeight: 800, color: C.text,
           fontFamily: FONT, letterSpacing: "-1.5px",
         }}>
           Velum 1.0
         </div>
-        <div style={{ fontSize: 13, color: "#8c8278", marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>
           6 screens · Click tabs to explore
         </div>
       </div>
@@ -114,8 +114,8 @@ export default function VelumRedesign() {
         display: "flex",
         flexDirection: "column",
         boxShadow: `
-          0 0 0 10px #1a1814,
-          0 0 0 12px #2e2a26,
+          0 0 0 10px ${C.dark},
+          0 0 0 12px ${C.darkMid},
           0 50px 120px rgba(0,0,0,0.45)
         `,
       }}>
@@ -124,7 +124,7 @@ export default function VelumRedesign() {
           position: "absolute", top: 0, left: "50%",
           transform: "translateX(-50%)",
           width: 120, height: 34,
-          background: "#1a1814",
+          background: C.dark,
           borderRadius: "0 0 20px 20px",
           zIndex: 100,
         }} />
@@ -142,7 +142,7 @@ export default function VelumRedesign() {
       <div style={{
         marginTop: 20,
         padding: "8px 20px",
-        background: "#1a1814",
+        background: C.dark,
         borderRadius: 24,
         color: "#fff",
         fontSize: 13, fontFamily: FONT_SANS,
