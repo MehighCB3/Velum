@@ -9,12 +9,21 @@ import { NextRequest, NextResponse } from 'next/server'
 // - Request size guards
 // ============================================================
 
-const ALLOWED_ORIGINS = [
-  'https://velum-five.vercel.app',
-  'https://velum-mobile.vercel.app',
-]
+const ALLOWED_ORIGINS: string[] = []
 
-// In development, allow localhost origins
+// APP_URL is the canonical deployment URL (e.g. https://your-domain.com)
+if (process.env.APP_URL) {
+  ALLOWED_ORIGINS.push(process.env.APP_URL)
+}
+// CORS_ORIGINS allows additional comma-separated origins (e.g. mobile app domain)
+if (process.env.CORS_ORIGINS) {
+  ALLOWED_ORIGINS.push(...process.env.CORS_ORIGINS.split(',').map(s => s.trim()))
+}
+// Fallback to defaults when neither is set
+if (ALLOWED_ORIGINS.length === 0) {
+  ALLOWED_ORIGINS.push('https://velum-five.vercel.app', 'https://velum-mobile.vercel.app')
+}
+// In development, always allow localhost
 if (process.env.NODE_ENV === 'development') {
   ALLOWED_ORIGINS.push('http://localhost:3000', 'http://localhost:8081')
 }

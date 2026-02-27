@@ -1,7 +1,20 @@
-// Migration script to seed Vercel Postgres with existing nutrition data
-// Run: node db/migrate.js
+// Migration script to seed Postgres with existing nutrition data
+// Run: DATABASE_URL=postgresql://... node db/migrate.js
 
-const { sql } = require('@vercel/postgres');
+const { Pool } = require('pg');
+
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+if (!connectionString) {
+  console.error('Set DATABASE_URL or POSTGRES_URL to run migrations');
+  process.exit(1);
+}
+
+const pool = new Pool({
+  connectionString,
+  ssl: connectionString.includes('sslmode=require') || connectionString.includes('vercel')
+    ? { rejectUnauthorized: false }
+    : undefined,
+});
 
 const SEED_DATA = {
   "2026-02-01": {
@@ -21,12 +34,12 @@ const SEED_DATA = {
 };
 
 async function migrate() {
-  console.log('🗄️  Starting Vercel Postgres migration...\n');
-  
+  console.log('Starting Postgres migration...\n');
+
   try {
     // Create tables
     console.log('Creating tables...');
-    await sql`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS nutrition_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
@@ -37,12 +50,13 @@ async function migrate() {
         carbs DECIMAL(6,2) NOT NULL DEFAULT 0,
         fat DECIMAL(6,2) NOT NULL DEFAULT 0,
         entry_time TIME NOT NULL,
+        photo_url TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `;
-    
-    await sql`
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS nutrition_goals (
         id SERIAL PRIMARY KEY,
         date DATE UNIQUE NOT NULL,
@@ -53,50 +67,45 @@ async function migrate() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `;
-    
+    `);
+
     // Create indexes
-    await sql`CREATE INDEX IF NOT EXISTS idx_nutrition_entries_date ON nutrition_entries(date)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_nutrition_entries_entry_id ON nutrition_entries(entry_id)`;
-    
-    console.log('✅ Tables created\n');
-    
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_nutrition_entries_date ON nutrition_entries(date)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_nutrition_entries_entry_id ON nutrition_entries(entry_id)');
+
+    console.log('Tables created\n');
+
     // Seed data
     console.log('Seeding data...');
     for (const [date, data] of Object.entries(SEED_DATA)) {
-      // Insert goals
-      await sql`
-        INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
-        VALUES (${date}, ${data.goals.calories}, ${data.goals.protein}, ${data.goals.carbs}, ${data.goals.fat})
-        ON CONFLICT (date) DO UPDATE SET
-          calories = EXCLUDED.calories,
-          protein = EXCLUDED.protein,
-          carbs = EXCLUDED.carbs,
-          fat = EXCLUDED.fat
-      `;
-      
-      // Insert entries
+      await pool.query(
+        `INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (date) DO UPDATE SET
+           calories = EXCLUDED.calories, protein = EXCLUDED.protein,
+           carbs = EXCLUDED.carbs, fat = EXCLUDED.fat`,
+        [date, data.goals.calories, data.goals.protein, data.goals.carbs, data.goals.fat]
+      );
+
       for (const entry of data.entries) {
-        await sql`
-          INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
-          VALUES (${entry.id}, ${entry.date}, ${entry.name}, ${entry.calories}, ${entry.protein}, ${entry.carbs}, ${entry.fat}, ${entry.time})
-          ON CONFLICT (entry_id) DO UPDATE SET
-            name = EXCLUDED.name,
-            calories = EXCLUDED.calories,
-            protein = EXCLUDED.protein,
-            carbs = EXCLUDED.carbs,
-            fat = EXCLUDED.fat,
-            entry_time = EXCLUDED.entry_time
-        `;
+        await pool.query(
+          `INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (entry_id) DO UPDATE SET
+             name = EXCLUDED.name, calories = EXCLUDED.calories,
+             protein = EXCLUDED.protein, carbs = EXCLUDED.carbs,
+             fat = EXCLUDED.fat, entry_time = EXCLUDED.entry_time`,
+          [entry.id, entry.date, entry.name, entry.calories, entry.protein, entry.carbs, entry.fat, entry.time]
+        );
       }
-      
-      console.log(`✅ Migrated ${data.entries.length} entries for ${date}`);
+
+      console.log(`Migrated ${data.entries.length} entries for ${date}`);
     }
-    
+
     // Create view
-    await sql`
+    await pool.query(`
       CREATE OR REPLACE VIEW daily_nutrition_summary AS
-      SELECT 
+      SELECT
         date,
         COUNT(*) as meal_count,
         SUM(calories) as total_calories,
@@ -106,19 +115,16 @@ async function migrate() {
       FROM nutrition_entries
       GROUP BY date
       ORDER BY date DESC
-    `;
-    
-    console.log('\n✅ Migration complete!');
-    console.log('\nNext steps:');
-    console.log('1. Create a Vercel Postgres database in your Vercel dashboard');
-    console.log('2. Connect it to your project');
-    console.log('3. Deploy with: vercel --prod');
-    
+    `);
+
+    console.log('\nMigration complete!');
+
   } catch (error) {
-    console.error('\n❌ Migration failed:', error);
+    console.error('\nMigration failed:', error);
     process.exit(1);
   }
-  
+
+  await pool.end();
   process.exit(0);
 }
 

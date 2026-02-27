@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../../lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const usePostgres = !!process.env.POSTGRES_URL
 
 const DEFAULT_GOALS = { calories: 2600, protein: 160, carbs: 310, fat: 80 }
 
 // CORS is handled by middleware — these are kept for OPTIONS preflight only
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': 'https://velum-five.vercel.app',
+  'Access-Control-Allow-Origin': process.env.APP_URL || 'https://velum-five.vercel.app',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
@@ -27,11 +25,10 @@ export async function GET(request: NextRequest) {
 
     if (usePostgres) {
       try {
-        const result = await sql`
-          SELECT calories, protein, carbs, fat
-          FROM nutrition_goals
-          WHERE date = ${date}
-        `
+        const result = await query(
+          'SELECT calories, protein, carbs, fat FROM nutrition_goals WHERE date = $1',
+          [date]
+        )
         if (result.rows[0]) {
           return NextResponse.json({
             date,
@@ -76,15 +73,10 @@ export async function POST(request: NextRequest) {
 
     if (usePostgres) {
       try {
-        await sql`
-          INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
-          VALUES (${date}, ${goals.calories}, ${goals.protein}, ${goals.carbs}, ${goals.fat})
-          ON CONFLICT (date) DO UPDATE SET
-            calories = EXCLUDED.calories,
-            protein = EXCLUDED.protein,
-            carbs = EXCLUDED.carbs,
-            fat = EXCLUDED.fat
-        `
+        await query(
+          'INSERT INTO nutrition_goals (date, calories, protein, carbs, fat) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (date) DO UPDATE SET calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat',
+          [date, goals.calories, goals.protein, goals.carbs, goals.fat]
+        )
         return NextResponse.json({
           success: true,
           date,

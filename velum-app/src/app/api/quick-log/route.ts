@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
 import { buildEntry, addFitnessEntry, getWeekKey } from '../../lib/fitnessStore'
 import { addBudgetEntry, BudgetEntry, Category } from '../../lib/budgetStore'
+import { query, usePostgres } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,11 +14,10 @@ export const dynamic = 'force-dynamic'
 // Body: { "type": "steps|expense|meal|weight", "value": ..., "description": "..." }
 
 const QUICK_LOG_TOKEN = process.env.QUICK_LOG_TOKEN || ''
-const usePostgres = !!process.env.POSTGRES_URL
 
 // CORS is handled by middleware — these are kept for OPTIONS preflight only
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': 'https://velum-five.vercel.app',
+  'Access-Control-Allow-Origin': process.env.APP_URL || 'https://velum-five.vercel.app',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
@@ -93,25 +92,13 @@ export async function POST(request: NextRequest) {
         // Write directly to Postgres or return fallback
         if (usePostgres) {
           try {
-            await sql`
-              CREATE TABLE IF NOT EXISTS nutrition_entries (
-                id SERIAL PRIMARY KEY,
-                entry_id VARCHAR(50) UNIQUE NOT NULL,
-                date DATE NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                calories INTEGER NOT NULL DEFAULT 0,
-                protein DECIMAL(6,2) NOT NULL DEFAULT 0,
-                carbs DECIMAL(6,2) NOT NULL DEFAULT 0,
-                fat DECIMAL(6,2) NOT NULL DEFAULT 0,
-                entry_time TIME NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-              )
-            `
-            await sql`
-              INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
-              VALUES (${id}, ${date}, ${description}, ${calories}, ${0}, ${0}, ${0}, ${time})
-              ON CONFLICT (entry_id) DO NOTHING
-            `
+            await query(
+              'CREATE TABLE IF NOT EXISTS nutrition_entries (id SERIAL PRIMARY KEY, entry_id VARCHAR(50) UNIQUE NOT NULL, date DATE NOT NULL, name VARCHAR(255) NOT NULL, calories INTEGER NOT NULL DEFAULT 0, protein DECIMAL(6,2) NOT NULL DEFAULT 0, carbs DECIMAL(6,2) NOT NULL DEFAULT 0, fat DECIMAL(6,2) NOT NULL DEFAULT 0, entry_time TIME NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)'
+            )
+            await query(
+              'INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (entry_id) DO NOTHING',
+              [id, date, description, calories, 0, 0, 0, time]
+            )
           } catch (error) {
             console.error('Nutrition write error:', error)
           }

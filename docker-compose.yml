@@ -1,0 +1,54 @@
+# Velum — Self-Hosted Deployment
+#
+# Usage:
+#   cp .env.example .env    # fill in your values
+#   docker compose up -d    # start all services
+#
+# Services:
+#   velum    — Next.js app (port 3000)
+#   postgres — PostgreSQL database
+#   redis    — Redis cache (session store, insights)
+
+services:
+  velum:
+    build:
+      context: ./velum-app
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://velum:${POSTGRES_PASSWORD:-velum}@postgres:5432/velum
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: velum
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-velum}
+      POSTGRES_DB: velum
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U velum"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

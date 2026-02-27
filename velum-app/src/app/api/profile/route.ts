@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
 
 // Create user profile table
 async function initializeProfileTable() {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS user_profiles (
+    await query(
+      `CREATE TABLE IF NOT EXISTS user_profiles (
         id SERIAL PRIMARY KEY,
         birth_date DATE NOT NULL,
         country VARCHAR(100),
         life_expectancy INTEGER DEFAULT 85,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
+      )`
+    )
   } catch (error) {
     console.error('Failed to create profile table:', error)
   }
@@ -26,7 +26,7 @@ export async function GET() {
   try {
     await initializeProfileTable()
     
-    const result = await sql`SELECT * FROM user_profiles ORDER BY id DESC LIMIT 1`
+    const result = await query('SELECT * FROM user_profiles ORDER BY id DESC LIMIT 1')
     
     if (result.rows.length === 0) {
       return NextResponse.json({ profile: null })
@@ -72,24 +72,20 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if profile exists
-    const existing = await sql`SELECT id FROM user_profiles LIMIT 1`
-    
+    const existing = await query('SELECT id FROM user_profiles LIMIT 1')
+
     if (existing.rows.length > 0) {
       // Update existing
-      await sql`
-        UPDATE user_profiles 
-        SET birth_date = ${birthDate}, 
-            country = ${country || null}, 
-            life_expectancy = ${lifeExpectancy},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${existing.rows[0].id}
-      `
+      await query(
+        'UPDATE user_profiles SET birth_date = $1, country = $2, life_expectancy = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
+        [birthDate, country || null, lifeExpectancy, existing.rows[0].id]
+      )
     } else {
       // Create new
-      await sql`
-        INSERT INTO user_profiles (birth_date, country, life_expectancy)
-        VALUES (${birthDate}, ${country || null}, ${lifeExpectancy})
-      `
+      await query(
+        'INSERT INTO user_profiles (birth_date, country, life_expectancy) VALUES ($1, $2, $3)',
+        [birthDate, country || null, lifeExpectancy]
+      )
     }
     
     return NextResponse.json({ success: true })

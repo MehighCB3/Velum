@@ -13,7 +13,7 @@ const FALLBACK_VERSION = '1.6.0';
 
 // CORS is handled by middleware — these are kept for OPTIONS preflight only
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': 'https://velum-five.vercel.app',
+  'Access-Control-Allow-Origin': process.env.APP_URL || 'https://velum-five.vercel.app',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Cache-Control': 'public, max-age=300',

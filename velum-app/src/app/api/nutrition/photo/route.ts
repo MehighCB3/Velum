@@ -93,7 +93,7 @@ Rules:
       headers: {
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://velum-five.vercel.app',
+        'HTTP-Referer': process.env.APP_URL || 'https://velum-five.vercel.app',
         'X-Title': 'Velum',
       },
       body: JSON.stringify({

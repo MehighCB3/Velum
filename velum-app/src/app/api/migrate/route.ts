@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
     results.push('🗄️ Starting migration...')
     
     // Create tables
-    await sql`
-      CREATE TABLE IF NOT EXISTS nutrition_entries (
+    await query(
+      `CREATE TABLE IF NOT EXISTS nutrition_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
         date DATE NOT NULL,
@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
         entry_time TIME NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
+      )`
+    )
     results.push('✅ Created nutrition_entries table')
-    
-    await sql`
-      CREATE TABLE IF NOT EXISTS nutrition_goals (
+
+    await query(
+      `CREATE TABLE IF NOT EXISTS nutrition_goals (
         id SERIAL PRIMARY KEY,
         date DATE UNIQUE NOT NULL,
         calories INTEGER NOT NULL DEFAULT 2600,
@@ -65,50 +65,38 @@ export async function POST(request: NextRequest) {
         fat INTEGER NOT NULL DEFAULT 80,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
+      )`
+    )
     results.push('✅ Created nutrition_goals table')
-    
+
     // Create indexes
-    await sql`CREATE INDEX IF NOT EXISTS idx_nutrition_entries_date ON nutrition_entries(date)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_nutrition_entries_entry_id ON nutrition_entries(entry_id)`
+    await query('CREATE INDEX IF NOT EXISTS idx_nutrition_entries_date ON nutrition_entries(date)')
+    await query('CREATE INDEX IF NOT EXISTS idx_nutrition_entries_entry_id ON nutrition_entries(entry_id)')
     results.push('✅ Created indexes')
     
     // Seed data
     for (const [date, data] of Object.entries(SEED_DATA)) {
       // Insert goals
-      await sql`
-        INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
-        VALUES (${date}, ${data.goals.calories}, ${data.goals.protein}, ${data.goals.carbs}, ${data.goals.fat})
-        ON CONFLICT (date) DO UPDATE SET
-          calories = EXCLUDED.calories,
-          protein = EXCLUDED.protein,
-          carbs = EXCLUDED.carbs,
-          fat = EXCLUDED.fat
-      `
-      
+      await query(
+        'INSERT INTO nutrition_goals (date, calories, protein, carbs, fat) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (date) DO UPDATE SET calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat',
+        [date, data.goals.calories, data.goals.protein, data.goals.carbs, data.goals.fat]
+      )
+
       // Insert entries
       for (const entry of data.entries) {
-        await sql`
-          INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
-          VALUES (${entry.id}, ${entry.date}, ${entry.name}, ${entry.calories}, ${entry.protein}, ${entry.carbs}, ${entry.fat}, ${entry.time})
-          ON CONFLICT (entry_id) DO UPDATE SET
-            name = EXCLUDED.name,
-            calories = EXCLUDED.calories,
-            protein = EXCLUDED.protein,
-            carbs = EXCLUDED.carbs,
-            fat = EXCLUDED.fat,
-            entry_time = EXCLUDED.entry_time
-        `
+        await query(
+          'INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (entry_id) DO UPDATE SET name = EXCLUDED.name, calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat, entry_time = EXCLUDED.entry_time',
+          [entry.id, entry.date, entry.name, entry.calories, entry.protein, entry.carbs, entry.fat, entry.time]
+        )
       }
       
       results.push(`✅ Migrated ${data.entries.length} entries for ${date}`)
     }
     
     // Create view
-    await sql`
-      CREATE OR REPLACE VIEW daily_nutrition_summary AS
-      SELECT 
+    await query(
+      `CREATE OR REPLACE VIEW daily_nutrition_summary AS
+      SELECT
         date,
         COUNT(*) as meal_count,
         SUM(calories) as total_calories,
@@ -117,21 +105,21 @@ export async function POST(request: NextRequest) {
         SUM(fat) as total_fat
       FROM nutrition_entries
       GROUP BY date
-      ORDER BY date DESC
-    `
+      ORDER BY date DESC`
+    )
     results.push('✅ Created daily_nutrition_summary view')
 
     // Add photo_url column to nutrition_entries if it doesn't exist
     try {
-      await sql`ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT`
+      await query('ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT')
       results.push('✅ Added photo_url column to nutrition_entries')
     } catch (error) {
       results.push('⚠️ photo_url column may already exist')
     }
 
     // Agent memories table for persistent memory across sessions
-    await sql`
-      CREATE TABLE IF NOT EXISTS agent_memories (
+    await query(
+      `CREATE TABLE IF NOT EXISTS agent_memories (
         id VARCHAR(50) PRIMARY KEY,
         category VARCHAR(50) NOT NULL,
         key VARCHAR(255) NOT NULL,
@@ -143,15 +131,15 @@ export async function POST(request: NextRequest) {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP,
         UNIQUE(category, key)
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_memories_category ON agent_memories(category)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC)`
+      )`
+    )
+    await query('CREATE INDEX IF NOT EXISTS idx_memories_category ON agent_memories(category)')
+    await query('CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC)')
     results.push('✅ Created agent_memories table')
 
     // Create fitness_entries table
-    await sql`
-      CREATE TABLE IF NOT EXISTS fitness_entries (
+    await query(
+      `CREATE TABLE IF NOT EXISTS fitness_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
         week VARCHAR(10) NOT NULL,
@@ -173,26 +161,26 @@ export async function POST(request: NextRequest) {
         body_fat DECIMAL(4,2),
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_week ON fitness_entries(week)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_date ON fitness_entries(date)`
+      )`
+    )
+    await query('CREATE INDEX IF NOT EXISTS idx_fitness_entries_week ON fitness_entries(week)')
+    await query('CREATE INDEX IF NOT EXISTS idx_fitness_entries_date ON fitness_entries(date)')
     results.push('✅ Created fitness_entries table')
 
     // Create fitness_goals table
-    await sql`
-      CREATE TABLE IF NOT EXISTS fitness_goals (
+    await query(
+      `CREATE TABLE IF NOT EXISTS fitness_goals (
         week VARCHAR(10) UNIQUE NOT NULL PRIMARY KEY,
         steps INTEGER NOT NULL DEFAULT 10000,
         runs INTEGER NOT NULL DEFAULT 3,
         swims INTEGER NOT NULL DEFAULT 2
-      )
-    `
+      )`
+    )
     results.push('✅ Created fitness_goals table')
 
     // Create budget_entries table
-    await sql`
-      CREATE TABLE IF NOT EXISTS budget_entries (
+    await query(
+      `CREATE TABLE IF NOT EXISTS budget_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
         week VARCHAR(10) NOT NULL,
@@ -202,10 +190,10 @@ export async function POST(request: NextRequest) {
         description TEXT,
         reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_date ON budget_entries(date)`
+      )`
+    )
+    await query('CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)')
+    await query('CREATE INDEX IF NOT EXISTS idx_budget_entries_date ON budget_entries(date)')
     results.push('✅ Created budget_entries table')
 
     return NextResponse.json({
@@ -230,10 +218,10 @@ export async function GET(request: NextRequest) {
   if (check === 'data') {
     try {
       // Check what data exists in the database
-      const nutritionCount = await sql`SELECT COUNT(*) as count FROM nutrition_entries`
-      const nutritionDates = await sql`SELECT DISTINCT date FROM nutrition_entries ORDER BY date DESC LIMIT 10`
-      const fitnessCount = await sql`SELECT COUNT(*) as count FROM fitness_entries`
-      const budgetCount = await sql`SELECT COUNT(*) as count FROM budget_entries`
+      const nutritionCount = await query('SELECT COUNT(*) as count FROM nutrition_entries')
+      const nutritionDates = await query('SELECT DISTINCT date FROM nutrition_entries ORDER BY date DESC LIMIT 10')
+      const fitnessCount = await query('SELECT COUNT(*) as count FROM fitness_entries')
+      const budgetCount = await query('SELECT COUNT(*) as count FROM budget_entries')
 
       return NextResponse.json({
         database: 'connected',

@@ -15,6 +15,7 @@ import { addBudgetEntry, type BudgetEntry, type Category } from '../../../lib/bu
 import { getWeekKey, getISOWeek, parseWeekKey } from '../../../lib/weekUtils'
 import { saveInsight } from '../../../lib/insightsStore'
 import { generateAIInsight } from '../../../lib/aiInsights'
+import { query } from '../../../lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -148,15 +149,13 @@ async function tryLogData(message: string): Promise<LogResult | null> {
         const entryDate = nutritionEntry.date || new Date().toISOString().split('T')[0]
         const entryTime = mealTimeEstimate(nutritionEntry.mealHint)
 
-        // POST to our own nutrition API to create the entry
-        const { sql } = await import('@vercel/postgres')
+        // Write directly to Postgres via shared db module
         const entryId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-        await sql`
-          INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time)
-          VALUES (${entryId}, ${entryDate}, ${fs.name}, ${Math.round(fs.calories)}, ${Math.round(fs.protein)}, ${Math.round(fs.carbs)}, ${Math.round(fs.fat)}, ${entryTime})
-          ON CONFLICT (entry_id) DO NOTHING
-        `
+        await query(
+          'INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (entry_id) DO NOTHING',
+          [entryId, entryDate, fs.name, Math.round(fs.calories), Math.round(fs.protein), Math.round(fs.carbs), Math.round(fs.fat), entryTime]
+        )
 
         // Generate insight (non-blocking)
         generateAIInsight(
