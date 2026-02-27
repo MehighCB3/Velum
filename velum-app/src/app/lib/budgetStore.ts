@@ -4,13 +4,10 @@
  * to avoid self-referencing fetch() calls that cause Vercel timeouts.
  */
 
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from './db'
 import { getWeekKey } from './weekUtils'
 
-export { getWeekKey }
-
-// Storage mode detection
-export const usePostgres = !!process.env.POSTGRES_URL
+export { getWeekKey, usePostgres }
 
 // Budget configuration
 export const WEEKLY_BUDGET = 70
@@ -54,7 +51,7 @@ export async function initializePostgresTables(): Promise<void> {
   if (tablesInitialized) return
 
   try {
-    await sql`
+    await query(`
       CREATE TABLE IF NOT EXISTS budget_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
@@ -66,9 +63,9 @@ export async function initializePostgresTables(): Promise<void> {
         reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_date ON budget_entries(date)`
+    `)
+    await query('CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)')
+    await query('CREATE INDEX IF NOT EXISTS idx_budget_entries_date ON budget_entries(date)')
     tablesInitialized = true
   } catch (error) {
     console.error('Failed to initialize budget tables:', error)
@@ -77,14 +74,12 @@ export async function initializePostgresTables(): Promise<void> {
 }
 
 export async function readFromPostgres(week: string): Promise<WeekData | null> {
-  const entriesResult = await sql`
-    SELECT
-      entry_id as id, amount, category, description,
-      date::text as date, created_at::text as timestamp, reason
-    FROM budget_entries
-    WHERE week = ${week}
-    ORDER BY date, created_at
-  `
+  const entriesResult = await query(
+    `SELECT entry_id as id, amount, category, description,
+            date::text as date, created_at::text as timestamp, reason
+     FROM budget_entries WHERE week = $1 ORDER BY date, created_at`,
+    [week]
+  )
 
   const entries = (entriesResult.rows as Array<{
     id: string; amount: string | number; category: Category;
@@ -113,23 +108,24 @@ export async function readFromPostgres(week: string): Promise<WeekData | null> {
 export async function writeToPostgres(week: string, entry: BudgetEntry) {
   await initializePostgresTables()
 
-  await sql`
-    INSERT INTO budget_entries (entry_id, week, date, amount, category, description, reason)
-    VALUES (${entry.id}, ${week}, ${entry.date}, ${entry.amount}, ${entry.category}, ${entry.description}, ${entry.reason || null})
-    ON CONFLICT (entry_id) DO UPDATE SET
-      date = EXCLUDED.date, amount = EXCLUDED.amount,
-      category = EXCLUDED.category, description = EXCLUDED.description,
-      reason = EXCLUDED.reason
-  `
+  await query(
+    `INSERT INTO budget_entries (entry_id, week, date, amount, category, description, reason)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (entry_id) DO UPDATE SET
+       date = EXCLUDED.date, amount = EXCLUDED.amount,
+       category = EXCLUDED.category, description = EXCLUDED.description,
+       reason = EXCLUDED.reason`,
+    [entry.id, week, entry.date, entry.amount, entry.category, entry.description, entry.reason || null]
+  )
 }
 
 export async function deleteFromPostgres(week: string, entryId?: string) {
   await initializePostgresTables()
 
   if (entryId) {
-    await sql`DELETE FROM budget_entries WHERE week = ${week} AND entry_id = ${entryId}`
+    await query('DELETE FROM budget_entries WHERE week = $1 AND entry_id = $2', [week, entryId])
   } else {
-    await sql`DELETE FROM budget_entries WHERE week = ${week}`
+    await query('DELETE FROM budget_entries WHERE week = $1', [week])
   }
 }
 

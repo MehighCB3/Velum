@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../../lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const usePostgres = !!process.env.POSTGRES_URL
 
 // Get date range for last 7 days
 function getDateRange(endDate: string): string[] {
@@ -31,19 +29,16 @@ export async function GET(request: NextRequest) {
         const endDateQuery = dates[6]
         
         // Fetch all entries for the date range
-        const entriesResult = await sql`
-          SELECT date::text as date, entry_id as id, name, calories, protein, carbs, fat, entry_time as time
-          FROM nutrition_entries 
-          WHERE date >= ${startDate}::date AND date <= ${endDateQuery}::date
-          ORDER BY date, entry_time
-        `
-        
+        const entriesResult = await query(
+          'SELECT date::text as date, entry_id as id, name, calories, protein, carbs, fat, entry_time as time FROM nutrition_entries WHERE date >= $1::date AND date <= $2::date ORDER BY date, entry_time',
+          [startDate, endDateQuery]
+        )
+
         // Fetch goals for the range
-        const goalsResult = await sql`
-          SELECT date::text as date, calories, protein, carbs, fat
-          FROM nutrition_goals 
-          WHERE date >= ${startDate}::date AND date <= ${endDateQuery}::date
-        `
+        const goalsResult = await query(
+          'SELECT date::text as date, calories, protein, carbs, fat FROM nutrition_goals WHERE date >= $1::date AND date <= $2::date',
+          [startDate, endDateQuery]
+        )
         
         // Build daily summaries
         const dailyData = dates.map(date => {

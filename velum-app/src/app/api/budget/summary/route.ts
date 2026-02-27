@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../../lib/db'
 import { getWeekKey } from '../../../lib/weekUtils'
 
 export const dynamic = 'force-dynamic'
-
-// Storage mode detection
-const usePostgres = !!process.env.POSTGRES_URL
 
 // Budget configuration
 const WEEKLY_BUDGET = 70
@@ -58,8 +55,8 @@ function getWeekRange(endWeek?: string): string[] {
 // Initialize Postgres tables
 async function initializePostgresTables(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS budget_entries (
+    await query(
+      `CREATE TABLE IF NOT EXISTS budget_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
         week VARCHAR(10) NOT NULL,
@@ -69,10 +66,10 @@ async function initializePostgresTables(): Promise<void> {
         description TEXT,
         reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-    
-    await sql`CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)`
+      )`
+    )
+
+    await query('CREATE INDEX IF NOT EXISTS idx_budget_entries_week ON budget_entries(week)')
   } catch (error) {
     console.error('Failed to initialize budget tables:', error)
     throw error
@@ -80,8 +77,8 @@ async function initializePostgresTables(): Promise<void> {
 }
 
 async function readFromPostgres(week: string): Promise<WeekData | null> {
-  const entriesResult = await sql`
-    SELECT 
+  const entriesResult = await query(
+    `SELECT
       entry_id as id,
       amount,
       category,
@@ -89,9 +86,10 @@ async function readFromPostgres(week: string): Promise<WeekData | null> {
       date::text as date,
       created_at::text as timestamp
     FROM budget_entries
-    WHERE week = ${week}
-    ORDER BY date, created_at
-  `
+    WHERE week = $1
+    ORDER BY date, created_at`,
+    [week]
+  )
   
   const entries = entriesResult.rows as BudgetEntry[]
   

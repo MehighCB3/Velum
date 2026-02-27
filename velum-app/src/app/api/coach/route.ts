@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getAvatarState } from '../../lib/avatarStore'
 import { getAllInsights } from '../../lib/insightsStore'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const usePostgres = !!process.env.POSTGRES_URL
 const DEFAULT_NUTRITION_GOALS = { calories: 2600, protein: 160, carbs: 310, fat: 80 }
 
 // Relationship state mapping from bond score
@@ -39,26 +37,22 @@ export async function GET() {
       try {
         const today = new Date().toISOString().split('T')[0]
 
-        const todayResult = await sql`
-          SELECT
-            COALESCE(SUM(calories), 0) as calories,
-            COALESCE(SUM(protein), 0) as protein
-          FROM nutrition_entries
-          WHERE date = ${today}
-        `
+        const todayResult = await query(
+          'SELECT COALESCE(SUM(calories), 0) as calories, COALESCE(SUM(protein), 0) as protein FROM nutrition_entries WHERE date = $1',
+          [today]
+        )
 
-        const goalsResult = await sql`
-          SELECT calories, protein FROM nutrition_goals
-          WHERE date = ${today}
-        `
+        const goalsResult = await query(
+          'SELECT calories, protein FROM nutrition_goals WHERE date = $1',
+          [today]
+        )
 
         const sevenDaysAgo = new Date()
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-        const datesResult = await sql`
-          SELECT DISTINCT date::text as date
-          FROM nutrition_entries
-          WHERE date >= ${sevenDaysAgo.toISOString().split('T')[0]}
-        `
+        const datesResult = await query(
+          'SELECT DISTINCT date::text as date FROM nutrition_entries WHERE date >= $1',
+          [sevenDaysAgo.toISOString().split('T')[0]]
+        )
 
         const goalsRow = goalsResult.rows[0] as { calories: number; protein: number } | undefined
 

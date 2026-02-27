@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
-
-// Storage mode detection
-const usePostgres = !!process.env.POSTGRES_URL
 
 // Nutrition types
 interface NutritionEntry {
@@ -62,8 +59,8 @@ async function initializePostgresTables(): Promise<void> {
   if (tablesInitialized) return
   
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS nutrition_entries (
+    await query(
+      `CREATE TABLE IF NOT EXISTS nutrition_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
         date DATE NOT NULL,
@@ -74,24 +71,24 @@ async function initializePostgresTables(): Promise<void> {
         fat DECIMAL(6,2) NOT NULL DEFAULT 0,
         entry_time TIME NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-    
-    await sql`
-      CREATE TABLE IF NOT EXISTS nutrition_goals (
+      )`
+    )
+
+    await query(
+      `CREATE TABLE IF NOT EXISTS nutrition_goals (
         date DATE UNIQUE NOT NULL,
         calories INTEGER NOT NULL DEFAULT 2600,
         protein INTEGER NOT NULL DEFAULT 160,
         carbs INTEGER NOT NULL DEFAULT 310,
         fat INTEGER NOT NULL DEFAULT 80
-      )
-    `
-    
-    await sql`CREATE INDEX IF NOT EXISTS idx_entries_date ON nutrition_entries(date)`
+      )`
+    )
+
+    await query('CREATE INDEX IF NOT EXISTS idx_entries_date ON nutrition_entries(date)')
 
     // Add photo_url column if it doesn't exist (migration-safe)
     try {
-      await sql`ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT`
+      await query('ALTER TABLE nutrition_entries ADD COLUMN IF NOT EXISTS photo_url TEXT')
     } catch {
       // Column may already exist — ignore
     }
@@ -104,19 +101,19 @@ async function initializePostgresTables(): Promise<void> {
 }
 
 async function readFromPostgres(date: string): Promise<NutritionDay> {
-  const entriesResult = await sql`
-    SELECT entry_id as id, name, calories, protein, carbs, fat,
+  const entriesResult = await query(
+    `SELECT entry_id as id, name, calories, protein, carbs, fat,
            TO_CHAR(entry_time, 'HH24:MI') as time, photo_url as "photoUrl"
     FROM nutrition_entries
-    WHERE date = ${date}
-    ORDER BY entry_time
-  `
+    WHERE date = $1
+    ORDER BY entry_time`,
+    [date]
+  )
 
-  const goalsResult = await sql`
-    SELECT calories, protein, carbs, fat
-    FROM nutrition_goals
-    WHERE date = ${date}
-  `
+  const goalsResult = await query(
+    'SELECT calories, protein, carbs, fat FROM nutrition_goals WHERE date = $1',
+    [date]
+  )
 
   const goalsRow = goalsResult.rows[0] as { calories: number; protein: number; carbs: number; fat: number } | undefined
   const goals = goalsRow
@@ -167,30 +164,17 @@ async function writeToPostgres(date: string, entries: NutritionEntry[], goals?: 
   await initializePostgresTables()
   
   if (goals) {
-    await sql`
-      INSERT INTO nutrition_goals (date, calories, protein, carbs, fat)
-      VALUES (${date}, ${goals.calories}, ${goals.protein}, ${goals.carbs}, ${goals.fat})
-      ON CONFLICT (date) DO UPDATE SET 
-        calories = EXCLUDED.calories,
-        protein = EXCLUDED.protein,
-        carbs = EXCLUDED.carbs,
-        fat = EXCLUDED.fat
-    `
+    await query(
+      'INSERT INTO nutrition_goals (date, calories, protein, carbs, fat) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (date) DO UPDATE SET calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat',
+      [date, goals.calories, goals.protein, goals.carbs, goals.fat]
+    )
   }
-  
+
   for (const entry of entries) {
-    await sql`
-      INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time, photo_url)
-      VALUES (${entry.id}, ${date}, ${entry.name}, ${entry.calories}, ${entry.protein}, ${entry.carbs}, ${entry.fat}, ${entry.time}, ${entry.photoUrl || null})
-      ON CONFLICT (entry_id) DO UPDATE SET
-        name = EXCLUDED.name,
-        calories = EXCLUDED.calories,
-        protein = EXCLUDED.protein,
-        carbs = EXCLUDED.carbs,
-        fat = EXCLUDED.fat,
-        entry_time = EXCLUDED.entry_time,
-        photo_url = EXCLUDED.photo_url
-    `
+    await query(
+      'INSERT INTO nutrition_entries (entry_id, date, name, calories, protein, carbs, fat, entry_time, photo_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (entry_id) DO UPDATE SET name = EXCLUDED.name, calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat, entry_time = EXCLUDED.entry_time, photo_url = EXCLUDED.photo_url',
+      [entry.id, date, entry.name, entry.calories, entry.protein, entry.carbs, entry.fat, entry.time, entry.photoUrl || null]
+    )
   }
 }
 
@@ -198,10 +182,10 @@ async function deleteFromPostgres(date: string, entryId?: string) {
   await initializePostgresTables()
   
   if (entryId) {
-    await sql`DELETE FROM nutrition_entries WHERE date = ${date} AND entry_id = ${entryId}`
+    await query('DELETE FROM nutrition_entries WHERE date = $1 AND entry_id = $2', [date, entryId])
   } else {
-    await sql`DELETE FROM nutrition_entries WHERE date = ${date}`
-    await sql`DELETE FROM nutrition_goals WHERE date = ${date}`
+    await query('DELETE FROM nutrition_entries WHERE date = $1', [date])
+    await query('DELETE FROM nutrition_goals WHERE date = $1', [date])
   }
 }
 

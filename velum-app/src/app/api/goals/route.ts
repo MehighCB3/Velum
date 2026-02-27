@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const usePostgres = !!process.env.POSTGRES_URL
 
 // Goal types
 interface Goal {
@@ -26,8 +24,8 @@ let fallbackGoals: Goal[] = []
 // Initialize Postgres tables
 async function initializeTables(): Promise<void> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS goals (
+    await query(
+      `CREATE TABLE IF NOT EXISTS goals (
         id VARCHAR(50) PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
         area VARCHAR(100) NOT NULL,
@@ -39,9 +37,9 @@ async function initializeTables(): Promise<void> {
         horizon VARCHAR(20) NOT NULL DEFAULT 'year',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_goals_horizon ON goals(horizon)`
+      )`
+    )
+    await query('CREATE INDEX IF NOT EXISTS idx_goals_horizon ON goals(horizon)')
   } catch (error) {
     console.error('Failed to initialize goals table:', error)
   }
@@ -58,16 +56,16 @@ export async function GET(request: NextRequest) {
       await initializeTables()
       
       if (id) {
-        const result = await sql`SELECT * FROM goals WHERE id = ${id}`
+        const result = await query('SELECT * FROM goals WHERE id = $1', [id])
         return NextResponse.json({ goal: result.rows[0] || null })
       }
-      
+
       if (horizon) {
-        const result = await sql`SELECT * FROM goals WHERE horizon = ${horizon} ORDER BY created_at DESC`
+        const result = await query('SELECT * FROM goals WHERE horizon = $1 ORDER BY created_at DESC', [horizon])
         return NextResponse.json({ goals: result.rows })
       }
-      
-      const result = await sql`SELECT * FROM goals ORDER BY horizon, created_at DESC`
+
+      const result = await query('SELECT * FROM goals ORDER BY horizon, created_at DESC')
       return NextResponse.json({ goals: result.rows })
     }
     
@@ -113,21 +111,12 @@ export async function POST(request: NextRequest) {
     if (usePostgres) {
       await initializeTables()
       
-      await sql`
-        INSERT INTO goals (id, title, area, objective, key_metric, target_value, current_value, unit, horizon)
-        VALUES (${goalId}, ${title}, ${area}, ${objective}, ${keyMetric}, ${targetValue}, ${currentValue}, ${unit}, ${horizon})
-        ON CONFLICT (id) DO UPDATE SET
-          title = EXCLUDED.title,
-          area = EXCLUDED.area,
-          objective = EXCLUDED.objective,
-          key_metric = EXCLUDED.key_metric,
-          target_value = EXCLUDED.target_value,
-          current_value = EXCLUDED.current_value,
-          unit = EXCLUDED.unit,
-          horizon = EXCLUDED.horizon
-      `
-      
-      const result = await sql`SELECT * FROM goals WHERE id = ${goalId}`
+      await query(
+        'INSERT INTO goals (id, title, area, objective, key_metric, target_value, current_value, unit, horizon) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, area = EXCLUDED.area, objective = EXCLUDED.objective, key_metric = EXCLUDED.key_metric, target_value = EXCLUDED.target_value, current_value = EXCLUDED.current_value, unit = EXCLUDED.unit, horizon = EXCLUDED.horizon',
+        [goalId, title, area, objective, keyMetric, targetValue, currentValue, unit, horizon]
+      )
+
+      const result = await query('SELECT * FROM goals WHERE id = $1', [goalId])
       return NextResponse.json({ goal: result.rows[0], storage: 'postgres' })
     }
     
@@ -173,20 +162,18 @@ export async function PATCH(request: NextRequest) {
       await initializeTables()
       
       if (completed !== undefined) {
-        await sql`
-          UPDATE goals 
-          SET current_value = target_value, completed_at = ${completed ? new Date().toISOString() : null}
-          WHERE id = ${id}
-        `
+        await query(
+          'UPDATE goals SET current_value = target_value, completed_at = $1 WHERE id = $2',
+          [completed ? new Date().toISOString() : null, id]
+        )
       } else if (currentValue !== undefined) {
-        await sql`
-          UPDATE goals 
-          SET current_value = ${currentValue}
-          WHERE id = ${id}
-        `
+        await query(
+          'UPDATE goals SET current_value = $1 WHERE id = $2',
+          [currentValue, id]
+        )
       }
-      
-      const result = await sql`SELECT * FROM goals WHERE id = ${id}`
+
+      const result = await query('SELECT * FROM goals WHERE id = $1', [id])
       return NextResponse.json({ goal: result.rows[0] })
     }
     
@@ -220,7 +207,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (usePostgres) {
-      await sql`DELETE FROM goals WHERE id = ${id}`
+      await query('DELETE FROM goals WHERE id = $1', [id])
       return NextResponse.json({ success: true })
     }
     

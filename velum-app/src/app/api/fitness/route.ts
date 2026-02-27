@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query } from '../../lib/db'
 import {
   usePostgres,
   DEFAULT_GOALS,
@@ -114,12 +114,10 @@ export async function POST(request: NextRequest) {
       if (usePostgres) {
         try {
           await initializePostgresTables()
-          await sql`
-            INSERT INTO fitness_goals (week, steps, runs, swims)
-            VALUES (${weekKey}, ${existingData.goals.steps}, ${existingData.goals.runs}, ${existingData.goals.swims})
-            ON CONFLICT (week) DO UPDATE SET
-              steps = EXCLUDED.steps, runs = EXCLUDED.runs, swims = EXCLUDED.swims
-          `
+          await query(
+            'INSERT INTO fitness_goals (week, steps, runs, swims) VALUES ($1, $2, $3, $4) ON CONFLICT (week) DO UPDATE SET steps = EXCLUDED.steps, runs = EXCLUDED.runs, swims = EXCLUDED.swims',
+            [weekKey, existingData.goals.steps, existingData.goals.runs, existingData.goals.swims]
+          )
           storage = 'postgres'
         } catch (error) {
           console.error('Postgres write error:', error)

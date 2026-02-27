@@ -4,13 +4,10 @@
  * to avoid self-referencing fetch() calls that cause Vercel timeouts.
  */
 
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from './db'
 import { getWeekKey, getWeekDates } from './weekUtils'
 
-export { getWeekKey }
-
-// Storage mode detection
-export const usePostgres = !!process.env.POSTGRES_URL
+export { getWeekKey, usePostgres }
 
 // Default goals
 export const DEFAULT_GOALS = {
@@ -196,7 +193,7 @@ export async function initializePostgresTables(): Promise<void> {
   if (tablesInitialized) return
 
   try {
-    await sql`
+    await query(`
       CREATE TABLE IF NOT EXISTS fitness_entries (
         id SERIAL PRIMARY KEY,
         entry_id VARCHAR(50) UNIQUE NOT NULL,
@@ -222,21 +219,20 @@ export async function initializePostgresTables(): Promise<void> {
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `
-    // Migrate existing tables to add sleep columns if they don't exist
-    await sql`ALTER TABLE fitness_entries ADD COLUMN IF NOT EXISTS sleep_hours DECIMAL(4,2)`
-    await sql`ALTER TABLE fitness_entries ADD COLUMN IF NOT EXISTS sleep_score INTEGER`
-    await sql`
+    `)
+    await query('ALTER TABLE fitness_entries ADD COLUMN IF NOT EXISTS sleep_hours DECIMAL(4,2)')
+    await query('ALTER TABLE fitness_entries ADD COLUMN IF NOT EXISTS sleep_score INTEGER')
+    await query(`
       CREATE TABLE IF NOT EXISTS fitness_goals (
         week VARCHAR(10) UNIQUE NOT NULL PRIMARY KEY,
         steps INTEGER NOT NULL DEFAULT 10000,
         runs INTEGER NOT NULL DEFAULT 3,
         swims INTEGER NOT NULL DEFAULT 2
       )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_week ON fitness_entries(week)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_date ON fitness_entries(date)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_fitness_entries_type ON fitness_entries(entry_type)`
+    `)
+    await query('CREATE INDEX IF NOT EXISTS idx_fitness_entries_week ON fitness_entries(week)')
+    await query('CREATE INDEX IF NOT EXISTS idx_fitness_entries_date ON fitness_entries(date)')
+    await query('CREATE INDEX IF NOT EXISTS idx_fitness_entries_type ON fitness_entries(entry_type)')
     tablesInitialized = true
   } catch (error) {
     console.error('Failed to initialize fitness tables:', error)
@@ -245,22 +241,21 @@ export async function initializePostgresTables(): Promise<void> {
 }
 
 export async function readFromPostgres(week: string): Promise<FitnessWeek | null> {
-  const entriesResult = await sql`
-    SELECT
-      entry_id as id, date::text as date, entry_type as type, name,
-      steps, distance_km as "distanceKm", duration, distance, pace, calories,
-      vo2max, training_load as "trainingLoad", stress_level as "stressLevel",
-      recovery_score as "recoveryScore", hrv, weight, body_fat as "bodyFat",
-      sleep_hours as "sleepHours", sleep_score as "sleepScore",
-      notes, created_at as timestamp
-    FROM fitness_entries
-    WHERE week = ${week}
-    ORDER BY date, created_at
-  `
+  const entriesResult = await query(
+    `SELECT entry_id as id, date::text as date, entry_type as type, name,
+            steps, distance_km as "distanceKm", duration, distance, pace, calories,
+            vo2max, training_load as "trainingLoad", stress_level as "stressLevel",
+            recovery_score as "recoveryScore", hrv, weight, body_fat as "bodyFat",
+            sleep_hours as "sleepHours", sleep_score as "sleepScore",
+            notes, created_at as timestamp
+     FROM fitness_entries WHERE week = $1 ORDER BY date, created_at`,
+    [week]
+  )
 
-  const goalsResult = await sql`
-    SELECT steps, runs, swims FROM fitness_goals WHERE week = ${week}
-  `
+  const goalsResult = await query(
+    'SELECT steps, runs, swims FROM fitness_goals WHERE week = $1',
+    [week]
+  )
 
   const goalsRow = goalsResult.rows[0] as { steps: number; runs: number; swims: number } | undefined
   const goals = goalsRow
@@ -302,51 +297,50 @@ export async function writeToPostgres(week: string, entry: FitnessEntry, goals?:
   await initializePostgresTables()
 
   if (goals) {
-    await sql`
-      INSERT INTO fitness_goals (week, steps, runs, swims)
-      VALUES (${week}, ${goals.steps}, ${goals.runs}, ${goals.swims})
-      ON CONFLICT (week) DO UPDATE SET
-        steps = EXCLUDED.steps, runs = EXCLUDED.runs, swims = EXCLUDED.swims
-    `
+    await query(
+      `INSERT INTO fitness_goals (week, steps, runs, swims)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (week) DO UPDATE SET
+         steps = EXCLUDED.steps, runs = EXCLUDED.runs, swims = EXCLUDED.swims`,
+      [week, goals.steps, goals.runs, goals.swims]
+    )
   }
 
-  await sql`
-    INSERT INTO fitness_entries (
-      entry_id, week, date, entry_type, name, steps, distance_km,
-      duration, distance, pace, calories, vo2max, training_load,
-      stress_level, recovery_score, hrv, weight, body_fat,
-      sleep_hours, sleep_score, notes
-    ) VALUES (
-      ${entry.id}, ${week}, ${entry.date}, ${entry.type}, ${entry.name || null},
-      ${entry.steps || null}, ${entry.distanceKm || null}, ${entry.duration || null},
-      ${entry.distance || null}, ${entry.pace || null}, ${entry.calories || null},
-      ${entry.vo2max || null}, ${entry.trainingLoad || null}, ${entry.stressLevel || null},
-      ${entry.recoveryScore || null}, ${entry.hrv || null}, ${entry.weight || null},
-      ${entry.bodyFat || null}, ${entry.sleepHours || null}, ${entry.sleepScore || null},
-      ${entry.notes || null}
-    )
-    ON CONFLICT (entry_id) DO UPDATE SET
-      entry_type = EXCLUDED.entry_type, name = EXCLUDED.name,
-      steps = EXCLUDED.steps, distance_km = EXCLUDED.distance_km,
-      duration = EXCLUDED.duration, distance = EXCLUDED.distance,
-      pace = EXCLUDED.pace, calories = EXCLUDED.calories,
-      vo2max = EXCLUDED.vo2max, training_load = EXCLUDED.training_load,
-      stress_level = EXCLUDED.stress_level, recovery_score = EXCLUDED.recovery_score,
-      hrv = EXCLUDED.hrv, weight = EXCLUDED.weight,
-      body_fat = EXCLUDED.body_fat,
-      sleep_hours = EXCLUDED.sleep_hours, sleep_score = EXCLUDED.sleep_score,
-      notes = EXCLUDED.notes
-  `
+  await query(
+    `INSERT INTO fitness_entries (
+       entry_id, week, date, entry_type, name, steps, distance_km,
+       duration, distance, pace, calories, vo2max, training_load,
+       stress_level, recovery_score, hrv, weight, body_fat,
+       sleep_hours, sleep_score, notes
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+     ON CONFLICT (entry_id) DO UPDATE SET
+       entry_type = EXCLUDED.entry_type, name = EXCLUDED.name,
+       steps = EXCLUDED.steps, distance_km = EXCLUDED.distance_km,
+       duration = EXCLUDED.duration, distance = EXCLUDED.distance,
+       pace = EXCLUDED.pace, calories = EXCLUDED.calories,
+       vo2max = EXCLUDED.vo2max, training_load = EXCLUDED.training_load,
+       stress_level = EXCLUDED.stress_level, recovery_score = EXCLUDED.recovery_score,
+       hrv = EXCLUDED.hrv, weight = EXCLUDED.weight, body_fat = EXCLUDED.body_fat,
+       sleep_hours = EXCLUDED.sleep_hours, sleep_score = EXCLUDED.sleep_score,
+       notes = EXCLUDED.notes`,
+    [entry.id, week, entry.date, entry.type, entry.name || null,
+     entry.steps || null, entry.distanceKm || null, entry.duration || null,
+     entry.distance || null, entry.pace || null, entry.calories || null,
+     entry.vo2max || null, entry.trainingLoad || null, entry.stressLevel || null,
+     entry.recoveryScore || null, entry.hrv || null, entry.weight || null,
+     entry.bodyFat || null, entry.sleepHours || null, entry.sleepScore || null,
+     entry.notes || null]
+  )
 }
 
 export async function deleteFromPostgres(week: string, entryId?: string) {
   await initializePostgresTables()
 
   if (entryId) {
-    await sql`DELETE FROM fitness_entries WHERE week = ${week} AND entry_id = ${entryId}`
+    await query('DELETE FROM fitness_entries WHERE week = $1 AND entry_id = $2', [week, entryId])
   } else {
-    await sql`DELETE FROM fitness_entries WHERE week = ${week}`
-    await sql`DELETE FROM fitness_goals WHERE week = ${week}`
+    await query('DELETE FROM fitness_entries WHERE week = $1', [week])
+    await query('DELETE FROM fitness_goals WHERE week = $1', [week])
   }
 }
 
@@ -454,7 +448,7 @@ export async function addFitnessEntry(
     )
     if (usePostgres) {
       try {
-        await sql`DELETE FROM fitness_entries WHERE week = ${weekKey} AND entry_type = 'steps' AND date = ${newEntry.date}`
+        await query('DELETE FROM fitness_entries WHERE week = $1 AND entry_type = $2 AND date = $3', [weekKey, 'steps', newEntry.date])
       } catch (error) {
         console.error('Postgres delete error:', error)
       }

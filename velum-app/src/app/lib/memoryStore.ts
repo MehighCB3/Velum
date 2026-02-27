@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from './db'
 
 export interface Memory {
   id: string
@@ -29,15 +29,13 @@ const VALID_CATEGORIES: MemoryCategory[] = [
 // In-memory fallback when Postgres is unavailable
 const fallbackStore = new Map<string, Memory>()
 
-const usePostgres = !!process.env.POSTGRES_URL
-
 let tableInitialized = false
 
 export async function initializeMemoryTable(): Promise<void> {
   if (!usePostgres || tableInitialized) return
 
   try {
-    await sql`
+    await query(`
       CREATE TABLE IF NOT EXISTS agent_memories (
         id VARCHAR(50) PRIMARY KEY,
         category VARCHAR(50) NOT NULL,
@@ -51,9 +49,9 @@ export async function initializeMemoryTable(): Promise<void> {
         expires_at TIMESTAMP,
         UNIQUE(category, key)
       )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_memories_category ON agent_memories(category)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC)`
+    `)
+    await query('CREATE INDEX IF NOT EXISTS idx_memories_category ON agent_memories(category)')
+    await query('CREATE INDEX IF NOT EXISTS idx_memories_updated ON agent_memories(updated_at DESC)')
     tableInitialized = true
   } catch (error) {
     console.error('Failed to initialize agent_memories table:', error)
@@ -97,17 +95,18 @@ export async function saveMemory(input: {
     try {
       await initializeMemoryTable()
       // Upsert: if category+key exists, update value and timestamp
-      await sql`
-        INSERT INTO agent_memories (id, category, key, value, source, agent_id, confidence, expires_at)
-        VALUES (${id}, ${category}, ${input.key}, ${input.value}, ${memory.source}, ${input.agentId || null}, ${memory.confidence}, ${input.expiresAt || null})
-        ON CONFLICT (category, key) DO UPDATE SET
-          value = EXCLUDED.value,
-          source = EXCLUDED.source,
-          agent_id = EXCLUDED.agent_id,
-          confidence = EXCLUDED.confidence,
-          updated_at = CURRENT_TIMESTAMP,
-          expires_at = EXCLUDED.expires_at
-      `
+      await query(
+        `INSERT INTO agent_memories (id, category, key, value, source, agent_id, confidence, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (category, key) DO UPDATE SET
+           value = EXCLUDED.value,
+           source = EXCLUDED.source,
+           agent_id = EXCLUDED.agent_id,
+           confidence = EXCLUDED.confidence,
+           updated_at = CURRENT_TIMESTAMP,
+           expires_at = EXCLUDED.expires_at`,
+        [id, category, input.key, input.value, memory.source, input.agentId || null, memory.confidence, input.expiresAt || null]
+      )
     } catch (error) {
       console.error('Postgres memory write error:', error)
     }
@@ -124,17 +123,13 @@ export async function getMemories(category?: MemoryCategory): Promise<Memory[]> 
     try {
       await initializeMemoryTable()
       const result = category
-        ? await sql`
-            SELECT * FROM agent_memories
-            WHERE category = ${category}
-              AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-            ORDER BY updated_at DESC
-          `
-        : await sql`
-            SELECT * FROM agent_memories
-            WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP
-            ORDER BY category, updated_at DESC
-          `
+        ? await query(
+            `SELECT * FROM agent_memories WHERE category = $1 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP) ORDER BY updated_at DESC`,
+            [category]
+          )
+        : await query(
+            `SELECT * FROM agent_memories WHERE expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP ORDER BY category, updated_at DESC`
+          )
 
       return result.rows.map((row: Record<string, string>) => ({
         id: row.id,
@@ -163,11 +158,10 @@ export async function getMemoryByKey(category: string, key: string): Promise<Mem
   if (usePostgres) {
     try {
       await initializeMemoryTable()
-      const result = await sql`
-        SELECT * FROM agent_memories
-        WHERE category = ${category} AND key = ${key}
-          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-      `
+      const result = await query(
+        `SELECT * FROM agent_memories WHERE category = $1 AND key = $2 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+        [category, key]
+      )
       if (result.rows.length === 0) return null
       const row = result.rows[0] as Record<string, string>
       return {
@@ -194,7 +188,7 @@ export async function deleteMemory(id: string): Promise<void> {
   if (usePostgres) {
     try {
       await initializeMemoryTable()
-      await sql`DELETE FROM agent_memories WHERE id = ${id}`
+      await query('DELETE FROM agent_memories WHERE id = $1', [id])
     } catch (error) {
       console.error('Postgres memory delete error:', error)
     }
@@ -214,7 +208,7 @@ export async function deleteMemoryByKey(category: string, key: string): Promise<
   if (usePostgres) {
     try {
       await initializeMemoryTable()
-      await sql`DELETE FROM agent_memories WHERE category = ${category} AND key = ${key}`
+      await query('DELETE FROM agent_memories WHERE category = $1 AND key = $2', [category, key])
     } catch (error) {
       console.error('Postgres memory delete error:', error)
     }

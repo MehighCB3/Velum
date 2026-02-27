@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@vercel/postgres'
+import { query, usePostgres } from '../../lib/db'
 
 export const dynamic = 'force-dynamic'
-
-const usePostgres = !!process.env.POSTGRES_URL
 
 // Convert JS string array to Postgres TEXT[] literal (e.g. {"a","b"})
 function pgTextArray(arr: string[]): string {
@@ -867,8 +865,8 @@ let tablesInitialized = false
 async function initTables() {
   if (tablesInitialized) return
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS spanish_cards (
+    await query(
+      `CREATE TABLE IF NOT EXISTS spanish_cards (
         id VARCHAR(50) PRIMARY KEY,
         spanish_word VARCHAR(255) NOT NULL,
         english_translation TEXT NOT NULL,
@@ -878,10 +876,10 @@ async function initTables() {
         tags TEXT[] DEFAULT '{}',
         source VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-    await sql`
-      CREATE TABLE IF NOT EXISTS spanish_progress (
+      )`
+    )
+    await query(
+      `CREATE TABLE IF NOT EXISTS spanish_progress (
         card_id VARCHAR(50) PRIMARY KEY REFERENCES spanish_cards(id),
         ease_factor FLOAT DEFAULT 2.5,
         interval INTEGER DEFAULT 0,
@@ -889,23 +887,22 @@ async function initTables() {
         last_reviewed TIMESTAMP,
         next_review TIMESTAMP,
         status VARCHAR(20) DEFAULT 'new'
-      )
-    `
-    await sql`CREATE INDEX IF NOT EXISTS idx_sp_next_review ON spanish_progress(next_review)`
+      )`
+    )
+    await query('CREATE INDEX IF NOT EXISTS idx_sp_next_review ON spanish_progress(next_review)')
     tablesInitialized = true
 
     // Auto-seed: if the cards table is empty, populate from SEED_CARDS
-    const countResult = await sql`SELECT COUNT(*) as count FROM spanish_cards`
+    const countResult = await query('SELECT COUNT(*) as count FROM spanish_cards')
     const cardCount = Number(countResult.rows[0]?.count || 0)
     if (cardCount === 0) {
       // Auto-seeding Spanish cards into Postgres
       for (const card of SEED_CARDS) {
-        await sql`
-          INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-          VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${pgTextArray(card.tags)}, ${card.source})
-          ON CONFLICT (id) DO NOTHING
-        `
-        await sql`INSERT INTO spanish_progress (card_id) VALUES (${card.id}) ON CONFLICT (card_id) DO NOTHING`
+        await query(
+          'INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING',
+          [card.id, card.spanish_word, card.english_translation, card.example_sentence_spanish, card.example_sentence_english, card.word_type, pgTextArray(card.tags), card.source]
+        )
+        await query('INSERT INTO spanish_progress (card_id) VALUES ($1) ON CONFLICT (card_id) DO NOTHING', [card.id])
       }
       // Auto-seed complete
     }
@@ -932,8 +929,8 @@ export async function GET(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          const result = await sql`
-            SELECT c.*,
+          const result = await query(
+            `SELECT c.*,
               COALESCE(p.ease_factor, 2.5) as ease_factor,
               COALESCE(p.interval, 0) as interval,
               COALESCE(p.repetitions, 0) as repetitions,
@@ -942,10 +939,11 @@ export async function GET(request: NextRequest) {
               p.last_reviewed
             FROM spanish_cards c
             LEFT JOIN spanish_progress p ON c.id = p.card_id
-            WHERE (p.status IS NULL OR p.status != 'parked') AND (p.next_review IS NULL OR p.next_review::date <= ${today}::date)
+            WHERE (p.status IS NULL OR p.status != 'parked') AND (p.next_review IS NULL OR p.next_review::date <= $1::date)
             ORDER BY p.next_review ASC NULLS FIRST
-            LIMIT ${limit}
-          `
+            LIMIT $2`,
+            [today, limit]
+          )
           return NextResponse.json({ cards: result.rows, total: result.rowCount })
         } catch (error) {
           console.error('Postgres error:', error)
@@ -971,19 +969,18 @@ export async function GET(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          const stats = await sql`
-            SELECT
+          const stats = await query(
+            `SELECT
               COUNT(*) FILTER (WHERE status = 'new') as new_count,
               COUNT(*) FILTER (WHERE status = 'learning' OR status = 'relearning') as learning_count,
               COUNT(*) FILTER (WHERE status = 'review') as review_count,
               COUNT(*) FILTER (WHERE status = 'parked') as parked_count,
               COUNT(*) as total
-            FROM spanish_progress
-          `
-          const todayReviewed = await sql`
-            SELECT COUNT(*) as count FROM spanish_progress
-            WHERE last_reviewed::date = CURRENT_DATE
-          `
+            FROM spanish_progress`
+          )
+          const todayReviewed = await query(
+            'SELECT COUNT(*) as count FROM spanish_progress WHERE last_reviewed::date = CURRENT_DATE'
+          )
           return NextResponse.json({
             stats: stats.rows[0],
             reviewedToday: todayReviewed.rows[0]?.count || 0
@@ -1013,8 +1010,8 @@ export async function GET(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          const result = await sql`
-            SELECT c.*,
+          const result = await query(
+            `SELECT c.*,
               COALESCE(p.ease_factor, 2.5) as ease_factor,
               COALESCE(p.interval, 0) as interval,
               COALESCE(p.repetitions, 0) as repetitions,
@@ -1023,8 +1020,8 @@ export async function GET(request: NextRequest) {
               p.last_reviewed
             FROM spanish_cards c
             LEFT JOIN spanish_progress p ON c.id = p.card_id
-            ORDER BY c.spanish_word
-          `
+            ORDER BY c.spanish_word`
+          )
           return NextResponse.json({ cards: result.rows })
         } catch (error) {
           console.error('Postgres error:', error)
@@ -1064,17 +1061,10 @@ export async function POST(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          await sql`
-            INSERT INTO spanish_progress (card_id, ease_factor, interval, repetitions, last_reviewed, next_review, status)
-            VALUES (${cardId}, ${sr.easeFactor}, ${sr.nextInterval}, ${sr.repetitions}, NOW(), ${nextReview.toISOString()}, ${sr.status})
-            ON CONFLICT (card_id) DO UPDATE SET
-              ease_factor = EXCLUDED.ease_factor,
-              interval = EXCLUDED.interval,
-              repetitions = EXCLUDED.repetitions,
-              last_reviewed = EXCLUDED.last_reviewed,
-              next_review = EXCLUDED.next_review,
-              status = EXCLUDED.status
-          `
+          await query(
+            'INSERT INTO spanish_progress (card_id, ease_factor, interval, repetitions, last_reviewed, next_review, status) VALUES ($1, $2, $3, $4, NOW(), $5, $6) ON CONFLICT (card_id) DO UPDATE SET ease_factor = EXCLUDED.ease_factor, interval = EXCLUDED.interval, repetitions = EXCLUDED.repetitions, last_reviewed = EXCLUDED.last_reviewed, next_review = EXCLUDED.next_review, status = EXCLUDED.status',
+            [cardId, sr.easeFactor, sr.nextInterval, sr.repetitions, nextReview.toISOString(), sr.status]
+          )
           return NextResponse.json({ success: true, nextReview: nextReview.toISOString(), interval: sr.nextInterval })
         } catch (error) {
           console.error('Postgres error:', error)
@@ -1100,10 +1090,10 @@ export async function POST(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          await sql`
-            INSERT INTO spanish_progress (card_id, status) VALUES (${cardId}, 'parked')
-            ON CONFLICT (card_id) DO UPDATE SET status = 'parked'
-          `
+          await query(
+            "INSERT INTO spanish_progress (card_id, status) VALUES ($1, 'parked') ON CONFLICT (card_id) DO UPDATE SET status = 'parked'",
+            [cardId]
+          )
           return NextResponse.json({ success: true, status: 'parked' })
         } catch (error) {
           console.error('Postgres error:', error)
@@ -1124,9 +1114,10 @@ export async function POST(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          await sql`
-            UPDATE spanish_progress SET status = 'review', next_review = ${today} WHERE card_id = ${cardId}
-          `
+          await query(
+            "UPDATE spanish_progress SET status = 'review', next_review = $1 WHERE card_id = $2",
+            [today, cardId]
+          )
           return NextResponse.json({ success: true, status: 'review' })
         } catch (error) {
           console.error('Postgres error:', error)
@@ -1161,11 +1152,11 @@ export async function POST(request: NextRequest) {
       if (usePostgres) {
         try {
           await initTables()
-          await sql`
-            INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-            VALUES (${id}, ${spanish_word}, ${english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${pgTextArray(card.tags)}, ${card.source})
-          `
-          await sql`INSERT INTO spanish_progress (card_id) VALUES (${id})`
+          await query(
+            'INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+            [id, spanish_word, english_translation, card.example_sentence_spanish, card.example_sentence_english, card.word_type, pgTextArray(card.tags), card.source]
+          )
+          await query('INSERT INTO spanish_progress (card_id) VALUES ($1)', [id])
           return NextResponse.json({ success: true, card })
         } catch (error) {
           console.error('Postgres error:', error)
@@ -1187,12 +1178,11 @@ export async function POST(request: NextRequest) {
         try {
           await initTables()
           for (const card of SEED_CARDS) {
-            await sql`
-              INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source)
-              VALUES (${card.id}, ${card.spanish_word}, ${card.english_translation}, ${card.example_sentence_spanish}, ${card.example_sentence_english}, ${card.word_type}, ${pgTextArray(card.tags)}, ${card.source})
-              ON CONFLICT (id) DO NOTHING
-            `
-            await sql`INSERT INTO spanish_progress (card_id) VALUES (${card.id}) ON CONFLICT (card_id) DO NOTHING`
+            await query(
+              'INSERT INTO spanish_cards (id, spanish_word, english_translation, example_sentence_spanish, example_sentence_english, word_type, tags, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING',
+              [card.id, card.spanish_word, card.english_translation, card.example_sentence_spanish, card.example_sentence_english, card.word_type, pgTextArray(card.tags), card.source]
+            )
+            await query('INSERT INTO spanish_progress (card_id) VALUES ($1) ON CONFLICT (card_id) DO NOTHING', [card.id])
           }
           return NextResponse.json({ success: true, seeded: SEED_CARDS.length })
         } catch (error) {
