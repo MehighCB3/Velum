@@ -10,6 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "db:migrate": "node db/migrate.js"
   },
   "dependencies": {
@@ -23,8 +25,9 @@
     "react-dom": "^18"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.6",
+    "@playwright/test": "^1.58.2",
     "@types/node": "^20",
+    "@types/pg": "^8.11.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10",
