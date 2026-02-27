@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionMessages, clearSession } from '../../../lib/sessionStore'
+import { getFullHistory, clearSession } from '../../../lib/sessionStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,14 +10,13 @@ export async function GET(request: NextRequest) {
     const sessionKey = searchParams.get('sessionKey') || 'main'
     const limit = parseInt(searchParams.get('limit') || '50', 10)
 
-    const messages = await getSessionMessages(sessionKey)
-    const limited = messages.slice(-limit)
+    const messages = await getFullHistory(sessionKey, limit)
 
     return NextResponse.json({
-      messages: limited,
+      messages,
       sessionKey,
       total: messages.length,
-      returned: limited.length,
+      returned: messages.length,
     })
   } catch (error) {
     console.error('Chat history GET error:', error)
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// DELETE /api/chat/history?sessionKey=main — clear session history
+// DELETE /api/chat/history?sessionKey=main — clear session cache (Postgres archive preserved)
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

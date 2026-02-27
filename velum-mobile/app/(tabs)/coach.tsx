@@ -24,6 +24,11 @@ import { chatApi, insightsApi, coachApi, nutritionApi } from '../../src/api/clie
 import { AgentInsight, HealthSnapshot } from '../../src/types';
 import { timeAgo } from '../../src/utils/timeAgo';
 import { API_BASE } from '../../src/api/config';
+import {
+  cacheChatMessage,
+  cacheChatMessages,
+  getCachedChatMessages,
+} from '../../src/db/database';
 
 // ==================== RELATIONSHIP STATES ====================
 
@@ -150,21 +155,45 @@ export default function CoachScreen() {
     insightsApi.getAll().then(setInsights).catch(() => {});
   }, []);
 
-  // Load chat history
+  // Load chat history: SQLite cache first (instant), then server (authoritative)
   useEffect(() => {
     if (historyLoaded) return;
     (async () => {
+      // 1. Load from SQLite cache immediately (offline-capable)
       try {
-        const history = await chatApi.getHistory('main', 30);
+        const cached = await getCachedChatMessages('main', 50);
+        if (cached.length > 0) {
+          setChatMessages(
+            cached
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .map((m) => ({ role: m.role, content: m.content, responseTimeMs: m.responseTimeMs })),
+          );
+        }
+      } catch { /* SQLite unavailable — continue */ }
+
+      // 2. Fetch from server and update (authoritative source)
+      try {
+        const history = await chatApi.getHistory('main', 50);
         if (history.length > 0) {
           setChatMessages(
             history
               .filter((m) => m.role === 'user' || m.role === 'assistant')
               .map((m) => ({ role: m.role, content: m.content })),
           );
+          // Sync server history to SQLite cache
+          cacheChatMessages(
+            history.map((m) => ({
+              id: m.id || `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              sessionKey: 'main',
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              source: m.source || 'gateway',
+              createdAt: m.timestamp || new Date().toISOString(),
+            })),
+          ).catch(() => {});
         }
       } catch {
-        // Silently fail — show empty chat
+        // Server unavailable — SQLite cache is already loaded above
       } finally {
         setHistoryLoaded(true);
       }
@@ -185,9 +214,21 @@ export default function CoachScreen() {
     const msg = (text || chatInput).trim();
     if (!msg || chatLoading) return;
 
+    const now = new Date().toISOString();
     if (!text) setChatInput('');
     setChatMessages(prev => [...prev, { role: 'user', content: msg }]);
     setChatLoading(true);
+
+    // Cache user message to SQLite
+    const userMsgId = `${Date.now()}-user`;
+    cacheChatMessage({
+      id: userMsgId,
+      sessionKey: 'main',
+      role: 'user',
+      content: msg,
+      source: 'local',
+      createdAt: now,
+    }).catch(() => {});
 
     try {
       const healthSummary = avatar?.health
@@ -204,10 +245,24 @@ export default function CoachScreen() {
         responseTimeMs: response.responseTimeMs,
       }]);
 
-      // Refresh data after any logged entry or domain-specific messages
-      if (response.logged || agent !== 'main') {
-        setTimeout(() => refresh(), 1500);
-      }
+      // Cache assistant response to SQLite
+      cacheChatMessage({
+        id: `${Date.now()}-assistant`,
+        sessionKey: 'main',
+        role: 'assistant',
+        content: response.content,
+        source: response.source || 'gateway',
+        agent,
+        responseTimeMs: response.responseTimeMs,
+        createdAt: new Date().toISOString(),
+      }).catch(() => {});
+
+      // Always refresh metrics + insights after every message exchange
+      // This keeps streak, bond level, calories, steps, budget all up to date
+      setTimeout(() => {
+        refresh();
+        insightsApi.getAll().then(setInsights).catch(() => {});
+      }, 1000);
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -263,6 +318,16 @@ export default function CoachScreen() {
     setChatMessages(prev => [...prev, { role: 'user', content: '[Sent a food photo for analysis]' }]);
     setChatLoading(true);
 
+    // Cache photo message
+    cacheChatMessage({
+      id: `${Date.now()}-photo-user`,
+      sessionKey: 'main',
+      role: 'user',
+      content: '[Sent a food photo for analysis]',
+      source: 'local',
+      createdAt: new Date().toISOString(),
+    }).catch(() => {});
+
     try {
       const response = await fetch(`${API_BASE}/api/nutrition/photo`, {
         method: 'POST',
@@ -293,13 +358,28 @@ export default function CoachScreen() {
 
         const summary = `${food.name} — ${food.calories} kcal, ${food.protein}g protein, ${food.carbs}g carbs, ${food.fat}g fat`;
         const confidence = food.confidence === 'high' ? '' : ` (${food.confidence} confidence)`;
+        const assistantContent = `Logged: ${summary}${confidence}${food.note ? `\n${food.note}` : ''}`;
+
         setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Logged: ${summary}${confidence}${food.note ? `\n${food.note}` : ''}`,
+          content: assistantContent,
         }]);
 
-        // Refresh dashboard data
-        setTimeout(() => refresh(), 1000);
+        // Cache the logged response
+        cacheChatMessage({
+          id: `${Date.now()}-photo-assistant`,
+          sessionKey: 'main',
+          role: 'assistant',
+          content: assistantContent,
+          source: 'local',
+          createdAt: new Date().toISOString(),
+        }).catch(() => {});
+
+        // Refresh metrics so calories update immediately
+        setTimeout(() => {
+          refresh();
+          insightsApi.getAll().then(setInsights).catch(() => {});
+        }, 1000);
       } else {
         setChatMessages(prev => [...prev, {
           role: 'assistant',
@@ -408,6 +488,7 @@ export default function CoachScreen() {
               ]}
             >
               <Text style={styles.metricValue}>{mt.value}</Text>
+              <Text style={styles.metricTarget}>/ {mt.target}</Text>
               <Text style={[styles.metricLabel, { color: mt.color }]}>{mt.label}</Text>
             </View>
           ))}
@@ -691,6 +772,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.text,
+  },
+  metricTarget: {
+    fontSize: 9,
+    color: colors.muted,
+    marginTop: 1,
   },
   metricLabel: {
     fontSize: 8,
