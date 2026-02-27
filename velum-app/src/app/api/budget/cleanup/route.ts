@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Find and delete all budget keys from Redis
     let deletedCount = 0
-    if (redis) {
+    if (redis && redis.scan) {
       try {
         // Scan for budget:* keys
         let cursor = '0'
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
           const result = await redis.scan(cursor, { match: 'budget:*', count: 100 })
           cursor = result[0]
           const keys = result[1]
-          
+
           for (const key of keys) {
             await redis.del(key)
             deletedCount++

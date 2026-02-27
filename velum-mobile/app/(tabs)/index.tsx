@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { Paths, File as FSFile } from 'expo-file-system';
 import { colors } from '../../src/theme/colors';
 import { DarkCard, Card } from '../../src/components/Card';
 import { ProgressRing } from '../../src/components/ProgressRing';
@@ -55,13 +55,12 @@ const DEFAULT_EVENTS: YearEvent[] = [
   { id: '5', week: 48, label: 'Christmas in Romania', color: '#6ec87a' },
 ];
 
-const EVENTS_FILE = `${FileSystem.documentDirectory}year_events.json`;
+const eventsFile = new FSFile(Paths.document, 'year_events.json');
 
 async function loadEvents(): Promise<YearEvent[]> {
   try {
-    const info = await FileSystem.getInfoAsync(EVENTS_FILE);
-    if (!info.exists) return DEFAULT_EVENTS;
-    const content = await FileSystem.readAsStringAsync(EVENTS_FILE);
+    if (!eventsFile.exists) return DEFAULT_EVENTS;
+    const content = await eventsFile.text();
     const parsed = JSON.parse(content);
     return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_EVENTS;
   } catch {
@@ -71,7 +70,7 @@ async function loadEvents(): Promise<YearEvent[]> {
 
 async function saveEvents(events: YearEvent[]): Promise<void> {
   try {
-    await FileSystem.writeAsStringAsync(EVENTS_FILE, JSON.stringify(events));
+    await eventsFile.write(JSON.stringify(events));
   } catch { /* silently fail */ }
 }
 

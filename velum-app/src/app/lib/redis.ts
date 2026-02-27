@@ -10,11 +10,12 @@ interface RedisClient {
   get<T>(key: string): Promise<T | null>
   set(key: string, value: unknown, options?: { ex?: number }): Promise<void>
   del(key: string): Promise<void>
+  scan?(cursor: string, options: { match: string; count: number }): Promise<[string, string[]]>
 }
 
 function createStandardRedis(url: string): RedisClient {
   // Lazy-load ioredis to avoid crashes when it's not installed (Upstash-only setups)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line
   const IORedis = require('ioredis')
   const client = new IORedis(url, { maxRetriesPerRequest: 3, lazyConnect: true })
   client.connect().catch((err: Error) => console.error('[redis] Connection error:', err.message))
@@ -36,17 +37,21 @@ function createStandardRedis(url: string): RedisClient {
     async del(key: string): Promise<void> {
       await client.del(key)
     },
+    async scan(cursor: string, options: { match: string; count: number }): Promise<[string, string[]]> {
+      const [next, keys] = await client.scan(cursor, 'MATCH', options.match, 'COUNT', options.count)
+      return [String(next), keys]
+    },
   }
 }
 
 function createUpstashRedis(url: string, token: string): RedisClient {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line
   const { Redis } = require('@upstash/redis')
   const client = new Redis({ url, token })
 
   return {
     async get<T>(key: string): Promise<T | null> {
-      return client.get<T>(key)
+      return client.get(key) as Promise<T | null>
     },
     async set(key: string, value: unknown, options?: { ex?: number }): Promise<void> {
       if (options?.ex) {

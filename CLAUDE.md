@@ -3,12 +3,11 @@
 ## Git Workflow
 
 - **Always develop on `claude/*` branches** and merge via PR.
-- Set `GH_TOKEN` env var for autonomous PR creation/merge.
-- After pushing a branch, create and merge the PR:
-  ```bash
-  gh pr create --title "..." --body "..." --base main
-  gh pr merge --merge --delete-branch
+- After pushing a branch, tell the user to merge via the **GitHub browser UI**:
   ```
+  https://github.com/MehighCB3/Velum/compare/main...<branch-name>
+  ```
+  The user will create and merge the PR from the browser. Do NOT ask them to use `gh` CLI.
 
 ### Branch Naming Rules
 
