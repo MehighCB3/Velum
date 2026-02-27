@@ -118,6 +118,19 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       created_at TEXT NOT NULL
     );
 
+    -- Chat messages cache (local backup of server chats)
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      session_key TEXT NOT NULL DEFAULT 'main',
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source TEXT DEFAULT 'gateway',
+      agent TEXT,
+      response_time_ms INTEGER,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_session_time ON chat_messages(session_key, created_at);
+
     -- Sync metadata
     CREATE TABLE IF NOT EXISTS sync_meta (
       key TEXT PRIMARY KEY,
@@ -409,5 +422,84 @@ export async function getCachedGoals(): Promise<Goal[]> {
     horizon: r.horizon as Goal['horizon'],
     createdAt: r.created_at || undefined,
     completedAt: r.completed_at || undefined,
+  }));
+}
+
+// ==================== CHAT MESSAGES CACHE ====================
+
+export interface CachedChatMessage {
+  id: string;
+  sessionKey: string;
+  role: 'user' | 'assistant';
+  content: string;
+  source?: string;
+  agent?: string;
+  responseTimeMs?: number;
+  createdAt: string;
+}
+
+export async function cacheChatMessage(msg: CachedChatMessage): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `INSERT OR REPLACE INTO chat_messages (id, session_key, role, content, source, agent, response_time_ms, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    msg.id,
+    msg.sessionKey,
+    msg.role,
+    msg.content,
+    msg.source || 'local',
+    msg.agent || null,
+    msg.responseTimeMs || null,
+    msg.createdAt,
+  );
+}
+
+export async function cacheChatMessages(messages: CachedChatMessage[]): Promise<void> {
+  const database = await getDatabase();
+  for (const msg of messages) {
+    await database.runAsync(
+      `INSERT OR REPLACE INTO chat_messages (id, session_key, role, content, source, agent, response_time_ms, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      msg.id,
+      msg.sessionKey,
+      msg.role,
+      msg.content,
+      msg.source || 'gateway',
+      msg.agent || null,
+      msg.responseTimeMs || null,
+      msg.createdAt,
+    );
+  }
+}
+
+export async function getCachedChatMessages(
+  sessionKey = 'main',
+  limit = 50,
+): Promise<CachedChatMessage[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<{
+    id: string;
+    session_key: string;
+    role: string;
+    content: string;
+    source: string;
+    agent: string | null;
+    response_time_ms: number | null;
+    created_at: string;
+  }>(
+    `SELECT * FROM chat_messages WHERE session_key = ? ORDER BY created_at DESC LIMIT ?`,
+    sessionKey,
+    limit,
+  );
+
+  return rows.reverse().map((r) => ({
+    id: r.id,
+    sessionKey: r.session_key,
+    role: r.role as 'user' | 'assistant',
+    content: r.content,
+    source: r.source,
+    agent: r.agent || undefined,
+    responseTimeMs: r.response_time_ms || undefined,
+    createdAt: r.created_at,
   }));
 }
