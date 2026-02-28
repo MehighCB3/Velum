@@ -15,7 +15,7 @@ import {
 import { Paths, File as FSFile } from 'expo-file-system';
 import { colors } from '../../src/theme/colors';
 import { DarkCard, Card } from '../../src/components/Card';
-import { ProgressRing } from '../../src/components/ProgressRing';
+import { Tag } from '../../src/components/Tag';
 import { profileApi } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
 
@@ -41,6 +41,7 @@ interface YearEvent {
   week: number;
   label: string;
   color: string;
+  type?: 'life' | 'work';
 }
 
 const EVENT_COLORS = [
@@ -48,11 +49,11 @@ const EVENT_COLORS = [
 ];
 
 const DEFAULT_EVENTS: YearEvent[] = [
-  { id: '1', week: 12, label: 'Barcelona Marathon', color: '#e85c5c' },
-  { id: '2', week: 24, label: 'Wedding Anniversary', color: '#9b8ed6' },
-  { id: '3', week: 30, label: 'Ironman Training Camp', color: '#e8a85c' },
-  { id: '4', week: 36, label: 'Product Hunt Launch', color: '#6ba3d6' },
-  { id: '5', week: 48, label: 'Christmas in Romania', color: '#6ec87a' },
+  { id: '1', week: 12, label: 'Barcelona Marathon', color: '#e85c5c', type: 'life' },
+  { id: '2', week: 24, label: 'Wedding Anniversary', color: '#9b8ed6', type: 'life' },
+  { id: '3', week: 30, label: 'Ironman Training Camp', color: '#e8a85c', type: 'life' },
+  { id: '4', week: 36, label: 'Product Hunt Launch', color: '#6ba3d6', type: 'work' },
+  { id: '5', week: 48, label: 'Christmas in Romania', color: '#6ec87a', type: 'life' },
 ];
 
 const eventsFile = new FSFile(Paths.document, 'year_events.json');
@@ -534,10 +535,10 @@ export default function HomeScreen() {
                 </Text>
               </View>
               <Pressable
-                onPress={() => setSelectedEvent(null)}
+                onPress={() => setShowManager(true)}
                 style={styles.selectedEventBtn}
               >
-                <Text style={styles.selectedEventBtnText}>Clear</Text>
+                <Text style={styles.selectedEventBtnText}>Edit</Text>
               </Pressable>
             </View>
           )}
@@ -578,6 +579,11 @@ export default function HomeScreen() {
               <Text style={styles.eventLabel} numberOfLines={1}>
                 {e.label}
               </Text>
+              {e.type && (
+                <Tag variant={e.type === 'life' ? 'accent' : 'muted'}>
+                  {e.type}
+                </Tag>
+              )}
               <Text style={styles.eventMeta}>
                 W{e.week} {'\u00B7'} {e.week - currentWeek}w
               </Text>

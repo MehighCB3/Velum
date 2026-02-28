@@ -19,22 +19,10 @@ import { colors } from '../../src/theme/colors';
 import { profileApi, quickLogApi, QuickLogType } from '../../src/api/client';
 import { UserProfile } from '../../src/types';
 import { DarkCard, Card } from '../../src/components/Card';
-import { ScreenTitle } from '../../src/components/ScreenTitle';
 import { SyncIndicator } from '../../src/components/SyncIndicator';
 import { useSync } from '../../src/hooks/useSync';
 import { useAppUpdate } from '../../src/hooks/useAppUpdate';
 import { useOTAUpdate } from '../../src/hooks/useOTAUpdate';
-
-const MONTH_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
-function formatBirthDate(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
-}
 
 function getAge(iso: string): number {
   const birth = new Date(iso);
@@ -44,6 +32,14 @@ function getAge(iso: string): number {
   const m = now.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
   return age;
+}
+
+function getCurrentWeek(): number {
+  const d = new Date();
+  const dayNum = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - dayNum);
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
 // ==================== QUICK ACTIONS ====================
@@ -65,6 +61,23 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: 'expense', icon: 'card-outline', label: 'Expense', color: colors.warning, placeholder: '15', unit: '\u20AC', hasDescription: true, hasCategory: true, categories: ['Food', 'Fun', 'Transport', 'Subscriptions', 'Other'] },
   { key: 'meal', icon: 'restaurant-outline', label: 'Meal', color: colors.accent, placeholder: '500', unit: 'cal', hasDescription: true },
   { key: 'weight', icon: 'scale-outline', label: 'Weight', color: colors.info, placeholder: '78.5', unit: 'kg' },
+];
+
+// ==================== STREAKS CONFIG (matching mockup) ====================
+
+const STREAKS = [
+  { label: 'Nutrition logging', count: 14, unit: 'days', icon: '\u{1F37D}\uFE0F' },
+  { label: 'Weekly workout', count: 6, unit: 'weeks', icon: '\u{1F3CB}\uFE0F' },
+  { label: 'Budget tracking', count: 21, unit: 'days', icon: '\u{1F4B0}' },
+];
+
+// ==================== GOALS (matching mockup) ====================
+
+const GOALS = [
+  { label: 'Run Barcelona Marathon', pct: 62, deadline: 'W12 \u00B7 3w', color: colors.accent },
+  { label: 'Reach 52kg body weight', pct: 45, deadline: 'W20 \u00B7 11w', color: colors.carbsGreen },
+  { label: 'Log food 30 days straight', pct: 80, deadline: 'W11 \u00B7 2w', color: colors.fatBlue },
+  { label: 'Launch Velum 1.0', pct: 90, deadline: 'W10 \u00B7 1w', color: colors.accentWarm },
 ];
 
 // ==================== MAIN SCREEN ====================
@@ -97,13 +110,11 @@ export default function ProfileScreen() {
     formatBytes,
   } = useAppUpdate();
   const {
-    status: otaStatus,
     isReady: otaReady,
     isChecking: otaChecking,
     isDownloading: otaDownloading,
     manualCheck: otaManualCheck,
     restart: otaRestart,
-    error: otaError,
   } = useOTAUpdate();
 
   // Quick actions state
@@ -179,6 +190,14 @@ export default function ProfileScreen() {
 
   const age = profile?.birth_date ? getAge(profile.birth_date) : null;
   const lifeExp = profile?.life_expectancy || 85;
+  const currentWeek = getCurrentWeek();
+
+  const stats = [
+    { label: 'Year', val: age !== null ? String(age) : '--' },
+    { label: 'Week', val: `W${currentWeek}` },
+    { label: 'City', val: profile?.country?.substring(0, 3)?.toUpperCase() || 'BCN' },
+    { label: 'Language', val: 'ES B1' },
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -189,71 +208,39 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={loading} onRefresh={fetchProfile} tintColor={colors.accent} />
         }
       >
-        <ScreenTitle title="Profile" marginBottom={4} />
-
         {/* Sync indicator */}
         <View style={styles.syncRow}>
           <SyncIndicator status={syncStatus} onSync={sync} />
         </View>
 
-        {/* Hero — Profile Card with initial avatar */}
+        {/* ── Hero section (matching redesign mockup) ── */}
         <DarkCard style={styles.heroCard}>
           {!editing ? (
             <>
-              <View style={styles.heroTop}>
-                <View style={styles.heroTopLeft}>
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarInitial}>M</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.heroName}>Mihai</Text>
-                    <Text style={styles.heroLabel}>
-                      {age !== null ? `${age} yrs` : ''}{profile?.country ? ` \u00B7 ${profile.country}` : ''}{' \u00B7 Week '}{Math.ceil((new Date().getTime() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 604800000)}{' of 52'}
-                    </Text>
+              <View style={styles.heroRow}>
+                {/* Avatar */}
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarInitial}>M</Text>
+                </View>
+                <View style={styles.heroInfo}>
+                  <Text style={styles.heroName}>Mihai</Text>
+                  <Text style={styles.heroSubtitle}>
+                    {profile?.country || 'Barcelona'} {'\u00B7'} Ironman & PM
+                  </Text>
+                  {/* Stat pills */}
+                  <View style={styles.statPills}>
+                    {stats.map((s) => (
+                      <View key={s.label} style={styles.statPill}>
+                        <Text style={styles.statPillVal}>{s.val}</Text>
+                        <Text style={styles.statPillLabel}>{s.label}</Text>
+                      </View>
+                    ))}
                   </View>
                 </View>
                 <Pressable onPress={() => setEditing(true)} hitSlop={12}>
                   <Ionicons name="create-outline" size={20} color={colors.darkTextMuted} />
                 </Pressable>
               </View>
-
-              {/* Streaks */}
-              <View style={styles.streakRow}>
-                <Ionicons name="flame" size={14} color={colors.accentWarm} />
-                <Text style={styles.streakText}>Active logging streak</Text>
-                <View style={styles.streakDots}>
-                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => {
-                    const today = new Date().getDay();
-                    const dayIdx = today === 0 ? 6 : today - 1;
-                    const isFilled = i <= dayIdx;
-                    return (
-                      <View key={`${d}-${i}`} style={[
-                        styles.streakDot,
-                        { backgroundColor: isFilled ? colors.accentWarm : 'rgba(255,255,255,0.08)' },
-                      ]}>
-                        <Text style={[styles.streakDotText, { color: isFilled ? '#fff' : 'rgba(255,255,255,0.25)' }]}>{d}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Life progress bar */}
-              {age !== null && (
-                <View style={styles.lifeBarWrap}>
-                  <View style={styles.lifeBarTrack}>
-                    <View
-                      style={[
-                        styles.lifeBarFill,
-                        { width: `${Math.min((age / lifeExp) * 100, 100)}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.lifeBarLabel}>
-                    {Math.round((age / lifeExp) * 100)}% of {lifeExp} years
-                  </Text>
-                </View>
-              )}
             </>
           ) : (
             <View>
@@ -301,11 +288,43 @@ export default function ProfileScreen() {
           )}
         </DarkCard>
 
-        {/* Quick Actions */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quick Log</Text>
+        {/* ── Active Streaks (3 separate cards, matching mockup) ── */}
+        <Text style={styles.sectionLabel}>ACTIVE STREAKS</Text>
+        <View style={styles.streakCards}>
+          {STREAKS.map((s) => (
+            <Card key={s.label} style={styles.streakCard}>
+              <Text style={styles.streakIcon}>{s.icon}</Text>
+              <Text style={styles.streakCount}>{s.count}</Text>
+              <Text style={styles.streakUnit}>{s.unit}</Text>
+              <Text style={styles.streakName}>{s.label}</Text>
+            </Card>
+          ))}
         </View>
 
+        {/* ── Goals (matching mockup) ── */}
+        <View style={styles.goalHeader}>
+          <Text style={styles.sectionLabel}>GOALS</Text>
+          <Pressable onPress={() => router.push('/goals')}>
+            <Text style={styles.goalAdd}>+ Add</Text>
+          </Pressable>
+        </View>
+        {GOALS.map((g, i) => (
+          <Card key={i} style={styles.goalCard}>
+            <View style={styles.goalTop}>
+              <Text style={styles.goalName}>{g.label}</Text>
+              <Text style={styles.goalDeadline}>{g.deadline}</Text>
+            </View>
+            <View style={styles.goalBarRow}>
+              <View style={styles.goalBarTrack}>
+                <View style={[styles.goalBarFill, { width: `${g.pct}%`, backgroundColor: g.color }]} />
+              </View>
+              <Text style={[styles.goalPct, { color: g.color }]}>{g.pct}%</Text>
+            </View>
+          </Card>
+        ))}
+
+        {/* ── Quick Log ── */}
+        <Text style={[styles.sectionLabel, { marginTop: 16 }]}>QUICK LOG</Text>
         <View style={styles.quickRow}>
           {QUICK_ACTIONS.map((action) => (
             <Pressable
@@ -353,112 +372,64 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Goals & Learning */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Space</Text>
-        </View>
-
+        {/* ── Settings (emoji icons, matching mockup) ── */}
         <Card style={styles.settingsList}>
-          <Pressable
-            style={styles.settingsRow}
-            onPress={() => router.push('/avatar')}
-          >
-            <Ionicons name="sparkles-outline" size={18} color={colors.purple} />
-            <Text style={styles.settingsLabel}>Coach</Text>
-            <Text style={styles.settingsHint}>AI avatar & insights</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
-          </Pressable>
-
-          <View style={styles.settingsDivider} />
-
-          <Pressable
-            style={styles.settingsRow}
-            onPress={() => router.push('/goals')}
-          >
-            <Ionicons name="trophy-outline" size={18} color={colors.warning} />
-            <Text style={styles.settingsLabel}>Goals</Text>
-            <Text style={styles.settingsHint}>Year, 3-yr, bucket list</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
-          </Pressable>
-
-          <View style={styles.settingsDivider} />
-
-          <Pressable
-            style={styles.settingsRow}
-            onPress={() => router.push('/feed')}
-          >
-            <Ionicons name="bookmark-outline" size={18} color={colors.accent} />
-            <Text style={styles.settingsLabel}>Feed</Text>
-            <Text style={styles.settingsHint}>Bookmarks & reading</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
-          </Pressable>
+          {[
+            { label: 'Notifications', icon: '\u{1F514}', onPress: undefined },
+            { label: 'Goals & Targets', icon: '\u{1F3AF}', onPress: () => router.push('/goals') },
+            { label: 'Connected Apps', icon: '\u{1F517}', onPress: undefined },
+            { label: 'Teky Settings', icon: '\u{1F916}', onPress: () => router.push('/avatar') },
+          ].map((item, i, arr) => (
+            <React.Fragment key={item.label}>
+              <Pressable
+                style={styles.settingsRow}
+                onPress={item.onPress}
+              >
+                <Text style={styles.settingsEmoji}>{item.icon}</Text>
+                <Text style={styles.settingsLabel}>{item.label}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </Pressable>
+              {i < arr.length - 1 && <View style={styles.settingsDivider} />}
+            </React.Fragment>
+          ))}
         </Card>
 
-        {/* Settings / Info — flat list */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-        </View>
-
+        {/* ── System settings ── */}
         <Card style={styles.settingsList}>
-          {/* Force Sync */}
           <Pressable style={styles.settingsRow} onPress={sync}>
-            <Ionicons name="sync-outline" size={18} color={colors.accent} />
+            <Text style={styles.settingsEmoji}>{'\u{1F504}'}</Text>
             <Text style={styles.settingsLabel}>Force Sync</Text>
             <Text style={styles.settingsHint}>
               {syncStatus.isSyncing ? 'Syncing...' : syncStatus.lastSynced ? 'Synced' : 'Tap to sync'}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
 
           <View style={styles.settingsDivider} />
 
-          {/* Check Updates */}
           <Pressable
             style={styles.settingsRow}
             onPress={() => { checkAndUpdate(); otaManualCheck(); }}
             disabled={isChecking || otaChecking}
           >
-            <Ionicons name="download-outline" size={18} color={colors.info} />
+            <Text style={styles.settingsEmoji}>{'\u{1F4E5}'}</Text>
             <Text style={styles.settingsLabel}>Check for Updates</Text>
             <Text style={styles.settingsHint}>
-              {isChecking || otaChecking
-                ? 'Checking...'
-                : updateStatus === 'up-to-date'
-                ? 'Up to date'
-                : ''}
+              {isChecking || otaChecking ? 'Checking...' : updateStatus === 'up-to-date' ? 'Up to date' : ''}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
 
           <View style={styles.settingsDivider} />
 
-          {/* Version */}
           <View style={styles.settingsRow}>
-            <Ionicons name="information-circle-outline" size={18} color={colors.textLight} />
+            <Text style={styles.settingsEmoji}>{'\u2139\uFE0F'}</Text>
             <Text style={styles.settingsLabel}>Version</Text>
-            <Text style={styles.settingsValue}>v{currentVersion}</Text>
-          </View>
-
-          <View style={styles.settingsDivider} />
-
-          {/* Database */}
-          <View style={styles.settingsRow}>
-            <Ionicons name="server-outline" size={18} color={colors.textLight} />
-            <Text style={styles.settingsLabel}>Database</Text>
-            <Text style={styles.settingsValue}>Postgres + Redis</Text>
-          </View>
-
-          <View style={styles.settingsDivider} />
-
-          {/* Cache */}
-          <View style={styles.settingsRow}>
-            <Ionicons name="hardware-chip-outline" size={18} color={colors.textLight} />
-            <Text style={styles.settingsLabel}>Local Cache</Text>
-            <Text style={styles.settingsValue}>SQLite</Text>
+            <Text style={styles.settingsHint}>v{currentVersion}</Text>
           </View>
         </Card>
 
-        {/* OTA Update banner — only when ready */}
+        {/* OTA Update banner */}
         {(otaReady || otaDownloading) && (
           <Card style={styles.updateBanner}>
             {otaDownloading && (
@@ -481,32 +452,22 @@ export default function ProfileScreen() {
           </Card>
         )}
 
-        {/* APK Update — only when available/downloading/downloaded */}
+        {/* APK Update */}
         {(isUpdateAvailable || isDownloading || isDownloaded || isInstalling) && (
           <Card style={styles.updateBanner}>
             {isUpdateAvailable && !isDownloading && !isDownloaded && (
               <>
                 <View style={styles.updateRow}>
                   <Ionicons name="arrow-up-circle" size={18} color={colors.success} />
-                  <Text style={styles.updateText}>
-                    v{remoteVersion} available
-                  </Text>
-                  {apkSizeBytes ? (
-                    <Text style={styles.updateSize}>{formatBytes(apkSizeBytes)}</Text>
-                  ) : null}
+                  <Text style={styles.updateText}>v{remoteVersion} available</Text>
+                  {apkSizeBytes ? <Text style={styles.updateSize}>{formatBytes(apkSizeBytes)}</Text> : null}
                 </View>
-                {releaseNotes ? (
-                  <Text style={styles.releaseNotes} numberOfLines={3}>
-                    {releaseNotes}
-                  </Text>
-                ) : null}
+                {releaseNotes ? <Text style={styles.releaseNotes} numberOfLines={3}>{releaseNotes}</Text> : null}
                 <Pressable style={styles.updateBtn} onPress={downloadAndInstall}>
-                  <Ionicons name="download-outline" size={16} color="#fff" />
                   <Text style={styles.updateBtnText}>Download & Install</Text>
                 </Pressable>
               </>
             )}
-
             {isDownloading && (
               <>
                 <View style={styles.updateRow}>
@@ -515,16 +476,10 @@ export default function ProfileScreen() {
                   <Text style={styles.updatePct}>{Math.round(downloadProgress * 100)}%</Text>
                 </View>
                 <View style={styles.dlBarTrack}>
-                  <View
-                    style={[
-                      styles.dlBarFill,
-                      { width: `${Math.min(downloadProgress * 100, 100)}%` },
-                    ]}
-                  />
+                  <View style={[styles.dlBarFill, { width: `${Math.min(downloadProgress * 100, 100)}%` }]} />
                 </View>
               </>
             )}
-
             {isDownloaded && (
               <>
                 <View style={styles.updateRow}>
@@ -532,12 +487,10 @@ export default function ProfileScreen() {
                   <Text style={styles.updateText}>v{remoteVersion} downloaded</Text>
                 </View>
                 <Pressable style={styles.updateBtn} onPress={installUpdate}>
-                  <Ionicons name="open-outline" size={16} color="#fff" />
                   <Text style={styles.updateBtnText}>Install Now</Text>
                 </Pressable>
               </>
             )}
-
             {isInstalling && (
               <View style={styles.updateRow}>
                 <Ionicons name="hourglass-outline" size={18} color={colors.accent} />
@@ -547,7 +500,6 @@ export default function ProfileScreen() {
           </Card>
         )}
 
-        {/* Update error */}
         {updateStatus === 'error' && updateError && (
           <View style={styles.errorBanner}>
             <Ionicons name="warning-outline" size={16} color={colors.error} />
@@ -564,10 +516,7 @@ export default function ProfileScreen() {
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={() => setActiveAction(null)}
-          >
+          <Pressable style={styles.modalOverlay} onPress={() => setActiveAction(null)}>
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <Ionicons
@@ -600,23 +549,14 @@ export default function ProfileScreen() {
               )}
 
               {activeAction?.hasCategory && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.catScroll}
-                >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
                   {(activeAction.categories || []).map((cat) => (
                     <Pressable
                       key={cat}
                       style={[styles.catPill, inputCategory === cat && styles.catPillActive]}
                       onPress={() => setInputCategory(cat)}
                     >
-                      <Text
-                        style={[
-                          styles.catPillText,
-                          inputCategory === cat && styles.catPillTextActive,
-                        ]}
-                      >
+                      <Text style={[styles.catPillText, inputCategory === cat && styles.catPillTextActive]}>
                         {cat}
                       </Text>
                     </Pressable>
@@ -633,9 +573,7 @@ export default function ProfileScreen() {
                   onPress={handleQuickLog}
                   disabled={submitting || !inputValue.trim()}
                 >
-                  <Text style={styles.modalSubmitText}>
-                    {submitting ? 'Saving...' : 'Log'}
-                  </Text>
+                  <Text style={styles.modalSubmitText}>{submitting ? 'Saving...' : 'Log'}</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -649,51 +587,46 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 12 },
-  // Sync
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
   syncRow: { alignItems: 'flex-end', marginBottom: 8 },
 
-  // Hero
-  heroCard: { padding: 16, marginBottom: 12 },
-  heroTop: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  heroTopLeft: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
+  // Hero card
+  heroCard: { padding: 16, marginBottom: 16 },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
   },
   avatarCircle: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.accentWarm,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarInitial: {
-    fontSize: 26, fontWeight: '700', color: colors.accentWarm,
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#fff',
   },
-  heroName: { fontSize: 22, fontWeight: '700', color: '#fff' },
-  heroLabel: { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
-  // Streaks
-  streakRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginTop: 16, marginBottom: 4,
-    paddingTop: 14,
-    borderTopWidth: 1, borderTopColor: colors.darkInner,
+  heroInfo: { flex: 1 },
+  heroName: { fontSize: 22, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
+  heroSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
+  statPills: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  statPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 6,
+    alignItems: 'center',
   },
-  streakText: { fontSize: 11, color: 'rgba(255,255,255,0.35)', flex: 1 },
-  streakDots: { flexDirection: 'row', gap: 4 },
-  streakDot: {
-    width: 22, height: 22, borderRadius: 4,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  streakDotText: { fontSize: 8, fontWeight: '600' },
-  lifeBarWrap: { marginTop: 12 },
-  lifeBarTrack: {
-    height: 4, backgroundColor: colors.darkInner, borderRadius: 2, overflow: 'hidden',
-  },
-  lifeBarFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 2 },
-  lifeBarLabel: { fontSize: 10, color: colors.darkTextMuted, marginTop: 4 },
+  statPillVal: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  statPillLabel: { fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.4 },
 
-  // Edit form inside hero
+  // Edit form
   editHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 14,
@@ -712,14 +645,60 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  // Section headers
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  // Section label
+  sectionLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+
+  // Streak cards (3 equal-width)
+  streakCards: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  streakCard: {
+    flex: 1,
+    padding: 12,
+    alignItems: 'center',
+  },
+  streakIcon: { fontSize: 22, marginBottom: 4 },
+  streakCount: { fontSize: 18, fontWeight: '800', color: colors.text, lineHeight: 22 },
+  streakUnit: { fontSize: 9, color: colors.muted, marginTop: 2 },
+  streakName: { fontSize: 10, color: colors.textSub, marginTop: 4, textAlign: 'center', lineHeight: 13 },
+
+  // Goals
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  goalAdd: { fontSize: 11, fontWeight: '600', color: colors.accent },
+  goalCard: { marginBottom: 8, padding: 13 },
+  goalTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.textLight, letterSpacing: 0.3 },
+  goalName: { fontSize: 13, fontWeight: '500', color: colors.text, flex: 1, marginRight: 12, lineHeight: 17 },
+  goalDeadline: { fontSize: 10, color: colors.muted, marginTop: 2 },
+  goalBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  goalBarTrack: {
+    flex: 1,
+    height: 5,
+    backgroundColor: colors.borderLight,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  goalBarFill: { height: '100%', borderRadius: 3 },
+  goalPct: { fontSize: 12, fontWeight: '700' },
 
-  // Quick actions
+  // Quick log
   quickRow: {
     flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12,
   },
@@ -737,16 +716,16 @@ const styles = StyleSheet.create({
   },
   toastText: { fontSize: 13, fontWeight: '600' },
 
-  // Settings list
+  // Settings list (emoji icons)
   settingsList: { padding: 0, overflow: 'hidden', marginBottom: 12 },
   settingsRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 13,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  settingsLabel: { fontSize: 14, fontWeight: '500', color: colors.text, flex: 1 },
-  settingsHint: { fontSize: 12, color: colors.textLight },
-  settingsValue: { fontSize: 12, color: colors.textLight },
-  settingsDivider: { height: 1, backgroundColor: colors.borderSubtle, marginLeft: 42 },
+  settingsEmoji: { fontSize: 18 },
+  settingsLabel: { fontSize: 13.5, color: colors.text, flex: 1 },
+  settingsHint: { fontSize: 12, color: colors.muted },
+  settingsDivider: { height: 1, backgroundColor: colors.borderLight, marginLeft: 46 },
 
   // Update banners
   updateBanner: { marginBottom: 12, padding: 14 },
@@ -760,11 +739,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent, paddingVertical: 11, borderRadius: 8,
   },
   updateBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-
-  // Download bar
-  dlBarTrack: {
-    height: 6, backgroundColor: colors.hover, borderRadius: 3, overflow: 'hidden',
-  },
+  dlBarTrack: { height: 6, backgroundColor: colors.hover, borderRadius: 3, overflow: 'hidden' },
   dlBarFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 3 },
 
   // Error
