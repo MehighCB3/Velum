@@ -14,6 +14,7 @@ import { colors } from '../../src/theme/colors';
 import { useBudget } from '../../src/hooks/useBudget';
 import { budgetApi } from '../../src/api/client';
 import { Card, DarkCard, SectionHeader, EmptyState } from '../../src/components/Card';
+import { ArcRing } from '../../src/components/ArcRing';
 import { InsightBanner, InsightItem } from '../../src/components/InsightBanner';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
@@ -270,23 +271,27 @@ export default function BudgetScreen() {
 
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
-        {/* Budget Hero */}
+        {/* Budget Hero — redesign with ArcRing */}
         <DarkCard style={styles.heroCard}>
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
-              <Text style={styles.heroLabel}>Weekly Budget</Text>
+              <Text style={styles.heroLabel}>WEEKLY BUDGET</Text>
               <View style={styles.heroAmountRow}>
-                <Text style={styles.heroCurrency}>€</Text>
-                <Text style={styles.heroValue}>{data.remaining.toFixed(0)}</Text>
+                <Text style={styles.heroValue}>{'\u20AC'}{data.remaining.toFixed(0)}</Text>
               </View>
               <Text style={[styles.heroSub, isOverBudget && { color: colors.error }]}>
-                {isOverBudget ? 'over budget' : 'remaining'}
+                {isOverBudget ? 'over budget' : `remaining \u00B7 \u20AC${data.totalSpent.toFixed(2)} spent`}
               </Text>
             </View>
-            <View style={styles.heroRight}>
-              <Text style={styles.heroSpent}>€{data.totalSpent.toFixed(2)} spent</Text>
-              <Text style={styles.heroTotal}>of €{WEEKLY_BUDGET}</Text>
-            </View>
+            <ArcRing
+              pct={Math.min(spentPercent * 100, 100)}
+              size={72}
+              stroke={7}
+              fg={spentPercent > 0.8 ? colors.error : colors.accentWarm}
+              bg="rgba(255,255,255,0.08)"
+            >
+              <Text style={styles.arcPct}>{Math.round(spentPercent * 100)}%</Text>
+            </ArcRing>
           </View>
 
           {/* Budget bar */}
@@ -455,14 +460,11 @@ const styles = StyleSheet.create({
   heroCard: { marginBottom: 12 },
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeft: {},
-  heroLabel: { fontSize: 13, color: colors.darkTextSecondary, fontWeight: '500' },
-  heroAmountRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 4 },
-  heroCurrency: { fontSize: 20, fontWeight: '600', color: colors.darkTextSecondary, marginRight: 2 },
-  heroValue: { fontSize: 40, fontWeight: '800', color: colors.darkText },
-  heroSub: { fontSize: 13, color: colors.success, fontWeight: '500', marginTop: 2 },
-  heroRight: { alignItems: 'flex-end', marginTop: 4 },
-  heroSpent: { fontSize: 15, fontWeight: '600', color: colors.darkText },
-  heroTotal: { fontSize: 13, color: colors.darkTextSecondary, marginTop: 2 },
+  heroLabel: { fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.7, marginBottom: 6 },
+  heroAmountRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 0 },
+  heroValue: { fontSize: 48, fontWeight: '800', color: '#fff', letterSpacing: -2 },
+  heroSub: { fontSize: 12, color: colors.success, fontWeight: '500', marginTop: 4 },
+  arcPct: { fontSize: 13, fontWeight: '700', color: '#fff' },
   budgetBar: {
     height: 6,
     backgroundColor: colors.darkTertiary,

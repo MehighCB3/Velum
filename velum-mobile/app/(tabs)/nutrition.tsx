@@ -906,11 +906,12 @@ export default function NutritionScreen() {
                 </View>
               </View>
 
-              {/* P / C bars (fat shown only in meal detail per v3 spec) */}
+              {/* P / C / F bars */}
               <View style={styles.macroBars}>
                 {[
                   { label: 'Protein', current: data.totals.protein, goal: data.goals.protein, color: colors.protein },
                   { label: 'Carbs', current: data.totals.carbs, goal: data.goals.carbs, color: colors.carbs },
+                  { label: 'Fat', current: data.totals.fat, goal: data.goals.fat || 80, color: colors.fat },
                 ].map((m) => {
                   const pct = m.goal > 0 ? Math.min(m.current / m.goal, 1) : 0;
                   return (
