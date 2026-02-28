@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { C, FONT, FONT_SANS, StatusBar, DarkCard, LightCard, Tag, PageHeader } from '../components'
+import { C, FONT_SANS, StatusBar, DarkCard, LightCard, Tag, PageHeader, SectionLabel } from '../components'
 
 const WEEKS = 52, NOW = 9
 
@@ -70,7 +70,12 @@ export default function YearScreen() {
               return (
                 <div
                   key={w}
+                  role={ev ? "button" : undefined}
+                  tabIndex={ev ? 0 : undefined}
+                  aria-label={ev ? `Week ${w}: ${ev.label}` : undefined}
+                  aria-pressed={ev ? isSelected : undefined}
                   onClick={() => ev ? setSelected(isSelected ? null : ev) : null}
+                  onKeyDown={ev ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(isSelected ? null : ev) } } : undefined}
                   style={{
                     aspectRatio: "1",
                     borderRadius: 3,
@@ -80,6 +85,7 @@ export default function YearScreen() {
                     cursor: ev ? "pointer" : "default",
                     transition: "transform 0.12s, background 0.12s",
                     transform: isSelected ? "scale(1.3)" : "scale(1)",
+                    outline: "none",
                   }}
                 />
               )
@@ -113,7 +119,9 @@ export default function YearScreen() {
               <div>
                 <div style={{ fontSize: 14, color: "#fff", fontWeight: 600, fontFamily: FONT_SANS }}>{selected.label}</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2, fontFamily: FONT_SANS }}>
-                  Week {selected.week} · {selected.week - NOW}w away
+                  Week {selected.week} · {selected.week >= NOW
+                    ? `${selected.week - NOW}w away`
+                    : `${NOW - selected.week}w ago`}
                 </div>
               </div>
               <button style={{
@@ -143,9 +151,7 @@ export default function YearScreen() {
 
         {/* Upcoming events */}
         <div style={{ marginTop: 16, paddingBottom: 24 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, marginBottom: 10, textTransform: "uppercase" }}>
-            Upcoming
-          </div>
+          <SectionLabel>Upcoming</SectionLabel>
           {events.filter(e => e.week >= NOW).map((ev, i, arr) => (
             <div
               key={ev.week}

@@ -21,7 +21,14 @@ export const C = {
   greenLight: "#e8f3ec",
   red: "#c0392b",
   redLight: "#fdecea",
-}
+  // Macro / semantic colors
+  carbsGreen: "#8aab6e",
+  fatBlue: "#6ab3c8",
+  success: "#6fcf97",
+  danger: "#eb5757",
+  purple: "#7c6ae0",
+  blue: "#4a9eed",
+} as const
 
 export const FONT = `'DM Serif Display', Georgia, serif`
 export const FONT_SANS = `'DM Sans', -apple-system, 'Helvetica Neue', sans-serif`
@@ -72,7 +79,7 @@ export const ArcRing = ({ pct, size = 72, stroke = 6, fg = C.accent, bg = "rgba(
 }) => {
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
-  const offset = circ * (1 - Math.min(pct / 100, 1))
+  const offset = circ * (1 - Math.max(0, Math.min(pct / 100, 1)))
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)", position: "absolute" }}>
@@ -99,8 +106,8 @@ export const MacroWheel = ({ kcal, kcalGoal, protein, carbs, fat, size = 180 }: 
   const total = protein + carbs + fat || 1
   const arcs = [
     { val: protein, color: C.accentWarm, label: "P" },
-    { val: carbs,   color: "#8aab6e",    label: "C" },
-    { val: fat,     color: "#6ab3c8",    label: "F" },
+    { val: carbs,   color: C.carbsGreen,  label: "C" },
+    { val: fat,     color: C.fatBlue,    label: "F" },
   ]
   let arcOffset = 0
   const arcSegments = arcs.map(a => {
@@ -142,7 +149,8 @@ export const Sparkline = ({ data, color = C.accent, height = 32, width = 80 }: {
   data: number[]; color?: string; height?: number; width?: number
 }) => {
   if (!data || data.length < 2) return null
-  const min = Math.min(...data), max = Math.max(...data)
+  const min = data.reduce((a, b) => a < b ? a : b)
+  const max = data.reduce((a, b) => a > b ? a : b)
   const range = max - min || 1
   const pts = data.map((v, i) => [
     (i / (data.length - 1)) * width,
@@ -192,10 +200,10 @@ export const Divider = ({ light = false }: { light?: boolean }) => (
   <div style={{ height: 1, background: light ? "rgba(255,255,255,0.06)" : C.border, margin: "0" }} />
 )
 
-export const FAB = ({ onClick, color = C.accent, children = "+" }: {
-  onClick?: () => void; color?: string; children?: React.ReactNode
+export const FAB = ({ onClick, color = C.accent, children = "+", label = "Add new item" }: {
+  onClick?: () => void; color?: string; children?: React.ReactNode; label?: string
 }) => (
-  <button onClick={onClick} style={{
+  <button onClick={onClick} aria-label={label} style={{
     position: "absolute", bottom: 80, right: 18,
     width: 52, height: 52, borderRadius: "50%",
     background: color, border: "none", cursor: "pointer",
@@ -204,6 +212,13 @@ export const FAB = ({ onClick, color = C.accent, children = "+" }: {
     display: "flex", alignItems: "center", justifyContent: "center",
     fontFamily: FONT_SANS,
   }}>{children}</button>
+)
+
+export const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <div style={{
+    fontSize: 11, color: C.textMuted, letterSpacing: "0.07em",
+    fontFamily: FONT_SANS, marginBottom: 10, textTransform: "uppercase",
+  }}>{children}</div>
 )
 
 export const PageHeader = ({ title, right, sub }: {

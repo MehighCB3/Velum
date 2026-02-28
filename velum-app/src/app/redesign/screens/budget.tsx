@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { C, FONT_SANS, StatusBar, DarkCard, LightCard, ArcRing, FAB, PageHeader } from '../components'
+import { C, FONT_SANS, StatusBar, DarkCard, LightCard, ArcRing, FAB, PageHeader, SectionLabel } from '../components'
 
 export default function BudgetScreen() {
-  const [tab, setTab] = useState("week")
+  const [tab, setTab] = useState<"week" | "cat">("week")
   const budget = 70, spent = 0
   const weekData = [
     { w: "W07", v: 43, done: true, current: false },
@@ -15,8 +15,8 @@ export default function BudgetScreen() {
   ]
   const cats = [
     { name: "Food",          icon: "\u{1F958}", v: 0,  color: C.accentWarm },
-    { name: "Fun",           icon: "\u{1F389}", v: 0,  color: "#7c6ae0" },
-    { name: "Transport",     icon: "\u{1F68C}", v: 0,  color: "#4a9eed" },
+    { name: "Fun",           icon: "\u{1F389}", v: 0,  color: C.purple },
+    { name: "Transport",     icon: "\u{1F68C}", v: 0,  color: C.blue },
     { name: "Subscriptions", icon: "\u{1F4E6}", v: 0,  color: C.textSub },
   ]
   const maxBar = Math.max(budget, ...weekData.map(w => w.v || 0))
@@ -63,7 +63,7 @@ export default function BudgetScreen() {
         {/* Tabbed widget */}
         <LightCard style={{ marginTop: 12, padding: 0, overflow: "hidden" }}>
           <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
-            {[{ id: "week", label: "By Week" }, { id: "cat", label: "By Category" }].map(t => (
+            {([{ id: "week" as const, label: "By Week" }, { id: "cat" as const, label: "By Category" }]).map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
                 flex: 1, padding: "14px 0",
                 background: "none", border: "none", cursor: "pointer",
@@ -144,7 +144,7 @@ export default function BudgetScreen() {
                         <span style={{ fontSize: 12, color: C.textSub, fontFamily: FONT_SANS }}>\u20AC{c.v.toFixed(2)}</span>
                       </div>
                       <div style={{ height: 4, background: C.borderLight, borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ width: `${(c.v / budget) * 100}%`, height: "100%", background: c.color, borderRadius: 2 }} />
+                        <div style={{ width: `${Math.min((c.v / budget) * 100, 100)}%`, height: "100%", background: c.color, borderRadius: 2 }} />
                       </div>
                     </div>
                   </div>
@@ -156,9 +156,7 @@ export default function BudgetScreen() {
 
         {/* Spending log */}
         <div style={{ marginTop: 16, marginBottom: 24 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, marginBottom: 10, textTransform: "uppercase" }}>
-            Spending Log
-          </div>
+          <SectionLabel>Spending Log</SectionLabel>
           <LightCard style={{ padding: "36px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 32 }}>{"\u{1F4B3}"}</span>
             <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: FONT_SANS }}>No spending yet</span>

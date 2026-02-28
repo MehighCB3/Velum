@@ -1,70 +1,83 @@
-// Velum v3 design system — warm palette from redesign spec
-// Reference: VELUM-V3-SPEC.md + velum-redesign.jsx
+// Velum v4 design system — warm terracotta palette from redesign spec
+// Reference: velum-app/src/app/redesign/
 
 export const colors = {
-  // Core v3 palette
-  bg: '#faf8f5',
+  // Core palette — warmer cream tones
+  bg: '#f7f4f0',
   card: '#ffffff',
-  sidebar: '#faf8f5',
-  hover: '#f5f3ef',
-  border: '#f0ece6',
-  borderSubtle: '#f5f3ef',
-  subtle: '#f5f3ef',
-  text: '#2d2a26',
-  textLight: '#b5b0a8',
-  textMuted: '#a09b93',
-  muted: '#b5b0a8',
-  dimmed: '#a09b93',
-  faint: '#706b63',
-  accent: '#c4956a',
+  sidebar: '#f7f4f0',
+  hover: '#f0ece6',
+  border: '#e8e2d8',
+  borderSubtle: '#f0ece6',
+  borderLight: '#f0ece6',
+  subtle: '#f0ece6',
+  text: '#1a1814',
+  textLight: '#a09890',
+  textMuted: '#a09890',
+  textSub: '#6b6560',
+  muted: '#a09890',
+  dimmed: '#6b6560',
+  faint: '#6b6560',
+  accent: '#b86a3a',
+  accentWarm: '#d4854d',
+  accentLight: '#f0e0d0',
 
   // Dark surfaces (hero cards)
-  dark: '#1e1c19',
+  dark: '#1a1814',
+  darkMid: '#242220',
   darkInner: '#2a2825',
-  darkSecondary: '#2a2825',
+  darkSecondary: '#242220',
   darkTertiary: '#2a2825',
   darkText: '#ffffff',
-  darkTextSecondary: '#a09b93',
+  darkTextSecondary: '#a09890',
   darkTextMuted: '#706b63',
 
   // Semantic colors
-  success: '#6ec87a',
+  success: '#6fcf97',
   warning: '#e8a85c',
-  error: '#e85c5c',
-  info: '#6ba3d6',
-  purple: '#9b8ed6',
+  error: '#eb5757',
+  danger: '#eb5757',
+  info: '#4a9eed',
+  purple: '#7c6ae0',
+  blue: '#4a9eed',
+  green: '#4a7c59',
+  greenLight: '#e8f3ec',
+  red: '#c0392b',
+  redLight: '#fdecea',
 
   // Macro colors (nutrition)
-  calories: '#c4956a',
-  protein: '#6ba3d6',
-  carbs: '#6ec87a',
-  fat: '#e8a85c',
+  calories: '#b86a3a',
+  protein: '#d4854d',
+  carbsGreen: '#8aab6e',
+  carbs: '#8aab6e',
+  fatBlue: '#6ab3c8',
+  fat: '#6ab3c8',
 
   // Category colors (budget)
-  food: '#e8a85c',
-  fun: '#9b8ed6',
-  transport: '#6ba3d6',
-  subscriptions: '#6ec87a',
-  other: '#b5b0a8',
+  food: '#d4854d',
+  fun: '#7c6ae0',
+  transport: '#4a9eed',
+  subscriptions: '#6b6560',
+  other: '#a09890',
 
   // Fitness extra
-  gym: '#9b8ed6',
+  gym: '#7c6ae0',
 
   // Fitness colors
-  steps: '#c4956a',
-  run: '#6ba3d6',
-  swim: '#6ec87a',
-  cycle: '#e8a85c',
-  jiujitsu: '#e85c5c',
+  steps: '#b86a3a',
+  run: '#4a9eed',
+  swim: '#6ab3c8',
+  cycle: '#d4854d',
+  jiujitsu: '#eb5757',
 
   // Recovery status
-  recoveryGood: '#6ec87a',
-  recoveryFair: '#e8a85c',
-  recoveryPoor: '#e85c5c',
+  recoveryGood: '#6fcf97',
+  recoveryFair: '#d4854d',
+  recoveryPoor: '#eb5757',
 
   // Tab bar
-  tabActive: '#c4956a',
-  tabInactive: '#b5b0a8',
+  tabActive: '#b86a3a',
+  tabInactive: '#a09890',
 } as const;
 
 export type ColorKey = keyof typeof colors;

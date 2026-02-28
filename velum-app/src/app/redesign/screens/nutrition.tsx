@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { C, FONT_SANS, StatusBar, DarkCard, LightCard, MacroWheel, Divider, FAB, PageHeader } from '../components'
+import { C, FONT_SANS, StatusBar, DarkCard, LightCard, MacroWheel, Divider, FAB, PageHeader, SectionLabel } from '../components'
 
 export default function NutritionScreen() {
-  const [view, setView] = useState("today")
+  const [view, setView] = useState<"today" | "week">("today")
   const today = {
     kcal: 770, kcalGoal: 2000,
     protein: 47, proteinGoal: 140,
@@ -20,8 +20,8 @@ export default function NutritionScreen() {
 
   const macros = [
     { label: "Protein", val: today.protein, goal: today.proteinGoal, color: C.accentWarm, unit: "g" },
-    { label: "Carbs",   val: today.carbs,   goal: today.carbsGoal,   color: "#8aab6e", unit: "g" },
-    { label: "Fat",     val: today.fat,     goal: today.fatGoal,     color: "#6ab3c8", unit: "g" },
+    { label: "Carbs",   val: today.carbs,   goal: today.carbsGoal,   color: C.carbsGreen, unit: "g" },
+    { label: "Fat",     val: today.fat,     goal: today.fatGoal,     color: C.fatBlue, unit: "g" },
   ]
 
   return (
@@ -82,9 +82,7 @@ export default function NutritionScreen() {
 
           <div style={{ marginTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT_SANS, letterSpacing: "0.07em", textTransform: "uppercase" }}>
-                Meals today
-              </span>
+              <SectionLabel>Meals today</SectionLabel>
               <span style={{ fontSize: 11, color: C.textSub, fontFamily: FONT_SANS }}>{meals.length} logged</span>
             </div>
             {meals.map((meal, i) => (
@@ -159,13 +157,11 @@ export default function NutritionScreen() {
             </div>
           </LightCard>
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, marginBottom: 10, textTransform: "uppercase" }}>
-              Weekly Macros
-            </div>
+            <SectionLabel>Weekly Macros</SectionLabel>
             {[
               { label: "Protein", avg: 89, goal: 140, color: C.accentWarm },
-              { label: "Carbs",   avg: 162, goal: 200, color: "#8aab6e" },
-              { label: "Fat",     avg: 48,  goal: 65,  color: "#6ab3c8" },
+              { label: "Carbs",   avg: 162, goal: 200, color: C.carbsGreen },
+              { label: "Fat",     avg: 48,  goal: 65,  color: C.fatBlue },
             ].map(m => (
               <LightCard key={m.label} style={{ marginBottom: 8, padding: "12px 14px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -178,7 +174,7 @@ export default function NutritionScreen() {
                   </span>
                 </div>
                 <div style={{ height: 4, background: C.borderLight, borderRadius: 2, overflow: "hidden" }}>
-                  <div style={{ width: `${(m.avg / m.goal) * 100}%`, height: "100%", background: m.color, borderRadius: 2 }} />
+                  <div style={{ width: `${Math.min((m.avg / m.goal) * 100, 100)}%`, height: "100%", background: m.color, borderRadius: 2 }} />
                 </div>
               </LightCard>
             ))}

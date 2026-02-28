@@ -196,36 +196,45 @@ export default function ProfileScreen() {
           <SyncIndicator status={syncStatus} onSync={sync} />
         </View>
 
-        {/* Hero — Profile Card */}
+        {/* Hero — Profile Card with initial avatar */}
         <DarkCard style={styles.heroCard}>
           {!editing ? (
             <>
               <View style={styles.heroTop}>
-                <View>
-                  {age !== null && (
-                    <Text style={styles.heroAge}>{age}</Text>
-                  )}
-                  <Text style={styles.heroLabel}>
-                    {profile?.birth_date ? formatBirthDate(profile.birth_date) : 'Birth date not set'}
-                  </Text>
+                <View style={styles.heroTopLeft}>
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarInitial}>M</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.heroName}>Mihai</Text>
+                    <Text style={styles.heroLabel}>
+                      {age !== null ? `${age} yrs` : ''}{profile?.country ? ` \u00B7 ${profile.country}` : ''}{' \u00B7 Week '}{Math.ceil((new Date().getTime() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 604800000)}{' of 52'}
+                    </Text>
+                  </View>
                 </View>
                 <Pressable onPress={() => setEditing(true)} hitSlop={12}>
                   <Ionicons name="create-outline" size={20} color={colors.darkTextMuted} />
                 </Pressable>
               </View>
 
-              <View style={styles.heroDivider} />
-
-              <View style={styles.heroStatsRow}>
-                <View style={styles.heroStat}>
-                  <Ionicons name="location-outline" size={14} color={colors.darkTextMuted} />
-                  <Text style={styles.heroStatText}>
-                    {profile?.country || 'Not set'}
-                  </Text>
-                </View>
-                <View style={styles.heroStat}>
-                  <Ionicons name="hourglass-outline" size={14} color={colors.darkTextMuted} />
-                  <Text style={styles.heroStatText}>{lifeExp} yrs expectancy</Text>
+              {/* Streaks */}
+              <View style={styles.streakRow}>
+                <Ionicons name="flame" size={14} color={colors.accentWarm} />
+                <Text style={styles.streakText}>Active logging streak</Text>
+                <View style={styles.streakDots}>
+                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => {
+                    const today = new Date().getDay();
+                    const dayIdx = today === 0 ? 6 : today - 1;
+                    const isFilled = i <= dayIdx;
+                    return (
+                      <View key={`${d}-${i}`} style={[
+                        styles.streakDot,
+                        { backgroundColor: isFilled ? colors.accentWarm : 'rgba(255,255,255,0.08)' },
+                      ]}>
+                        <Text style={[styles.streakDotText, { color: isFilled ? '#fff' : 'rgba(255,255,255,0.25)' }]}>{d}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -647,14 +656,36 @@ const styles = StyleSheet.create({
   // Hero
   heroCard: { padding: 16, marginBottom: 12 },
   heroTop: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  heroAge: { fontSize: 40, fontWeight: '700', color: colors.darkText, lineHeight: 44 },
-  heroLabel: { fontSize: 12, color: colors.darkTextMuted, marginTop: 2 },
-  heroDivider: { height: 1, backgroundColor: colors.darkInner, marginVertical: 12 },
-  heroStatsRow: { flexDirection: 'row', gap: 20 },
-  heroStat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  heroStatText: { fontSize: 12, color: colors.darkTextMuted },
+  heroTopLeft: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+  },
+  avatarCircle: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 26, fontWeight: '700', color: colors.accentWarm,
+  },
+  heroName: { fontSize: 22, fontWeight: '700', color: '#fff' },
+  heroLabel: { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
+  // Streaks
+  streakRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 16, marginBottom: 4,
+    paddingTop: 14,
+    borderTopWidth: 1, borderTopColor: colors.darkInner,
+  },
+  streakText: { fontSize: 11, color: 'rgba(255,255,255,0.35)', flex: 1 },
+  streakDots: { flexDirection: 'row', gap: 4 },
+  streakDot: {
+    width: 22, height: 22, borderRadius: 4,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  streakDotText: { fontSize: 8, fontWeight: '600' },
   lifeBarWrap: { marginTop: 12 },
   lifeBarTrack: {
     height: 4, backgroundColor: colors.darkInner, borderRadius: 2, overflow: 'hidden',

@@ -1,6 +1,6 @@
 'use client'
 
-import { C, FONT_SANS, StatusBar, DarkCard, LightCard, ArcRing, Sparkline, FAB, PageHeader } from '../components'
+import { C, FONT_SANS, StatusBar, DarkCard, LightCard, ArcRing, Sparkline, FAB, PageHeader, SectionLabel } from '../components'
 
 export default function FitnessScreen() {
   const health = [
@@ -82,13 +82,13 @@ export default function FitnessScreen() {
                     {h.trend != null && (
                       <div style={{
                         fontSize: 9.5, marginTop: 3, fontFamily: FONT_SANS,
-                        color: h.good === true ? "#6fcf97" : h.good === false ? "#eb5757" : "rgba(255,255,255,0.3)",
+                        color: h.good === true ? C.success : h.good === false ? C.danger : "rgba(255,255,255,0.3)",
                       }}>
                         {h.good === true && "\u2191 "}{h.good === false && "\u2193 "}{Math.abs(h.trend)}
                       </div>
                     )}
                   </div>
-                  <Sparkline data={h.spark} color={h.good === true ? "#6fcf97" : h.good === false ? "#eb5757" : "rgba(255,255,255,0.25)"} height={26} width={46} />
+                  <Sparkline data={h.spark} color={h.good === true ? C.success : h.good === false ? C.danger : "rgba(255,255,255,0.25)"} height={26} width={46} />
                 </div>
               </div>
             ))}
@@ -97,9 +97,7 @@ export default function FitnessScreen() {
 
         {/* Activities */}
         <div style={{ marginTop: 16, marginBottom: 24 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: "0.07em", fontFamily: FONT_SANS, marginBottom: 10, textTransform: "uppercase" }}>
-            Activities this week
-          </div>
+          <SectionLabel>Activities this week</SectionLabel>
           <LightCard style={{ padding: "40px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 36 }}>{"\u{1F3C3}"}</span>
             <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: FONT_SANS }}>No activities logged</span>
