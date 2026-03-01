@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  AppState,
 } from 'react-native';
 import { Paths, File as FSFile } from 'expo-file-system';
 import { colors } from '../../src/theme/colors';
@@ -391,8 +392,22 @@ export default function HomeScreen() {
   const [selectedEvent, setSelectedEvent] = useState<YearEvent | null>(null);
   const [events, setEvents] = useState<YearEvent[]>(DEFAULT_EVENTS);
   const [showManager, setShowManager] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  const appState = useRef(AppState.currentState);
 
-  const now = new Date();
+  // Refresh date when app comes to foreground or on interval
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        setNow(new Date());
+      }
+      appState.current = nextState;
+    });
+    // Also refresh every minute to keep the date current
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => { sub.remove(); clearInterval(interval); };
+  }, []);
+
   const year = now.getFullYear();
   const currentWeek = getWeekOfYear(now);
   const weeksLeft = getWeeksLeftInYear(now);

@@ -941,7 +941,7 @@ export default function NutritionScreen() {
             </View>
 
             {data.entries.length === 0 ? (
-              <EmptyState icon="\u{1F37D}\uFE0F" title="No meals logged" subtitle="Tap the camera button to scan food" />
+              <EmptyState icon="🍽️" title="No meals logged" subtitle="Tap the camera button to scan food" />
             ) : (
               data.entries.map((entry) => (
                 <Pressable
