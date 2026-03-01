@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { useNutrition } from '../../src/hooks/useNutrition';
 import { DarkCard, Card, EmptyState } from '../../src/components/Card';
+import { MacroWheel } from '../../src/components/MacroWheel';
 import { AgentInsightCard } from '../../src/components/AgentInsightCard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { AddEntryModal, FormField } from '../../src/components/AddEntryModal';
@@ -52,7 +53,7 @@ function getMealEmoji(time: string): string {
   return '🌙';
 }
 
-type Tab = 'today' | '30days';
+type Tab = 'today' | 'week';
 
 // ==================== MEAL DETAIL MODAL ====================
 
@@ -851,13 +852,19 @@ export default function NutritionScreen() {
   const caloriesRemaining = data.goals.calories - data.totals.calories;
   const calorieProgress = data.goals.calories > 0 ? data.totals.calories / data.goals.calories : 0;
 
+  const macros = [
+    { label: 'Protein', val: Math.round(data.totals.protein), goal: Math.round(data.goals.protein), color: colors.accentWarm, unit: 'g' },
+    { label: 'Carbs', val: Math.round(data.totals.carbs), goal: Math.round(data.goals.carbs), color: colors.carbsGreen, unit: 'g' },
+    { label: 'Fat', val: Math.round(data.totals.fat), goal: Math.round(data.goals.fat || 80), color: colors.fatBlue, unit: 'g' },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header + Sub-tabs */}
       <View style={styles.headerRow}>
         <ScreenTitle title="Nutrition" marginBottom={0} />
         <SegmentedControl
-          tabs={[{ key: 'today', label: 'Today' }, { key: '30days', label: '30 Days' }]}
+          tabs={[{ key: 'today', label: 'Today' }, { key: 'week', label: 'Week' }]}
           activeTab={activeTab}
           onTabChange={(key) => setActiveTab(key as Tab)}
           style={{ alignSelf: 'flex-end', marginTop: 12, marginBottom: 4 }}
@@ -873,126 +880,105 @@ export default function NutritionScreen() {
       >
         {activeTab === 'today' ? (
           <>
-            {/* ── Compact Hero Card ── */}
+            {/* ── Hero Card with MacroWheel ── */}
             <DarkCard style={styles.heroCard}>
-              <View style={styles.heroTopRow}>
-                <View>
-                  <Text style={styles.heroLabel}>CALORIES</Text>
-                  <View style={styles.heroValueRow}>
-                    <Text style={styles.heroValue}>{fmt(Math.round(data.totals.calories))}</Text>
-                  </View>
-                  <Text style={[styles.heroRemaining, caloriesRemaining < 0 && { color: colors.error }]}>
-                    {caloriesRemaining >= 0
-                      ? `${fmt(Math.round(caloriesRemaining))} kcal remaining`
-                      : `${fmt(Math.round(Math.abs(caloriesRemaining)))} kcal over`}
-                  </Text>
-                </View>
-
-                {/* Simple arc ring */}
-                <View style={styles.ringWrap}>
-                  <View style={[styles.ringTrack, {
-                    borderColor: calorieProgress > 1 ? colors.error
-                      : calorieProgress > 0.8 ? colors.warning : colors.success,
-                    opacity: 0.2,
-                  }]} />
-                  <View style={[styles.ringFill, {
-                    borderColor: calorieProgress > 1 ? colors.error
-                      : calorieProgress > 0.8 ? colors.warning : colors.success,
-                    borderRightColor: 'transparent',
-                    borderBottomColor: 'transparent',
-                    transform: [{ rotate: `${Math.min(calorieProgress, 1) * 270 - 135}deg` }],
-                  }]} />
-                  <Text style={styles.ringPct}>{Math.round(calorieProgress * 100)}%</Text>
-                </View>
+              <View style={styles.heroCenter}>
+                <MacroWheel
+                  kcal={Math.round(data.totals.calories)}
+                  kcalGoal={data.goals.calories}
+                  protein={data.totals.protein}
+                  carbs={data.totals.carbs}
+                  fat={data.totals.fat}
+                  size={160}
+                />
               </View>
 
-              {/* P / C / F bars */}
-              <View style={styles.macroBars}>
-                {[
-                  { label: 'Protein', current: data.totals.protein, goal: data.goals.protein, color: colors.protein },
-                  { label: 'Carbs', current: data.totals.carbs, goal: data.goals.carbs, color: colors.carbs },
-                  { label: 'Fat', current: data.totals.fat, goal: data.goals.fat || 80, color: colors.fat },
-                ].map((m) => {
-                  const pct = m.goal > 0 ? Math.min(m.current / m.goal, 1) : 0;
-                  return (
-                    <View key={m.label} style={styles.macroBarItem}>
-                      <View style={styles.macroBarRow}>
-                        <Text style={[styles.macroBarLabel, { color: m.color }]}>{m.label}</Text>
-                        <Text style={styles.macroBarValue}>
-                          {Math.round(m.current)}
-                          <Text style={styles.macroBarGoal}>/{Math.round(m.goal)}g</Text>
-                        </Text>
-                      </View>
-                      <View style={styles.macroBarTrack}>
-                        <View style={[styles.macroBarFill, { backgroundColor: m.color, width: `${pct * 100}%` }]} />
-                      </View>
+              <Text style={styles.heroRemaining}>
+                {caloriesRemaining >= 0
+                  ? `${fmt(Math.round(caloriesRemaining))} kcal remaining today`
+                  : `${fmt(Math.round(Math.abs(caloriesRemaining)))} kcal over today`}
+              </Text>
+
+              {/* 3-column macro breakdown */}
+              <View style={styles.macroColumns}>
+                {macros.map((m, i) => (
+                  <View key={m.label} style={[
+                    styles.macroCol,
+                    i < macros.length - 1 && styles.macroColBorder,
+                  ]}>
+                    <View style={styles.macroDotRow}>
+                      <View style={[styles.macroDot, { backgroundColor: m.color }]} />
+                      <Text style={styles.macroLabel}>{m.label.toUpperCase()}</Text>
                     </View>
-                  );
-                })}
+                    <Text style={styles.macroValue}>
+                      {m.val}
+                      <Text style={styles.macroUnit}>{m.unit}</Text>
+                    </Text>
+                    <Text style={styles.macroGoal}>of {m.goal}{m.unit}</Text>
+                    <View style={styles.macroBarTrack}>
+                      <View style={[
+                        styles.macroBarFill,
+                        {
+                          backgroundColor: m.color,
+                          width: `${Math.min(m.goal > 0 ? (m.val / m.goal) * 100 : 0, 100)}%`,
+                        },
+                      ]} />
+                    </View>
+                  </View>
+                ))}
               </View>
             </DarkCard>
 
-            {/* Agent insights (if any) */}
+            {/* Agent insights */}
             {nutritionAgentInsights.map((ai) => (
               <AgentInsightCard key={ai.agentId} insight={ai} />
             ))}
 
-            {/* ── Meal Log ── */}
+            {/* ── Meals today ── */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Meal Log</Text>
-              <Pressable style={styles.manualBtn} onPress={() => setShowAddModal(true)}>
-                <Ionicons name="pencil-outline" size={13} color={colors.textLight} />
-                <Text style={styles.manualBtnText}>Manual</Text>
-              </Pressable>
+              <Text style={styles.sectionLabel}>MEALS TODAY</Text>
+              <Text style={styles.sectionCount}>{data.entries.length} logged</Text>
             </View>
 
             {data.entries.length === 0 ? (
-              <EmptyState icon="🍽️" title="No meals logged" subtitle="Tap the camera button to scan food" />
+              <EmptyState icon="\u{1F37D}\uFE0F" title="No meals logged" subtitle="Tap the camera button to scan food" />
             ) : (
-              <View style={styles.mealList}>
-                {data.entries.map((entry, idx) => (
-                  <Pressable
-                    key={entry.id}
-                    onPress={() => setSelectedEntry(entry)}
-                    onLongPress={() => handleDeleteEntry(entry.id, entry.name)}
-                  >
-                    <View style={[
-                      styles.mealRow,
-                      idx < data.entries.length - 1 && styles.mealRowBorder,
-                    ]}>
-                      {/* Thumb: photo or emoji */}
-                      <View style={styles.mealThumb}>
+              data.entries.map((entry) => (
+                <Pressable
+                  key={entry.id}
+                  onPress={() => setSelectedEntry(entry)}
+                  onLongPress={() => handleDeleteEntry(entry.id, entry.name)}
+                >
+                  <Card style={styles.mealCard}>
+                    <View style={styles.mealRow}>
+                      <View style={styles.mealIconBox}>
                         {entry.photoUrl ? (
-                          <Image source={{ uri: entry.photoUrl }} style={styles.mealThumbImg} />
+                          <Image source={{ uri: entry.photoUrl }} style={styles.mealIconImg} />
                         ) : (
-                          <Text style={styles.mealThumbEmoji}>{getMealEmoji(entry.time)}</Text>
+                          <Text style={styles.mealEmoji}>{getMealEmoji(entry.time)}</Text>
                         )}
                       </View>
-
-                      {/* Name + time */}
                       <View style={styles.mealInfo}>
                         <Text style={styles.mealName} numberOfLines={1}>{entry.name}</Text>
                         <Text style={styles.mealTime}>{entry.time}</Text>
                       </View>
-
-                      {/* Calories + macro dots */}
                       <View style={styles.mealRight}>
-                        <Text style={styles.mealCalories}>{fmt(Math.round(entry.calories))}</Text>
-                        <View style={styles.mealMacros}>
-                          <Text style={[styles.mealMacro, { color: colors.protein }]}>{Math.round(entry.protein)}P</Text>
-                          <Text style={styles.mealMacroDot}>·</Text>
-                          <Text style={[styles.mealMacro, { color: colors.carbs }]}>{Math.round(entry.carbs)}C</Text>
-                          <Text style={styles.mealMacroDot}>·</Text>
-                          <Text style={[styles.mealMacro, { color: colors.fat }]}>{Math.round(entry.fat)}F</Text>
-                        </View>
+                        <Text style={styles.mealCalories}>{Math.round(entry.calories)}</Text>
+                        <Text style={styles.mealKcalUnit}>kcal</Text>
                       </View>
-
-                      <Ionicons name="chevron-forward" size={13} color={colors.border} />
                     </View>
-                  </Pressable>
-                ))}
-              </View>
+                  </Card>
+                </Pressable>
+              ))
             )}
+
+            {/* Dashed add meal button */}
+            <Pressable
+              style={styles.dashedBtn}
+              onPress={() => setShowAddModal(true)}
+            >
+              <Text style={styles.dashedBtnText}>+ Log a meal</Text>
+            </Pressable>
           </>
         ) : (
           <ThirtyDayView />
@@ -1001,7 +987,7 @@ export default function NutritionScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* FAB — camera icon, scan food (primary action) */}
+      {/* FAB — camera icon */}
       {activeTab === 'today' && (
         <FAB icon="camera" onPress={handleScanFood} size={26} />
       )}
@@ -1047,100 +1033,127 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginBottom: 8,
   },
-  // Hero card
-  heroCard: { marginBottom: 12 },
-  heroTopRow: {
+
+  // Hero card — centered MacroWheel
+  heroCard: { marginBottom: 12, paddingTop: 24, paddingBottom: 20 },
+  heroCenter: { alignItems: 'center', marginBottom: 4 },
+  heroRemaining: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+
+  // 3-column macro breakdown
+  macroColumns: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginTop: 18,
+  },
+  macroCol: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: 14,
+    paddingHorizontal: 8,
   },
-  heroLabel: { fontSize: 12, color: colors.darkTextSecondary },
-  heroValueRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 2 },
-  heroValue: { fontSize: 32, fontWeight: '800', color: colors.darkText },
-  heroGoal: { fontSize: 14, color: colors.darkTextMuted, fontWeight: '500' },
-  heroRemaining: { fontSize: 13, fontWeight: '600', color: colors.success, marginTop: 2 },
-
-  // Progress ring (CSS border trick)
-  ringWrap: { width: 64, height: 64, justifyContent: 'center', alignItems: 'center' },
-  ringTrack: {
-    position: 'absolute', width: 64, height: 64,
-    borderRadius: 32, borderWidth: 7,
+  macroColBorder: {
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.07)',
   },
-  ringFill: {
-    position: 'absolute', width: 64, height: 64,
-    borderRadius: 32, borderWidth: 7,
+  macroDotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
   },
-  ringPct: { fontSize: 12, fontWeight: '700', color: colors.darkText },
-
-  // Macro bars
-  macroBars: { gap: 7 },
-  macroBarItem: {},
-  macroBarRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 3,
+  macroDot: { width: 6, height: 6, borderRadius: 2 },
+  macroLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.35)',
+    letterSpacing: 0.4,
   },
-  macroBarLabel: { fontSize: 11, fontWeight: '700' },
-  macroBarValue: { fontSize: 11, fontWeight: '700', color: colors.darkText },
-  macroBarGoal: { fontSize: 10, fontWeight: '400', color: colors.darkTextMuted },
-  macroBarTrack: { height: 5, borderRadius: 3, backgroundColor: colors.darkInner, overflow: 'hidden' as const },
-  macroBarFill: { height: '100%', borderRadius: 3 },
+  macroValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    lineHeight: 22,
+  },
+  macroUnit: {
+    fontSize: 10,
+    fontWeight: '400',
+    color: 'rgba(255,255,255,0.35)',
+  },
+  macroGoal: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.25)',
+    marginTop: 2,
+  },
+  macroBarTrack: {
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 1,
+    marginTop: 6,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  macroBarFill: { height: '100%', borderRadius: 1 },
 
   // Section header
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 16,
+    marginBottom: 10,
   },
-  sectionTitle: {
-    fontSize: 11, fontWeight: '700',
-    color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1,
+  sectionLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
   },
-  manualBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+  sectionCount: {
+    fontSize: 11,
+    color: colors.textSub,
   },
-  manualBtnText: { fontSize: 11, fontWeight: '600', color: colors.textLight },
 
-  // Meal list — flat with dividers (no card-per-item)
-  mealList: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  // Individual meal cards
+  mealCard: { marginBottom: 8, padding: 12 },
   mealRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
+    gap: 12,
   },
-  mealRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  mealThumb: {
-    width: 40, height: 40,
-    borderRadius: 8,
-    backgroundColor: colors.borderSubtle,
-    justifyContent: 'center',
+  mealIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: colors.borderLight,
     alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  mealThumbImg: { width: 40, height: 40 },
-  mealThumbEmoji: { fontSize: 20 },
-  mealInfo: { flex: 1 },
-  mealName: { fontSize: 14, fontWeight: '600', color: colors.text },
-  mealTime: { fontSize: 11, color: colors.textLight, marginTop: 1 },
+  mealIconImg: { width: 40, height: 40 },
+  mealEmoji: { fontSize: 20 },
+  mealInfo: { flex: 1, minWidth: 0 },
+  mealName: { fontSize: 13.5, fontWeight: '600', color: colors.text },
+  mealTime: { fontSize: 11, color: colors.muted, marginTop: 1 },
   mealRight: { alignItems: 'flex-end' },
   mealCalories: { fontSize: 15, fontWeight: '700', color: colors.text },
-  mealMacros: { flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 2 },
-  mealMacro: { fontSize: 10, fontWeight: '600' },
-  mealMacroDot: { fontSize: 10, color: colors.border },
+  mealKcalUnit: { fontSize: 10, color: colors.muted },
 
+  // Dashed add button
+  dashedBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  dashedBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.accent,
+  },
 });

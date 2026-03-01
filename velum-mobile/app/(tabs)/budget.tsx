@@ -8,7 +8,6 @@ import {
   Pressable,
   Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import { useBudget } from '../../src/hooks/useBudget';
@@ -27,22 +26,30 @@ import { fmtDecimal as fmt } from '../../src/utils/formatters';
 
 const WEEKLY_BUDGET = 70;
 
+// ---- Category config matching redesign mockup ----
+
+const CATEGORY_CONFIG: { key: BudgetCategory; icon: string; color: string }[] = [
+  { key: 'Food', icon: '\u{1F958}', color: colors.food },
+  { key: 'Fun', icon: '\u{1F389}', color: colors.fun },
+  { key: 'Transport', icon: '\u{1F68C}', color: colors.transport },
+  { key: 'Subscriptions', icon: '\u{1F4E6}', color: colors.subscriptions },
+  { key: 'Other', icon: '\u{1F4B3}', color: colors.other },
+];
+
 // ---- Month comparison data types & helpers ----
 
 interface WeekSummary {
   weekKey: string;
-  weekLabel: string; // e.g. "W08"
+  weekLabel: string;
   totalSpent: number;
   isCurrent: boolean;
   isFuture: boolean;
 }
 
-/** Get an array of 4 ISO week keys centred around the selected week */
 function getMonthWeekKeys(centerDate: Date): string[] {
   const keys: string[] = [];
-  // Go back 1 week, then forward 2 from that (4 weeks total)
   const base = new Date(centerDate);
-  base.setDate(base.getDate() - 7); // start 1 week before
+  base.setDate(base.getDate() - 7);
   for (let i = 0; i < 4; i++) {
     const d = new Date(base);
     d.setDate(d.getDate() + i * 7);
@@ -64,7 +71,7 @@ function useMonthWeeks(centerDate: Date): { weeks: WeekSummary[]; loading: boole
 
     Promise.all(
       weekKeys.map(async (wk): Promise<WeekSummary> => {
-        const label = wk.split('-')[1] || wk; // "W08"
+        const label = wk.split('-')[1] || wk;
         const isCurrent = wk === currentWeekKey;
         const isFuture = wk > currentWeekKey;
         try {
@@ -91,7 +98,7 @@ function useMonthWeeks(centerDate: Date): { weeks: WeekSummary[]; loading: boole
 }
 
 const budgetFields: FormField[] = [
-  { key: 'amount', label: 'Amount (€)', placeholder: '0.00', type: 'number', required: true },
+  { key: 'amount', label: 'Amount (\u20AC)', placeholder: '0.00', type: 'number', required: true },
   {
     key: 'category',
     label: 'Category',
@@ -110,94 +117,154 @@ const budgetFields: FormField[] = [
   { key: 'reason', label: 'Reason', placeholder: 'Optional reason...', type: 'text' },
 ];
 
-// ---- Month Comparison Bar Chart ----
+// ---- Tabbed Widget (By Week / By Category) — matching redesign mockup ----
 
-const BAR_MAX_HEIGHT = 120;
+const BAR_HEIGHT = 90;
 
-function MonthComparisonCard({
+function TabbedSpendingWidget({
   weeks,
   budget,
+  categories,
+  totalSpent,
 }: {
   weeks: WeekSummary[];
   budget: number;
+  categories: Record<string, number>;
+  totalSpent: number;
 }) {
-  // Determine the max value for bar scaling (at least the budget)
-  const maxSpent = Math.max(budget, ...weeks.map((w) => w.totalSpent));
-
-  // Build the summary callout
-  const overWeek = weeks.find((w) => !w.isFuture && w.totalSpent > budget);
-  const underWeek = [...weeks]
-    .filter((w) => !w.isFuture && !w.isCurrent && w.totalSpent > 0 && w.totalSpent <= budget)
-    .sort((a, b) => a.totalSpent - b.totalSpent)[0];
-
-  const budgetLineBottom = (budget / maxSpent) * BAR_MAX_HEIGHT;
+  const [tab, setTab] = useState<'week' | 'cat'>('week');
+  const maxBar = Math.max(budget, ...weeks.map((w) => w.totalSpent));
 
   return (
-    <Card style={chartStyles.card}>
-      <SectionHeader title="Month Comparison" />
-
-      <View style={chartStyles.chartArea}>
-        {/* Dashed budget line */}
-        <View style={[chartStyles.budgetLine, { bottom: budgetLineBottom }]}>
-          <View style={chartStyles.budgetDash} />
-          <Text style={chartStyles.budgetLineLabel}>{'\u20AC'}{fmt(budget)}</Text>
-        </View>
-
-        {/* Bars */}
-        <View style={chartStyles.barsRow}>
-          {weeks.map((w) => {
-            const barH = maxSpent > 0 ? (w.totalSpent / maxSpent) * BAR_MAX_HEIGHT : 0;
-            const isOver = w.totalSpent > budget;
-
-            let barColor: string = colors.text; // past, under budget
-            if (w.isFuture) barColor = colors.border;
-            else if (w.isCurrent) barColor = colors.accent;
-            if (isOver && !w.isFuture) barColor = colors.error;
-
-            const barOpacity = w.isFuture ? 0.4 : 1;
-
-            return (
-              <View key={w.weekKey} style={chartStyles.barCol}>
-                <View style={chartStyles.barTrack}>
-                  <View
-                    style={[
-                      chartStyles.bar,
-                      {
-                        height: Math.max(barH, 4),
-                        backgroundColor: barColor,
-                        opacity: barOpacity,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={chartStyles.barLabel}>{w.weekLabel}</Text>
-                <Text style={chartStyles.barAmount}>
-                  {'\u20AC'}{fmt(w.totalSpent)}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+    <Card style={tabStyles.card}>
+      {/* Tab bar */}
+      <View style={tabStyles.tabBar}>
+        {([
+          { id: 'week' as const, label: 'By Week' },
+          { id: 'cat' as const, label: 'By Category' },
+        ]).map((t) => (
+          <Pressable
+            key={t.id}
+            style={tabStyles.tab}
+            onPress={() => setTab(t.id)}
+          >
+            <Text style={[
+              tabStyles.tabText,
+              tab === t.id && tabStyles.tabTextActive,
+            ]}>
+              {t.label}
+            </Text>
+            {tab === t.id && <View style={tabStyles.tabIndicator} />}
+          </Pressable>
+        ))}
       </View>
 
-      {/* Summary callout */}
-      {(overWeek || underWeek) && (
-        <View style={chartStyles.callout}>
-          {overWeek && (
-            <Text style={chartStyles.calloutText}>
-              {overWeek.weekLabel} was {'\u20AC'}{fmt(overWeek.totalSpent - budget)} over budget.
+      <View style={tabStyles.content}>
+        {tab === 'week' && (
+          <>
+            {/* Budget limit label */}
+            <Text style={tabStyles.limitLabel}>
+              {'\u2014'} {'\u20AC'}{fmt(budget)} limit
             </Text>
-          )}
-          {underWeek && (
-            <Text style={chartStyles.calloutText}>
-              {underWeek.weekLabel} was {'\u20AC'}{fmt(budget - underWeek.totalSpent)} under.
-            </Text>
-          )}
-        </View>
-      )}
+
+            {/* Bar chart */}
+            <View style={tabStyles.chartArea}>
+              {/* Dashed budget line */}
+              <View style={[
+                tabStyles.budgetLine,
+                { bottom: maxBar > 0 ? (budget / maxBar) * BAR_HEIGHT : 0 },
+              ]}>
+                <View style={tabStyles.budgetDash} />
+              </View>
+
+              <View style={tabStyles.barsRow}>
+                {weeks.map((w) => {
+                  const h = maxBar > 0 ? (w.totalSpent / maxBar) * BAR_HEIGHT : 0;
+                  const isOver = w.totalSpent > budget;
+                  let barColor = 'rgba(45,42,38,0.15)';
+                  if (w.isFuture) barColor = colors.borderLight;
+                  else if (w.isCurrent) barColor = colors.accent;
+                  else if (isOver) barColor = colors.error;
+
+                  return (
+                    <View key={w.weekKey} style={tabStyles.barCol}>
+                      <View style={tabStyles.barTrack}>
+                        <View style={[
+                          tabStyles.bar,
+                          {
+                            height: Math.max(h, w.totalSpent === 0 && !w.isCurrent ? 2 : 0),
+                            backgroundColor: barColor,
+                          },
+                          w.isCurrent && {
+                            shadowColor: colors.accent,
+                            shadowOffset: { width: 0, height: 0 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 4,
+                            elevation: 2,
+                          },
+                        ]} />
+                      </View>
+                      <Text style={[
+                        tabStyles.barLabel,
+                        w.isCurrent && { color: colors.accent, fontWeight: '700' },
+                      ]}>
+                        {w.weekLabel}
+                      </Text>
+                      <Text style={tabStyles.barAmount}>
+                        {w.isFuture ? '\u2014' : `\u20AC${fmt(w.totalSpent)}`}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </>
+        )}
+
+        {tab === 'cat' && (
+          <View>
+            {CATEGORY_CONFIG.map((c, i) => {
+              const amount = categories[c.key] || 0;
+              return (
+                <View
+                  key={c.key}
+                  style={[
+                    tabStyles.catRow,
+                    i < CATEGORY_CONFIG.length - 1 && tabStyles.catRowBorder,
+                  ]}
+                >
+                  {/* Emoji icon box */}
+                  <View style={tabStyles.catIconBox}>
+                    <Text style={tabStyles.catIcon}>{c.icon}</Text>
+                  </View>
+                  <View style={tabStyles.catInfo}>
+                    <View style={tabStyles.catHeader}>
+                      <Text style={tabStyles.catName}>{c.key}</Text>
+                      <Text style={tabStyles.catAmount}>
+                        {'\u20AC'}{amount.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={tabStyles.catBarBg}>
+                      <View style={[
+                        tabStyles.catBarFill,
+                        {
+                          backgroundColor: c.color,
+                          width: `${Math.min((amount / budget) * 100, 100)}%`,
+                        },
+                      ]} />
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
     </Card>
   );
 }
+
+// ---- Main Screen ----
 
 export default function BudgetScreen() {
   const [weekDate, setWeekDate] = useState(new Date());
@@ -235,28 +302,31 @@ export default function BudgetScreen() {
   // Compute budget insights
   const budgetInsights: InsightItem[] = [];
   if (isOverBudget) {
-    budgetInsights.push({ emoji: '🚨', text: `You're €${Math.abs(data.remaining).toFixed(2)} over your €${WEEKLY_BUDGET} weekly budget.`, tone: 'negative' });
+    budgetInsights.push({ emoji: '\u{1F6A8}', text: `You're \u20AC${Math.abs(data.remaining).toFixed(2)} over your \u20AC${WEEKLY_BUDGET} weekly budget.`, tone: 'negative' });
   } else if (spentPercent > 0.8) {
-    budgetInsights.push({ emoji: '⚠️', text: `€${data.remaining.toFixed(2)} left — ${Math.round((1 - spentPercent) * 100)}% of your budget remaining.`, tone: 'warning' });
+    budgetInsights.push({ emoji: '\u26A0\uFE0F', text: `\u20AC${data.remaining.toFixed(2)} left \u2014 ${Math.round((1 - spentPercent) * 100)}% of your budget remaining.`, tone: 'warning' });
   } else if (data.totalSpent > 0) {
-    budgetInsights.push({ emoji: '💰', text: `€${data.remaining.toFixed(2)} remaining of €${WEEKLY_BUDGET} budget (${Math.round(spentPercent * 100)}% spent).`, tone: 'positive' });
+    budgetInsights.push({ emoji: '\u{1F4B0}', text: `\u20AC${data.remaining.toFixed(2)} remaining of \u20AC${WEEKLY_BUDGET} budget (${Math.round(spentPercent * 100)}% spent).`, tone: 'positive' });
   }
-  // Top spending category
   const catEntries = Object.entries(data.categories).filter(([, v]) => v > 0) as [string, number][];
   if (catEntries.length > 0) {
     const top = catEntries.sort((a, b) => b[1] - a[1])[0];
     const pct = data.totalSpent > 0 ? Math.round((top[1] / data.totalSpent) * 100) : 0;
-    budgetInsights.push({ emoji: '📊', text: `${top[0]} is your top category — €${top[1].toFixed(2)} (${pct}% of spending).`, tone: 'neutral' });
+    budgetInsights.push({ emoji: '\u{1F4CA}', text: `${top[0]} is your top category \u2014 \u20AC${top[1].toFixed(2)} (${pct}% of spending).`, tone: 'neutral' });
   }
-  // Daily pace projection
-  const dayOfWeek = new Date().getDay() || 7; // 1=Mon..7=Sun
+  const dayOfWeek = new Date().getDay() || 7;
   if (data.totalSpent > 0 && dayOfWeek < 7) {
     const dailyPace = data.totalSpent / dayOfWeek;
     const projected = dailyPace * 7;
     if (projected > WEEKLY_BUDGET) {
-      budgetInsights.push({ emoji: '📈', text: `At this pace you'll spend ~€${projected.toFixed(0)} by Sunday — €${(projected - WEEKLY_BUDGET).toFixed(0)} over budget.`, tone: 'warning' });
+      budgetInsights.push({ emoji: '\u{1F4C8}', text: `At this pace you'll spend ~\u20AC${projected.toFixed(0)} by Sunday \u2014 \u20AC${(projected - WEEKLY_BUDGET).toFixed(0)} over budget.`, tone: 'warning' });
     }
   }
+
+  const getCategoryEmoji = (cat: string) => {
+    const found = CATEGORY_CONFIG.find((c) => c.key === cat);
+    return found?.icon || '\u{1F4B3}';
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -271,14 +341,14 @@ export default function BudgetScreen() {
 
         <WeekSelector currentDate={weekDate} onWeekChange={setWeekDate} />
 
-        {/* Budget Hero — redesign with ArcRing */}
+        {/* Budget Hero */}
         <DarkCard style={styles.heroCard}>
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
               <Text style={styles.heroLabel}>WEEKLY BUDGET</Text>
-              <View style={styles.heroAmountRow}>
-                <Text style={styles.heroValue}>{'\u20AC'}{data.remaining.toFixed(0)}</Text>
-              </View>
+              <Text style={styles.heroValue}>
+                {'\u20AC'}{data.remaining.toFixed(0)}
+              </Text>
               <Text style={[styles.heroSub, isOverBudget && { color: colors.error }]}>
                 {isOverBudget ? 'over budget' : `remaining \u00B7 \u20AC${data.totalSpent.toFixed(2)} spent`}
               </Text>
@@ -294,27 +364,28 @@ export default function BudgetScreen() {
             </ArcRing>
           </View>
 
-          {/* Budget bar */}
+          {/* Budget progress bar */}
           <View style={styles.budgetBar}>
             <View
               style={[
                 styles.budgetBarFill,
                 {
                   width: `${Math.min(spentPercent * 100, 100)}%`,
-                  backgroundColor: isOverBudget
-                    ? colors.error
-                    : spentPercent > 0.8
-                    ? colors.warning
-                    : colors.success,
+                  backgroundColor: isOverBudget ? colors.error : colors.accent,
                 },
               ]}
             />
           </View>
         </DarkCard>
 
-        {/* Month Comparison Chart */}
+        {/* Tabbed Widget — By Week / By Category */}
         {monthWeeks.length > 0 && (
-          <MonthComparisonCard weeks={monthWeeks} budget={WEEKLY_BUDGET} />
+          <TabbedSpendingWidget
+            weeks={monthWeeks}
+            budget={WEEKLY_BUDGET}
+            categories={data.categories}
+            totalSpent={data.totalSpent}
+          />
         )}
 
         {/* Insights */}
@@ -323,85 +394,19 @@ export default function BudgetScreen() {
           <AgentInsightCard key={ai.agentId} insight={ai} />
         ))}
 
-        {/* Category Breakdown */}
-        <Card style={styles.categoryCard}>
-          <SectionHeader title="By Category" />
-          <View style={styles.categoryRow}>
-            {([
-              { key: 'Food', color: colors.food },
-              { key: 'Fun', color: colors.fun },
-              { key: 'Transport', color: colors.transport },
-              { key: 'Subscriptions', color: colors.subscriptions },
-              { key: 'Other', color: colors.other },
-            ] as const)
-              .filter(({ key }) => (data.categories[key] || 0) > 0)
-              .map(({ key, color }) => (
-                <View key={key} style={styles.categoryItem}>
-                  <View style={[styles.categoryDot, { backgroundColor: color }]} />
-                  <View>
-                    <Text style={styles.categoryName}>{key}</Text>
-                    <Text style={styles.categoryAmount}>€{(data.categories[key] || 0).toFixed(2)}</Text>
-                  </View>
-                </View>
-              ))}
-            {Object.values(data.categories).every((v) => !v) && (
-              <>
-                <View style={styles.categoryItem}>
-                  <View style={[styles.categoryDot, { backgroundColor: colors.food }]} />
-                  <View>
-                    <Text style={styles.categoryName}>Food</Text>
-                    <Text style={styles.categoryAmount}>€0.00</Text>
-                  </View>
-                </View>
-                <View style={styles.categoryItem}>
-                  <View style={[styles.categoryDot, { backgroundColor: colors.fun }]} />
-                  <View>
-                    <Text style={styles.categoryName}>Fun</Text>
-                    <Text style={styles.categoryAmount}>€0.00</Text>
-                  </View>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Category bars */}
-          <View style={styles.categoryBars}>
-            {([
-              { key: 'Food', color: colors.food },
-              { key: 'Fun', color: colors.fun },
-              { key: 'Transport', color: colors.transport },
-              { key: 'Subscriptions', color: colors.subscriptions },
-              { key: 'Other', color: colors.other },
-            ] as const)
-              .filter(({ key }) => (data.categories[key] || 0) > 0)
-              .map(({ key, color }) => (
-                <View key={key} style={styles.categoryBarContainer}>
-                  <Text style={styles.categoryBarLabel}>{key}</Text>
-                  <View style={styles.categoryBarBg}>
-                    <View
-                      style={[
-                        styles.categoryBarFill,
-                        {
-                          backgroundColor: color,
-                          width: `${data.totalSpent > 0 ? ((data.categories[key] || 0) / data.totalSpent) * 100 : 0}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              ))}
-          </View>
-        </Card>
-
         {/* Spending Log */}
-        <SectionHeader title="Spending Log" />
+        <View style={styles.sectionLabelRow}>
+          <Text style={styles.sectionLabel}>SPENDING LOG</Text>
+        </View>
 
         {data.entries.length === 0 ? (
-          <EmptyState
-            icon="💰"
-            title="No spending logged"
-            subtitle="Tap + to log an expense"
-          />
+          <Card style={styles.emptyCard}>
+            <View style={styles.emptyInner}>
+              <Text style={styles.emptyIcon}>{'\u{1F4B3}'}</Text>
+              <Text style={styles.emptyTitle}>No spending yet</Text>
+              <Text style={styles.emptySubtitle}>Tap + to log an expense</Text>
+            </View>
+          </Card>
         ) : (
           [...data.entries].reverse().map((entry) => (
             <Pressable
@@ -410,27 +415,20 @@ export default function BudgetScreen() {
             >
               <Card style={styles.entryCard}>
                 <View style={styles.entryRow}>
-                  <View
-                    style={[
-                      styles.entryDot,
-                      { backgroundColor: {
-                          Food: colors.food,
-                          Fun: colors.fun,
-                          Transport: colors.transport,
-                          Subscriptions: colors.subscriptions,
-                          Other: colors.other,
-                        }[entry.category] || colors.other },
-                    ]}
-                  />
+                  <View style={styles.entryIconBox}>
+                    <Text style={styles.entryEmoji}>{getCategoryEmoji(entry.category)}</Text>
+                  </View>
                   <View style={styles.entryInfo}>
-                    <Text style={styles.entryDesc}>
+                    <Text style={styles.entryDesc} numberOfLines={1}>
                       {entry.description || entry.category}
                     </Text>
                     <Text style={styles.entryMeta}>
-                      {entry.category} · {entry.date.slice(5)}
+                      {entry.category} {'\u00B7'} {entry.date.slice(5)}
                     </Text>
                   </View>
-                  <Text style={styles.entryAmount}>€{entry.amount.toFixed(2)}</Text>
+                  <View style={styles.entryRight}>
+                    <Text style={styles.entryAmount}>{'\u20AC'}{entry.amount.toFixed(2)}</Text>
+                  </View>
                 </View>
               </Card>
             </Pressable>
@@ -453,6 +451,8 @@ export default function BudgetScreen() {
   );
 }
 
+// ---- Styles ----
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
@@ -461,52 +461,98 @@ const styles = StyleSheet.create({
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeft: {},
   heroLabel: { fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.7, marginBottom: 6 },
-  heroAmountRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 0 },
   heroValue: { fontSize: 48, fontWeight: '800', color: '#fff', letterSpacing: -2 },
   heroSub: { fontSize: 12, color: colors.success, fontWeight: '500', marginTop: 4 },
   arcPct: { fontSize: 13, fontWeight: '700', color: '#fff' },
   budgetBar: {
-    height: 6,
-    backgroundColor: colors.darkTertiary,
-    borderRadius: 3,
-    marginTop: 16,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 2,
+    marginTop: 18,
     overflow: 'hidden',
   },
-  budgetBarFill: { height: '100%', borderRadius: 3 },
-  categoryCard: { marginBottom: 12 },
-  categoryRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
-  categoryItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  categoryDot: { width: 10, height: 10, borderRadius: 5 },
-  categoryName: { fontSize: 14, fontWeight: '600', color: colors.text },
-  categoryAmount: { fontSize: 13, color: colors.textLight },
-  categoryBars: { gap: 8 },
-  categoryBarContainer: { gap: 4 },
-  categoryBarLabel: { fontSize: 12, color: colors.textLight },
-  categoryBarBg: {
-    height: 6,
-    backgroundColor: colors.hover,
-    borderRadius: 3,
-    overflow: 'hidden',
+  budgetBarFill: { height: '100%', borderRadius: 2 },
+
+  // Section label
+  sectionLabelRow: { marginTop: 16, marginBottom: 10 },
+  sectionLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
   },
-  categoryBarFill: { height: '100%', borderRadius: 3 },
-  entryCard: { marginBottom: 8 },
+
+  // Empty state
+  emptyCard: { marginBottom: 12 },
+  emptyInner: { alignItems: 'center', paddingVertical: 20 },
+  emptyIcon: { fontSize: 32, marginBottom: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+  emptySubtitle: { fontSize: 13, color: colors.muted, marginTop: 4 },
+
+  // Spending log entries
+  entryCard: { marginBottom: 8, padding: 12 },
   entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  entryDot: { width: 8, height: 8, borderRadius: 4 },
-  entryInfo: { flex: 1 },
-  entryDesc: { fontSize: 15, fontWeight: '600', color: colors.text },
-  entryMeta: { fontSize: 12, color: colors.textLight, marginTop: 2 },
-  entryAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
+  entryIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entryEmoji: { fontSize: 20 },
+  entryInfo: { flex: 1, minWidth: 0 },
+  entryDesc: { fontSize: 13.5, fontWeight: '600', color: colors.text },
+  entryMeta: { fontSize: 11, color: colors.muted, marginTop: 1 },
+  entryRight: { alignItems: 'flex-end' },
+  entryAmount: { fontSize: 15, fontWeight: '700', color: colors.text },
 });
 
-// ---- Chart styles ----
+// ---- Tabbed Widget Styles ----
 
-const chartStyles = StyleSheet.create({
-  card: {
-    marginBottom: 12,
+const tabStyles = StyleSheet.create({
+  card: { marginBottom: 12, padding: 0, overflow: 'hidden' },
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: colors.muted,
+  },
+  tabTextActive: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: '20%',
+    right: '20%',
+    height: 2,
+    backgroundColor: colors.accent,
+    borderRadius: 2,
+  },
+  content: { padding: 16 },
+
+  // By Week tab
+  limitLabel: {
+    fontSize: 9.5,
+    color: colors.muted,
+    textAlign: 'right',
+    marginBottom: 6,
   },
   chartArea: {
     position: 'relative',
-    height: BAR_MAX_HEIGHT + 40, // bars + labels
+    height: BAR_HEIGHT + 40,
     justifyContent: 'flex-end',
   },
   budgetLine: {
@@ -522,54 +568,74 @@ const chartStyles = StyleSheet.create({
     height: 1,
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: colors.textLight,
-  },
-  budgetLineLabel: {
-    fontSize: 10,
-    color: colors.textLight,
-    marginLeft: 6,
-    fontWeight: '600',
+    borderColor: colors.border,
   },
   barsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'flex-end',
-    paddingBottom: 0,
+    gap: 6,
   },
   barCol: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
   },
   barTrack: {
-    height: BAR_MAX_HEIGHT,
-    width: 32,
+    height: BAR_HEIGHT,
+    width: '100%',
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   bar: {
-    width: 24,
-    borderRadius: 6,
+    width: '100%',
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
   },
   barLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.text,
+    fontSize: 10,
+    color: colors.muted,
+    fontWeight: '400',
     marginTop: 6,
   },
   barAmount: {
-    fontSize: 10,
-    color: colors.textLight,
+    fontSize: 9,
+    color: colors.muted,
     marginTop: 2,
   },
-  callout: {
-    backgroundColor: '#fdf8f3',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 12,
+
+  // By Category tab
+  catRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 12,
+    marginBottom: 12,
   },
-  calloutText: {
-    fontSize: 12,
-    color: colors.text,
-    lineHeight: 18,
+  catRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
+  catIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catIcon: { fontSize: 18 },
+  catInfo: { flex: 1, minWidth: 0 },
+  catHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  catName: { fontSize: 13, fontWeight: '500', color: colors.text },
+  catAmount: { fontSize: 12, color: colors.textSub },
+  catBarBg: {
+    height: 4,
+    backgroundColor: colors.borderLight,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  catBarFill: { height: '100%', borderRadius: 2 },
 });
