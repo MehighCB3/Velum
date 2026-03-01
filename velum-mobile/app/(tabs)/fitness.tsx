@@ -38,6 +38,10 @@ const fitnessFields: FormField[] = [
       { label: 'Cycle', value: 'cycle' },
       { label: 'Jiu-Jitsu', value: 'jiujitsu' },
       { label: 'Gym', value: 'gym' },
+      { label: 'VO2 Max', value: 'vo2max' },
+      { label: 'HRV', value: 'hrv' },
+      { label: 'Weight', value: 'weight' },
+      { label: 'Body Fat', value: 'body_fat' },
       { label: 'Other', value: 'other' },
     ],
   },
@@ -46,6 +50,10 @@ const fitnessFields: FormField[] = [
   { key: 'duration', label: 'Duration (min)', placeholder: '0', type: 'number' },
   { key: 'distance', label: 'Distance (km)', placeholder: '0', type: 'number' },
   { key: 'calories', label: 'Calories Burned', placeholder: '0', type: 'number' },
+  { key: 'vo2max', label: 'VO2 Max (ml/kg)', placeholder: '0', type: 'number' },
+  { key: 'hrv', label: 'HRV (ms)', placeholder: '0', type: 'number' },
+  { key: 'weight', label: 'Weight (kg)', placeholder: '0', type: 'number' },
+  { key: 'bodyFat', label: 'Body Fat (%)', placeholder: '0', type: 'number' },
   { key: 'notes', label: 'Notes', placeholder: 'Optional notes...', type: 'text' },
 ];
 
@@ -63,6 +71,10 @@ export default function FitnessScreen() {
       if (values.duration) entry.duration = Number(values.duration);
       if (values.distance) entry.distance = Number(values.distance);
       if (values.calories) entry.calories = Number(values.calories);
+      if (values.vo2max) entry.vo2max = Number(values.vo2max);
+      if (values.hrv) entry.hrv = Number(values.hrv);
+      if (values.weight) entry.weight = Number(values.weight);
+      if (values.bodyFat) entry.bodyFat = Number(values.bodyFat);
       if (values.notes) entry.notes = values.notes;
       await addEntry(entry as { type: FitnessEntryType });
       setShowAddModal(false);
@@ -102,15 +114,15 @@ export default function FitnessScreen() {
     .filter((e) => e.type === 'steps' && e.date === new Date().toISOString().split('T')[0])
     .reduce((sum, e) => sum + (e.steps || 0), 0);
 
-  // Health data tiles — from watch/advanced metrics
+  // Health data tiles — from watch/advanced metrics (always show all tiles)
   const adv = data?.advanced;
   const healthTiles = [
-    ...(adv?.avgVo2max ? [{ icon: '🫁', label: 'VO2 Max', val: `${adv.avgVo2max}`, unit: 'ml/kg', color: colors.info }] : []),
-    ...(adv?.latestHrv ? [{ icon: '💓', label: 'HRV', val: `${adv.latestHrv}`, unit: 'ms', color: colors.warning }] : []),
-    ...(adv?.avgRecovery ? [{ icon: '⚡', label: 'Recovery', val: adv.recoveryStatus || 'Good', unit: '', color: colors.success }] : []),
-    ...(adv?.totalTrainingLoad ? [{ icon: '🏋️', label: 'Load', val: adv.totalTrainingLoad > 6 ? 'High' : 'Moderate', unit: '', color: colors.accent }] : []),
-    ...(adv?.latestWeight ? [{ icon: '⚖️', label: 'Weight', val: `${adv.latestWeight}`, unit: 'kg', color: colors.textLight }] : []),
-    ...(adv?.latestBodyFat ? [{ icon: '📏', label: 'Body Fat', val: `${adv.latestBodyFat}`, unit: '%', color: colors.textLight }] : []),
+    { icon: '🫁', label: 'VO2 Max', val: adv?.avgVo2max ? `${adv.avgVo2max}` : '--', unit: 'ml/kg', color: colors.info },
+    { icon: '💓', label: 'HRV', val: adv?.latestHrv ? `${adv.latestHrv}` : '--', unit: 'ms', color: colors.warning },
+    { icon: '⚡', label: 'Recovery', val: adv?.avgRecovery ? (adv.recoveryStatus || 'Good') : '--', unit: '', color: colors.success },
+    { icon: '🏋️', label: 'Load', val: adv?.totalTrainingLoad ? (adv.totalTrainingLoad > 6 ? 'High' : 'Moderate') : '--', unit: '', color: colors.accent },
+    { icon: '⚖️', label: 'Weight', val: adv?.latestWeight ? `${adv.latestWeight}` : '--', unit: 'kg', color: colors.textLight },
+    { icon: '📏', label: 'Body Fat', val: adv?.latestBodyFat ? `${adv.latestBodyFat}` : '--', unit: '%', color: colors.textLight },
   ];
 
   return (
@@ -154,7 +166,7 @@ export default function FitnessScreen() {
               <Text style={styles.statLabel}>Burned</Text>
             </View>
             <View style={[styles.statItem, styles.statCenter]}>
-              <Text style={[styles.statValue, styles.statValueLarge]}>
+              <Text style={[styles.statValue, totals.totalDistance > 0 && styles.statValueLarge]}>
                 {totals.totalDistance.toFixed(1)}
                 <Text style={styles.statUnit}> km</Text>
               </Text>
@@ -167,25 +179,21 @@ export default function FitnessScreen() {
           </View>
 
           {/* Health / Watch Data */}
-          {healthTiles.length > 0 && (
-            <>
-              <View style={[styles.divider, { marginTop: 14 }]} />
-              <Text style={styles.healthHeader}>HEALTH DATA</Text>
-              <View style={styles.healthGrid}>
-                {healthTiles.map((h) => (
-                  <View key={h.label} style={styles.healthTile}>
-                    <Text style={styles.healthIcon}>{h.icon}</Text>
-                    <View>
-                      <Text style={styles.healthTileLabel}>{h.label}</Text>
-                      <Text style={[styles.healthTileValue, { color: h.color }]}>
-                        {h.val}{h.unit ? <Text style={styles.healthTileUnit}> {h.unit}</Text> : null}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
+          <View style={[styles.divider, { marginTop: 14 }]} />
+          <Text style={styles.healthHeader}>HEALTH DATA</Text>
+          <View style={styles.healthGrid}>
+            {healthTiles.map((h) => (
+              <View key={h.label} style={styles.healthTile}>
+                <Text style={styles.healthIcon}>{h.icon}</Text>
+                <View>
+                  <Text style={styles.healthTileLabel}>{h.label}</Text>
+                  <Text style={[styles.healthTileValue, { color: h.val === '--' ? colors.darkTextMuted : h.color }]}>
+                    {h.val}{h.unit && h.val !== '--' ? <Text style={styles.healthTileUnit}> {h.unit}</Text> : null}
+                  </Text>
+                </View>
               </View>
-            </>
-          )}
+            ))}
+          </View>
         </DarkCard>
 
         {/* Agent Insights */}

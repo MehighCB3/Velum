@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -11,6 +11,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  AppState,
+  useWindowDimensions,
 } from 'react-native';
 import { Paths, File as FSFile } from 'expo-file-system';
 import { colors } from '../../src/theme/colors';
@@ -391,8 +393,30 @@ export default function HomeScreen() {
   const [selectedEvent, setSelectedEvent] = useState<YearEvent | null>(null);
   const [events, setEvents] = useState<YearEvent[]>(DEFAULT_EVENTS);
   const [showManager, setShowManager] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  const appState = useRef(AppState.currentState);
 
-  const now = new Date();
+  // Dynamic grid sizing to match redesign
+  const { width: screenWidth } = useWindowDimensions();
+  const GRID_GAP = 3;
+  const GRID_COLS = 13;
+  const gridInnerWidth = screenWidth - 64; // 16px scroll + 16px card padding each side
+  const cellSize = Math.floor((gridInnerWidth - (GRID_COLS - 1) * GRID_GAP) / GRID_COLS);
+  const gridHeight = 4 * cellSize + 3 * GRID_GAP;
+
+  // Refresh date when app comes to foreground or on interval
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        setNow(new Date());
+      }
+      appState.current = nextState;
+    });
+    // Also refresh every minute to keep the date current
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => { sub.remove(); clearInterval(interval); };
+  }, []);
+
   const year = now.getFullYear();
   const currentWeek = getWeekOfYear(now);
   const weeksLeft = getWeeksLeftInYear(now);
@@ -462,17 +486,19 @@ export default function HomeScreen() {
 
         {/* DarkCard with week grid — redesign style */}
         <DarkCard style={styles.heroCard}>
-          {/* Month labels */}
-          <View style={styles.monthRow}>
-            {MONTH_LABELS.map((m, i) => (
-              <Text key={i} style={styles.monthLabel}>
-                {m}
-              </Text>
+          {/* Month labels — aligned to 13-column grid */}
+          <View style={{ flexDirection: 'row', gap: GRID_GAP, marginBottom: 4 }}>
+            {Array.from({ length: GRID_COLS }, (_, i) => (
+              <View key={i} style={{ width: cellSize }}>
+                {i < 12 && (
+                  <Text style={styles.monthLabel}>{MONTH_LABELS[i]}</Text>
+                )}
+              </View>
             ))}
           </View>
 
           {/* 52-week grid: column-first flow (4 rows × 13 columns) */}
-          <View style={styles.weekGrid}>
+          <View style={{ flexDirection: 'column', flexWrap: 'wrap', height: gridHeight, gap: GRID_GAP }}>
             {Array.from({ length: 52 }, (_, i) => {
               const wn = i + 1;
               const evt = events.find((e) => e.week === wn);
@@ -484,7 +510,9 @@ export default function HomeScreen() {
               let border = 'transparent';
               if (isPast) bg = 'rgba(255,255,255,0.18)';
               if (isCurrent) { bg = 'transparent'; border = colors.accentWarm; }
-              if (evt) bg = evt.color;
+              if (evt) {
+                bg = evt.type === 'work' ? 'rgba(255,255,255,0.55)' : colors.accentWarm;
+              }
               if (isSel) bg = colors.accent;
 
               return (
@@ -492,8 +520,14 @@ export default function HomeScreen() {
                   key={wn}
                   onPress={() => evt && setSelectedEvent(isSel ? null : evt)}
                   style={[
-                    styles.weekCell,
-                    { backgroundColor: bg, borderColor: border, borderWidth: isCurrent ? 1.5 : 0 },
+                    {
+                      width: cellSize,
+                      height: cellSize,
+                      borderRadius: 3,
+                      backgroundColor: bg,
+                      borderColor: border,
+                      borderWidth: isCurrent ? 1.5 : 0,
+                    },
                     isSel && {
                       transform: [{ scale: 1.3 }],
                       zIndex: 2,
@@ -575,7 +609,7 @@ export default function HomeScreen() {
                 i < arr.length - 1 && styles.eventRowBorder,
               ]}
             >
-              <View style={[styles.eventDot, { backgroundColor: e.color }]} />
+              <View style={[styles.eventDot, { backgroundColor: e.type === 'life' ? colors.accent : colors.text }]} />
               <Text style={styles.eventLabel} numberOfLines={1}>
                 {e.label}
               </Text>
@@ -629,30 +663,11 @@ const styles = StyleSheet.create({
 
   // DarkCard hero — contains week grid
   heroCard: { padding: 16, marginBottom: 12 },
-  monthRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-    paddingHorizontal: 2,
-  },
   monthLabel: {
     fontSize: 9,
     color: 'rgba(255,255,255,0.25)',
     fontWeight: '500',
     letterSpacing: 0.4,
-  },
-
-  // Week grid — column-first: 4 rows high, wraps into 13 columns
-  weekGrid: {
-    flexDirection: 'column',
-    flexWrap: 'wrap',
-    height: 4 * 18 + 3 * 5,
-    gap: 5,
-  },
-  weekCell: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
   },
 
   // Legend
