@@ -166,7 +166,7 @@ export default function FitnessScreen() {
               <Text style={styles.statLabel}>Burned</Text>
             </View>
             <View style={[styles.statItem, styles.statCenter]}>
-              <Text style={[styles.statValue, styles.statValueLarge]}>
+              <Text style={[styles.statValue, totals.totalDistance > 0 && styles.statValueLarge]}>
                 {totals.totalDistance.toFixed(1)}
                 <Text style={styles.statUnit}> km</Text>
               </Text>
