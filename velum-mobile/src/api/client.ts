@@ -13,6 +13,8 @@ import {
   SpanishCard,
   UserProfile,
   AgentInsight,
+  ChatMessage,
+  ChatResponse,
 } from '../types';
 
 // Base URL of the Velum web app API.
@@ -255,5 +257,152 @@ export const insightsApi = {
   async getAll(section?: string): Promise<AgentInsight[]> {
     const data = await request<AgentInsight[]>('/insights');
     return section ? data.filter((i) => i.section === section) : data;
+  },
+};
+
+// ==================== COACH / CHAT ====================
+
+export interface CoachMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  id?: string;
+  timestamp?: string;
+}
+
+export interface StreamingCallbacks {
+  onTyping?: () => void;
+  onChunk?: (chunk: string, fullText: string) => void;
+  onDone?: (response: ChatResponse) => void;
+  onError?: (error: Error) => void;
+}
+
+export const coachApi = {
+  /**
+   * Send a message to the coach with streaming support.
+   * For optimistic UI, add the user message to the UI before calling this.
+   * 
+   * @param message - The user message
+   * @param opts - Optional context, agent, and streaming callbacks
+   * @returns Promise that resolves when streaming is complete
+   */
+  async sendMessage(
+    message: string,
+    opts?: {
+      context?: string;
+      agent?: string;
+      stream?: boolean;
+    } & StreamingCallbacks
+  ): Promise<ChatResponse> {
+    const { onTyping, onChunk, onDone, onError, ...apiOpts } = opts || {};
+    const useStreaming = apiOpts.stream !== false; // Default to streaming
+
+    const url = `${API_BASE}/api/coach/chat`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          ...apiOpts,
+          stream: useStreaming,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API ${response.status}: ${errorText}`);
+      }
+
+      // Handle streaming response
+      if (useStreaming && response.headers.get('content-type')?.includes('stream')) {
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('No response body for streaming');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        let finalSource = 'gateway';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            
+            try {
+              const event = JSON.parse(line);
+              
+              switch (event.type) {
+                case 'status':
+                  if (event.status === 'typing' && onTyping) {
+                    onTyping();
+                  }
+                  break;
+                case 'chunk':
+                  fullContent = event.content || '';
+                  if (onChunk) {
+                    onChunk(event.content || '', fullContent);
+                  }
+                  break;
+                case 'done':
+                  finalSource = event.source || 'gateway';
+                  fullContent = event.content || fullContent;
+                  break;
+                case 'error':
+                  throw new Error(event.error || 'Streaming error');
+              }
+            } catch (parseErr) {
+              console.warn('[coachApi] Failed to parse stream chunk:', line);
+            }
+          }
+        }
+
+        const result: ChatResponse = {
+          content: fullContent,
+          source: finalSource,
+        };
+
+        if (onDone) {
+          onDone(result);
+        }
+
+        return result;
+      }
+
+      // Non-streaming response
+      const data: ChatResponse = await response.json();
+      
+      if (onDone) {
+        onDone(data);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('[coachApi] sendMessage error:', error);
+      if (onError && error instanceof Error) {
+        onError(error);
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Send message without streaming - for simple use cases
+   */
+  async sendMessageSimple(
+    message: string,
+    opts?: { context?: string; agent?: string }
+  ): Promise<ChatResponse> {
+    return this.sendMessage(message, { ...opts, stream: false });
   },
 };
