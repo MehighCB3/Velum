@@ -106,7 +106,7 @@ export function Card({ card, onReview, isNew }: CardProps) {
           
           {card.exampleSentence && (
             <div className="mt-6 p-4 bg-slate-50 rounded-xl w-full">
-              <p className="text-slate-700 italic mb-2">"{card.exampleSentence}"</p>
+              <p className="text-slate-700 italic mb-2">&ldquo;{card.exampleSentence}&rdquo;</p>
               <p className="text-slate-500 text-sm">{card.exampleTranslation}</p>
             </div>
           )}
