@@ -67,9 +67,9 @@ export default function CoachScreen() {
     setMetricsExpanded(false)
     setSending(true)
 
-    // Add typing indicator
+    // Add typing indicator — shows immediately while server processes
     const typingId = nextMsgId()
-    setMessages(m => [...m, { id: typingId, role: "assistant", text: "Thinking...", time: "...", source: 'typing' }])
+    setMessages(m => [...m, { id: typingId, role: "assistant", text: "Typing\u2026", time: "", source: 'typing' }])
 
     try {
       const res = await fetch('/api/coach/chat', {
@@ -106,15 +106,17 @@ export default function CoachScreen() {
               const event = JSON.parse(line.slice(6))
               if (event.type === 'chunk') {
                 fullText = event.fullText
+                // First chunk clears the typing indicator style
                 setMessages(m => m.map(msg =>
                   msg.id === typingId
-                    ? { ...msg, text: fullText, time: now }
+                    ? { ...msg, text: fullText, time: now, source: undefined }
                     : msg
                 ))
               } else if (event.type === 'done') {
                 fullText = event.content
                 source = event.source || 'gateway'
               }
+              // 'typing' events keep the indicator as-is
             } catch {
               // Skip malformed events
             }
@@ -264,8 +266,9 @@ export default function CoachScreen() {
                   border: m.role === "assistant" ? `1px solid ${C.border}` : "none",
                   color: m.role === "user" ? "#fff" : C.text,
                   fontSize: 13, lineHeight: 1.5, fontFamily: FONT_SANS,
-                  opacity: isTyping ? 0.6 : 1,
+                  opacity: isTyping ? 0.7 : 1,
                   fontStyle: isTyping ? 'italic' : 'normal',
+                  animation: isTyping ? 'pulse 1.2s ease-in-out infinite' : 'none',
                 }}>
                   {m.text}
                   {!isTyping && (

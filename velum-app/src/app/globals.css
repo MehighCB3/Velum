@@ -89,3 +89,9 @@ input, textarea {
 input:focus, textarea:focus {
   outline: none;
 }
+
+/* Typing indicator pulse for coach chat */
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.3; }
+}

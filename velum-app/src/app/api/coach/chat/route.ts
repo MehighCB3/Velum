@@ -22,13 +22,34 @@ export const dynamic = 'force-dynamic'
 const GATEWAY_URL = process.env.GATEWAY_URL
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_PASSWORD
 
-// Telegram relay config — connect with @Teky_mihai_bot
+// Telegram relay config
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID
 
 // ── Agent routing (shared) ──
 
 import { detectAgent, NUTRITION_RE, BUDGET_RE, FITNESS_RE, VALID_AGENTS } from '../../../lib/agentRouting'
+
+// ── Fast-path patterns ──
+// Simple greetings/acks skip the gateway entirely for <50ms response
+
+const FAST_PATH: Record<string, string> = {
+  'hi': "Hey! How can I help today?",
+  'hello': "Hey! What's on the agenda?",
+  'hey': "Hey! Ready when you are.",
+  'thanks': "You got it!",
+  'thank you': "Anytime!",
+  'ok': "Cool — let me know if you need anything.",
+  'okay': "Got it!",
+  'bye': "See you later! Keep crushing it.",
+  'good morning': "Good morning! What's the plan for today?",
+  'good night': "Good night! Rest well.",
+}
+
+function getFastPathResponse(message: string): string | null {
+  const normalized = message.trim().toLowerCase().replace(/[!?.]+$/, '')
+  return FAST_PATH[normalized] ?? null
+}
 
 function getRelevantMemoryCategories(message: string): MemoryCategory[] | undefined {
   const lower = message.toLowerCase()
@@ -46,7 +67,6 @@ function getRelevantMemoryCategories(message: string): MemoryCategory[] | undefi
 }
 
 // ── Telegram relay ──
-// Fire-and-forget: send message to @Teky_mihai_bot for cross-platform sync
 
 async function relayToTelegram(userMsg: string, assistantReply: string) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return
@@ -71,8 +91,6 @@ async function relayToTelegram(userMsg: string, assistantReply: string) {
 }
 
 // ── Data logging ──
-// Parse user messages and log directly to fitness/budget stores,
-// so the Coach screen can feed data into all dashboards.
 
 interface LogResult {
   type: 'fitness' | 'budget' | 'nutrition'
@@ -149,7 +167,6 @@ async function tryLogData(message: string): Promise<LogResult | null> {
         const entryDate = nutritionEntry.date || new Date().toISOString().split('T')[0]
         const entryTime = mealTimeEstimate(nutritionEntry.mealHint)
 
-        // Write directly to Postgres via shared db module
         const entryId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
         await query(
@@ -277,7 +294,6 @@ async function generateBudgetInsight(
 function generateLocalResponse(message: string, context?: string, logResult?: LogResult | null): string {
   const lower = message.toLowerCase()
 
-  // If we logged data, acknowledge it
   if (logResult) {
     const prefix = `Logged: ${logResult.summary}.`
     if (logResult.type === 'fitness') {
@@ -307,42 +323,58 @@ function generateLocalResponse(message: string, context?: string, logResult?: Lo
   return "I'm here to help! Ask about nutrition, fitness, budget, goals, or anything you're working on."
 }
 
-// ── POST handler ──
+// ── Streaming helpers ──
 
-// ── Streaming helper ──
-// Sends a full response word-by-word as SSE for perceived instant feedback
-
-function createStreamResponse(
-  fullText: string,
-  source: string,
-  logResult: LogResult | null,
-  memoriesSaved?: number,
+/**
+ * Create a true streaming SSE response.
+ * Sends typing indicator immediately, then streams content as it becomes available.
+ */
+function createTrueStreamResponse(
+  contentPromise: Promise<{ text: string; source: string; logResult: LogResult | null; memoriesSaved?: number }>,
 ): Response {
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
-      // Immediately send typing status
+      // IMMEDIATELY send typing indicator — user sees feedback in <100ms
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'typing' })}\n\n`))
 
-      // Split into words and stream in small chunks
-      const words = fullText.split(/(\s+)/)
-      let sent = ''
-      const CHUNK_SIZE = 3
-      for (let i = 0; i < words.length; i += CHUNK_SIZE) {
-        const chunk = words.slice(i, i + CHUNK_SIZE).join('')
-        sent += chunk
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', text: chunk, fullText: sent })}\n\n`))
-        await new Promise(r => setTimeout(r, 20))
+      try {
+        const { text, source, logResult, memoriesSaved } = await contentPromise
+
+        // Stream words in fast small chunks for perceived real-time feel
+        const words = text.split(/(\s+)/)
+        let sent = ''
+        const CHUNK_SIZE = 2 // Smaller chunks = smoother feel
+        const CHUNK_DELAY = 12 // Faster interval
+
+        for (let i = 0; i < words.length; i += CHUNK_SIZE) {
+          const chunk = words.slice(i, i + CHUNK_SIZE).join('')
+          sent += chunk
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', text: chunk, fullText: sent })}\n\n`))
+          // Only delay between chunks, not on the first one
+          if (i + CHUNK_SIZE < words.length) {
+            await new Promise(r => setTimeout(r, CHUNK_DELAY))
+          }
+        }
+
+        // Send done event
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'done',
+          content: text,
+          source,
+          ...(logResult && { logged: logResult }),
+          ...(memoriesSaved && { memoriesSaved }),
+        })}\n\n`))
+      } catch (err) {
+        console.error('[coach/chat] Stream error:', err)
+        const errorText = "Sorry, something went wrong. Please try again."
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'done',
+          content: errorText,
+          source: 'error',
+        })}\n\n`))
       }
 
-      // Send done event with metadata
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-        type: 'done',
-        content: fullText,
-        source,
-        ...(logResult && { logged: logResult }),
-        ...(memoriesSaved && { memoriesSaved }),
-      })}\n\n`))
       controller.close()
     },
   })
@@ -356,7 +388,11 @@ function createStreamResponse(
   })
 }
 
+// ── POST handler ──
+
 export async function POST(request: NextRequest) {
+  const requestStart = Date.now()
+
   try {
     const body = await request.json()
     const { message, context, agent: requestedAgent, stream: useStream } = body
@@ -368,194 +404,188 @@ export async function POST(request: NextRequest) {
     const agent = requestedAgent || detectAgent(message)
     const sessionKey = (VALID_AGENTS as readonly string[]).includes(agent) ? agent : 'main'
 
-    // Store user message
-    await appendMessage(sessionKey, {
+    // ── FAST PATH: Simple greetings respond in <50ms ──
+    const fastResponse = getFastPathResponse(message)
+    if (fastResponse) {
+      // Fire-and-forget: save messages + relay
+      const now = new Date().toISOString()
+      appendMessage(sessionKey, { id: `${Date.now()}-user`, role: 'user', content: message, timestamp: now, source: 'gateway' }).catch(() => {})
+      appendMessage(sessionKey, { id: `${Date.now()}-assistant`, role: 'assistant', content: fastResponse, timestamp: now, source: 'local' }).catch(() => {})
+      relayToTelegram(message, fastResponse).catch(() => {})
+
+      console.log(`[coach/chat] Fast-path response in ${Date.now() - requestStart}ms`)
+
+      if (useStream) {
+        return createTrueStreamResponse(
+          Promise.resolve({ text: fastResponse, source: 'fast', logResult: null })
+        )
+      }
+      return NextResponse.json({ content: fastResponse, source: 'fast', responseTimeMs: Date.now() - requestStart })
+    }
+
+    // ── PARALLEL PRE-PROCESSING ──
+    // Start ALL async work simultaneously instead of sequentially
+
+    // 1. Save user message (fire-and-forget — don't block on this)
+    appendMessage(sessionKey, {
       id: `${Date.now()}-user`,
       role: 'user',
       content: message,
       timestamp: new Date().toISOString(),
       source: 'gateway',
-    })
+    }).catch(err => console.error('[coach/chat] Failed to save user message:', err))
 
-    // ── Try to parse and log fitness/budget data directly ──
-    // This runs regardless of whether the gateway is available,
-    // so data always reaches the dashboards.
-    const logResult = await tryLogData(message)
-    if (logResult) {
-      console.log(`[coach/chat] Logged ${logResult.type} entry: ${logResult.summary}`)
-    }
-
-    // No gateway — use local fallback
-    if (!GATEWAY_URL || !GATEWAY_TOKEN) {
-      const localContent = generateLocalResponse(message, context, logResult)
-
-      await appendMessage(sessionKey, {
-        id: `${Date.now()}-assistant`,
-        role: 'assistant',
-        content: localContent,
-        timestamp: new Date().toISOString(),
-        source: 'local',
-      })
-
-      // Relay to Telegram even for local responses
-      relayToTelegram(message, localContent).catch(() => {})
-
-      if (useStream) {
-        return createStreamResponse(localContent, 'local', logResult)
-      }
-
-      return NextResponse.json({
-        content: localContent,
-        source: 'local',
-        ...(logResult && { logged: logResult }),
-      })
-    }
-
-    // Build enriched context with scoped memory
+    // 2. Start data logging AND context fetching in parallel
     const relevantCategories = getRelevantMemoryCategories(message)
-    const [memoryContext, recentHistory] = await Promise.all([
+    const [logResult, memoryContext, recentHistory] = await Promise.all([
+      tryLogData(message),
       getMemoryContext(relevantCategories),
       getRecentContext(sessionKey, 8),
     ])
 
+    if (logResult) {
+      console.log(`[coach/chat] Logged ${logResult.type} entry: ${logResult.summary}`)
+    }
+
+    // ── NO GATEWAY: local fallback ──
+    if (!GATEWAY_URL || !GATEWAY_TOKEN) {
+      const localContent = generateLocalResponse(message, context, logResult)
+
+      // Fire-and-forget post-work
+      appendMessage(sessionKey, {
+        id: `${Date.now()}-assistant`, role: 'assistant', content: localContent,
+        timestamp: new Date().toISOString(), source: 'local',
+      }).catch(() => {})
+      relayToTelegram(message, localContent).catch(() => {})
+
+      if (useStream) {
+        return createTrueStreamResponse(
+          Promise.resolve({ text: localContent, source: 'local', logResult })
+        )
+      }
+      return NextResponse.json({ content: localContent, source: 'local', ...(logResult && { logged: logResult }) })
+    }
+
+    // ── BUILD CONTEXT (already fetched in parallel above) ──
     const contextParts = ['[Velum Coach Screen]']
     if (memoryContext) contextParts.push(memoryContext)
     if (recentHistory) contextParts.push(`[Recent Conversation]\n${recentHistory}`)
     if (context) contextParts.push(`[Dashboard Data]\n${context}`)
-    // Tell the agent that we already logged the data so it can respond accordingly
     if (logResult) contextParts.push(`[Auto-logged] ${logResult.type}: ${logResult.summary}`)
     contextParts.push(`User: ${message}`)
 
     const fullMessage = contextParts.join('\n\n')
 
-    try {
-      const gatewayStart = Date.now()
-      const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GATEWAY_TOKEN}`,
-        },
-        body: JSON.stringify({
-          tool: 'sessions_send',
-          args: { sessionKey, message: fullMessage, timeoutSeconds: 55 },
-        }),
-        signal: AbortSignal.timeout(60000),
-      })
-      const responseTimeMs = Date.now() - gatewayStart
+    // ── GATEWAY CALL ──
+    // If streaming: return SSE immediately with typing, then stream when gateway responds
+    // If not streaming: wait and return JSON
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`[coach/chat] Gateway error ${response.status}:`, errorText)
+    const gatewayCall = async (): Promise<{ text: string; source: string; logResult: LogResult | null; memoriesSaved?: number }> => {
+      try {
+        const gatewayStart = Date.now()
+        const response = await fetch(`${GATEWAY_URL}/tools/invoke`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GATEWAY_TOKEN}`,
+          },
+          body: JSON.stringify({
+            tool: 'sessions_send',
+            args: { sessionKey, message: fullMessage, timeoutSeconds: 55 },
+          }),
+          signal: AbortSignal.timeout(60000),
+        })
+        const responseTimeMs = Date.now() - gatewayStart
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`[coach/chat] Gateway error ${response.status}:`, errorText)
+          const fallback = generateLocalResponse(message, context, logResult)
+
+          // Fire-and-forget
+          appendMessage(sessionKey, {
+            id: `${Date.now()}-assistant`, role: 'assistant', content: fallback,
+            timestamp: new Date().toISOString(), source: 'local_fallback',
+          }).catch(() => {})
+          relayToTelegram(message, fallback).catch(() => {})
+
+          return { text: fallback, source: 'local_fallback', logResult }
+        }
+
+        const data = await response.json()
+        let responseContent: string
+
+        if (data.ok && data.result) {
+          const result = data.result
+          const details = result.details || {}
+
+          if (details.status === 'timeout') {
+            responseContent = 'The assistant is taking a moment to think. Please try again shortly.'
+          } else {
+            responseContent = details.reply
+              || (Array.isArray(result.content) && result.content[0]?.text
+                ? (() => { try { const p = JSON.parse(result.content[0].text); return p.reply || p.response || p.message } catch { return result.content[0].text } })()
+                : null)
+              || result.reply || result.response || result.message || result.text
+              || 'No response received'
+          }
+        } else {
+          responseContent = data.response || data.message || data.content || data.reply || 'No response received'
+        }
+
+        // Extract memories
+        const { cleaned, memories } = extractMemoriesFromText(responseContent)
+
+        // Fire-and-forget: save memories, message, relay
+        if (memories.length > 0) {
+          Promise.all(
+            memories.map(m => saveMemory({ category: m.category, key: m.key, value: m.value, source: 'agent' }))
+          ).catch(err => console.error('[coach/chat] Failed to save memories:', err))
+        }
+
+        appendMessage(sessionKey, {
+          id: `${Date.now()}-assistant`, role: 'assistant', content: cleaned,
+          timestamp: new Date().toISOString(), source: 'gateway',
+          metadata: memories.length > 0 ? { memoriesExtracted: memories.length } : undefined,
+        }).catch(() => {})
+        relayToTelegram(message, cleaned).catch(() => {})
+
+        console.log(`[coach/chat] Gateway responded in ${responseTimeMs}ms (total: ${Date.now() - requestStart}ms)`)
+
+        return {
+          text: cleaned,
+          source: 'gateway',
+          logResult,
+          memoriesSaved: memories.length > 0 ? memories.length : undefined,
+        }
+      } catch (fetchError) {
+        console.error('[coach/chat] Gateway fetch error:', fetchError)
         const fallback = generateLocalResponse(message, context, logResult)
 
-        await appendMessage(sessionKey, {
-          id: `${Date.now()}-assistant`,
-          role: 'assistant',
-          content: fallback,
-          timestamp: new Date().toISOString(),
-          source: 'local_fallback',
-        })
-
+        appendMessage(sessionKey, {
+          id: `${Date.now()}-assistant`, role: 'assistant', content: fallback,
+          timestamp: new Date().toISOString(), source: 'local_fallback',
+        }).catch(() => {})
         relayToTelegram(message, fallback).catch(() => {})
 
-        if (useStream) {
-          return createStreamResponse(fallback, 'local_fallback', logResult)
-        }
-
-        return NextResponse.json({
-          content: fallback,
-          source: 'local_fallback',
-          responseTimeMs,
-          ...(logResult && { logged: logResult }),
-        })
+        return { text: fallback, source: 'local_fallback', logResult }
       }
-
-      const data = await response.json()
-      let responseContent: string
-
-      if (data.ok && data.result) {
-        const result = data.result
-        const details = result.details || {}
-
-        if (details.status === 'timeout') {
-          responseContent = 'The assistant is taking a moment to think. Please try again shortly.'
-        } else {
-          // Try details.reply first, then parse content array, then fallbacks
-          responseContent = details.reply
-            || (Array.isArray(result.content) && result.content[0]?.text
-              ? (() => { try { const p = JSON.parse(result.content[0].text); return p.reply || p.response || p.message } catch { return result.content[0].text } })()
-              : null)
-            || result.reply || result.response || result.message || result.text
-            || 'No response received'
-        }
-      } else {
-        responseContent = data.response || data.message || data.content || data.reply || 'No response received'
-      }
-
-      // Extract memories from agent response
-      const { cleaned, memories } = extractMemoriesFromText(responseContent)
-
-      if (memories.length > 0) {
-        Promise.all(
-          memories.map(m => saveMemory({
-            category: m.category,
-            key: m.key,
-            value: m.value,
-            source: 'agent',
-          }))
-        ).catch(err => console.error('[coach/chat] Failed to save memories:', err))
-      }
-
-      await appendMessage(sessionKey, {
-        id: `${Date.now()}-assistant`,
-        role: 'assistant',
-        content: cleaned,
-        timestamp: new Date().toISOString(),
-        source: 'gateway',
-        metadata: memories.length > 0 ? { memoriesExtracted: memories.length } : undefined,
-      })
-
-      // Relay to Telegram
-      relayToTelegram(message, cleaned).catch(() => {})
-
-      console.log(`[coach/chat] Gateway responded in ${responseTimeMs}ms`)
-
-      if (useStream) {
-        return createStreamResponse(cleaned, 'gateway', logResult, memories.length > 0 ? memories.length : undefined)
-      }
-
-      return NextResponse.json({
-        content: cleaned,
-        source: 'gateway',
-        responseTimeMs,
-        ...(memories.length > 0 && { memoriesSaved: memories.length }),
-        ...(logResult && { logged: logResult }),
-      })
-    } catch (fetchError) {
-      console.error('[coach/chat] Gateway fetch error:', fetchError)
-      const fallback = generateLocalResponse(message, context, logResult)
-
-      await appendMessage(sessionKey, {
-        id: `${Date.now()}-assistant`,
-        role: 'assistant',
-        content: fallback,
-        timestamp: new Date().toISOString(),
-        source: 'local_fallback',
-      })
-
-      relayToTelegram(message, fallback).catch(() => {})
-
-      if (useStream) {
-        return createStreamResponse(fallback, 'local_fallback', logResult)
-      }
-
-      return NextResponse.json({
-        content: fallback,
-        source: 'local_fallback',
-        ...(logResult && { logged: logResult }),
-      })
     }
+
+    if (useStream) {
+      // Return SSE stream IMMEDIATELY — typing shows while gateway works
+      return createTrueStreamResponse(gatewayCall())
+    }
+
+    // Non-streaming: wait for full response
+    const result = await gatewayCall()
+    return NextResponse.json({
+      content: result.text,
+      source: result.source,
+      responseTimeMs: Date.now() - requestStart,
+      ...(result.memoriesSaved && { memoriesSaved: result.memoriesSaved }),
+      ...(result.logResult && { logged: result.logResult }),
+    })
   } catch (error) {
     console.error('[coach/chat] API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
