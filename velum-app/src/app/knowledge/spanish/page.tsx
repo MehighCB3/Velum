@@ -1,9 +1,15 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Brain, BookOpen, Library, Settings, BarChart3, Play } from 'lucide-react';
 import { ProgressWidgetMini } from '@/components/flashcards/ProgressWidget';
+import { useFlashcardStats } from '@/hooks/useFlashcards';
 
 export default function SpanishPage() {
+  const { data: stats } = useFlashcardStats();
+  const dueCount = stats?.dueCards ?? 0;
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -40,7 +46,9 @@ export default function SpanishPage() {
           >
             <div>
               <h2 className="text-lg font-semibold">Start Review</h2>
-              <p className="text-indigo-200 text-sm">12 cards due today</p>
+              <p className="text-indigo-200 text-sm">
+                {dueCount > 0 ? `${dueCount} cards due today` : 'All caught up!'}
+              </p>
             </div>
             <div className="bg-white/20 p-3 rounded-xl">
               <Play className="w-6 h-6" />
@@ -73,7 +81,7 @@ export default function SpanishPage() {
         {/* Sources */}
         <section className="bg-white rounded-2xl p-6 border border-slate-200">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Your Sources</h2>
-          
+
           <div className="space-y-3">
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
               <div className="flex items-center gap-3">

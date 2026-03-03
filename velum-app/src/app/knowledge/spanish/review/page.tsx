@@ -1,85 +1,43 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Settings, BookOpen, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { Card, EmptyState, CardSkeleton } from '@/components/flashcards/Card';
 import { QualityRating } from '@/lib/flashcards/sm2';
-
-interface FlashcardData {
-  id: string;
-  front: string;
-  back: string;
-  pronunciation?: string;
-  exampleSentence?: string;
-  exampleTranslation?: string;
-  source: 'notion_book' | 'online_curated';
-  sourceRef?: string;
-  tags: string[];
-  interval: number;
-  repetitions: number;
-  easeFactor: number;
-}
+import { useDueCards, useSubmitReview } from '@/hooks/useFlashcards';
 
 export default function ReviewPage() {
-  const [cards, setCards] = useState<FlashcardData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [sessionStats, setSessionStats] = useState({
-    reviewed: 0,
-    correct: 0,
-  });
+  const [sessionStats, setSessionStats] = useState({ reviewed: 0, correct: 0 });
+  const reviewStartTime = useRef(Date.now());
 
-  // Load cards due for review
-  useEffect(() => {
-    async function loadCards() {
-      try {
-        const response = await fetch('/api/flashcards?filter=due&limit=20');
-        const data = await response.json();
-        setCards(data.cards || []);
-      } catch (error) {
-        console.error('Failed to load cards:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+  const { data, isLoading } = useDueCards(20);
+  const reviewMutation = useSubmitReview();
 
-    loadCards();
-  }, []);
+  const cards = data?.cards ?? [];
+  const currentCard = cards[currentIndex];
+  const remainingCount = Math.max(0, cards.length - currentIndex);
+  const isComplete = !isLoading && cards.length > 0 && currentIndex >= cards.length;
 
-  // Handle review
-  const handleReview = useCallback(async (quality: QualityRating) => {
-    const currentCard = cards[currentIndex];
-    if (!currentCard) return;
+  const handleReview = useCallback(
+    (quality: QualityRating) => {
+      const card = cards[currentIndex];
+      if (!card) return;
 
-    try {
-      // Submit review to API
-      await fetch('/api/flashcards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cardId: currentCard.id,
-          quality,
-        }),
-      });
-
-      // Update session stats
+      // Optimistic: advance to next card IMMEDIATELY
       setSessionStats(prev => ({
         reviewed: prev.reviewed + 1,
         correct: quality >= 3 ? prev.correct + 1 : prev.correct,
       }));
-
-      // Move to next card
       setCurrentIndex(prev => prev + 1);
-    } catch (error) {
-      console.error('Failed to submit review:', error);
-    }
-  }, [cards, currentIndex]);
+      reviewStartTime.current = Date.now();
 
-  // Current card
-  const currentCard = cards[currentIndex];
-  const remainingCount = cards.length - currentIndex;
-  const isComplete = !isLoading && cards.length > 0 && currentIndex >= cards.length;
+      // Fire-and-forget: submit review in background
+      reviewMutation.mutate({ cardId: card.id, quality });
+    },
+    [cards, currentIndex, reviewMutation]
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">

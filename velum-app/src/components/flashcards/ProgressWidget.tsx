@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Brain, TrendingUp, Calendar, Flame, ChevronRight } from 'lucide-react';
+import React from 'react';
+import { Brain, Flame, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { useFlashcardStats } from '@/hooks/useFlashcards';
 
 interface ProgressWidgetProps {
   dueCount: number;
@@ -77,28 +78,46 @@ export function ProgressWidget({
   );
 }
 
-// Mini widget for embedding in other pages
+// Live widget that fetches its own stats via React Query
+export function ProgressWidgetLive() {
+  const { data: stats, isLoading } = useFlashcardStats();
+
+  if (isLoading || !stats) {
+    return (
+      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg animate-pulse">
+        <div className="flex items-center gap-2 mb-4">
+          <Brain className="w-6 h-6" />
+          <div className="w-40 h-5 bg-white/20 rounded" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="bg-white/10 rounded-xl p-3">
+              <div className="w-10 h-7 bg-white/20 rounded mb-1" />
+              <div className="w-16 h-3 bg-white/10 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="w-full h-12 bg-white/20 rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <ProgressWidget
+      dueCount={stats.dueCards}
+      newCount={stats.newCards}
+      studiedToday={stats.studiedToday}
+      streakDays={stats.streakDays}
+      weeklyTotal={stats.weeklyTotal}
+    />
+  );
+}
+
+// Mini widget for embedding in other pages — fetches via React Query
 export function ProgressWidgetMini() {
-  const [stats, setStats] = useState({
-    dueCount: 0,
-    streakDays: 0,
-    loading: true,
-  });
+  const { data: stats, isLoading } = useFlashcardStats();
 
-  useEffect(() => {
-    // TODO: Fetch from API
-    // For now, simulate loading then show data
-    const timer = setTimeout(() => {
-      setStats({
-        dueCount: 12,
-        streakDays: 7,
-        loading: false,
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (stats.loading) {
+  if (isLoading || !stats) {
     return (
       <div className="animate-pulse bg-slate-200 h-24 rounded-xl" />
     );
@@ -117,7 +136,7 @@ export function ProgressWidgetMini() {
           <div>
             <div className="font-semibold">Spanish</div>
             <div className="text-sm text-white/80">
-              {stats.dueCount} cards due · {stats.streakDays} day streak
+              {stats.dueCards} cards due · {stats.streakDays} day streak
             </div>
           </div>
         </div>

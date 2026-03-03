@@ -1,5 +1,6 @@
 import './globals.css'
 import type { Metadata, Viewport } from 'next'
+import { QueryProvider } from '@/components/providers/QueryProvider'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -31,7 +32,9 @@ export default function RootLayout({
         <div style={{position: 'fixed', bottom: 4, right: 4, fontSize: '10px', color: '#999', zIndex: 9999}}>
           v2026-02-06-RESPONSIVE
         </div>
-        {children}
+        <QueryProvider>
+          {children}
+        </QueryProvider>
       </body>
     </html>
   )

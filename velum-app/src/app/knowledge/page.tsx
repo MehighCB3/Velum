@@ -1,17 +1,17 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
-import { Brain, BookOpen, ArrowLeft, Library, Sparkles } from 'lucide-react';
-import { ProgressWidget } from '@/components/flashcards/ProgressWidget';
+import { Brain, Library, ArrowLeft, Sparkles } from 'lucide-react';
+import { ProgressWidgetLive } from '@/components/flashcards/ProgressWidget';
+import { useFlashcardStats } from '@/hooks/useFlashcards';
 
-export default async function KnowledgePage() {
-  // Fetch stats (will be populated by client component)
-  const stats = {
-    dueCount: 12,
-    newCount: 50,
-    studiedToday: 5,
-    streakDays: 7,
-    weeklyTotal: 45,
-  };
+export default function KnowledgePage() {
+  const { data: stats } = useFlashcardStats();
+
+  const dueCount = stats?.dueCards ?? 0;
+  const newCount = stats?.newCards ?? 0;
+  const streakDays = stats?.streakDays ?? 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -28,9 +28,9 @@ export default async function KnowledgePage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Progress Widget */}
+        {/* Progress Widget — live data from API */}
         <section className="mb-8">
-          <ProgressWidget {...stats} />
+          <ProgressWidgetLive />
         </section>
 
         {/* Sections Grid */}
@@ -57,13 +57,13 @@ export default async function KnowledgePage() {
                   Flashcards with spaced repetition. Auto-extracted from your book notes + curated vocabulary.
                 </p>
                 <div className="flex items-center gap-4 mt-4 text-sm text-slate-500">
-                  <span>{stats.dueCount} due today</span>
+                  <span>{dueCount} due today</span>
                   <span>·</span>
-                  <span>{stats.newCount} new cards</span>
+                  <span>{newCount} new cards</span>
                   <span>·</span>
                   <span className="flex items-center gap-1">
                     <Sparkles className="w-4 h-4 text-orange-400" />
-                    {stats.streakDays} day streak
+                    {streakDays} day streak
                   </span>
                 </div>
               </div>
@@ -103,8 +103,8 @@ export default async function KnowledgePage() {
             <div>
               <h3 className="font-semibold text-blue-800">How it works</h3>
               <p className="text-blue-700 text-sm mt-1">
-                Your Spanish flashcards come from two sources: (1) vocabulary automatically extracted 
-                from your book notes in Notion, and (2) a curated A2.1+ vocabulary deck. The spaced 
+                Your Spanish flashcards come from two sources: (1) vocabulary automatically extracted
+                from your book notes in Notion, and (2) a curated A2.1+ vocabulary deck. The spaced
                 repetition system shows you cards at optimal intervals to maximize retention.
               </p>
             </div>

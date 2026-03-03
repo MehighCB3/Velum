@@ -2,24 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { isCardDue } from '@/lib/flashcards/sm2';
+import { cache, CACHE_KEYS } from '@/lib/flashcards/cache';
+
+export const dynamic = 'force-dynamic';
 
 const CARDS_PATH = join(process.cwd(), 'data', 'spanish', 'cards.json');
 const STATS_PATH = join(process.cwd(), 'data', 'spanish', 'stats-daily.json');
 
 async function loadCards() {
+  const cached = cache.get<any[]>(CACHE_KEYS.CARDS);
+  if (cached) return cached;
+
   try {
     const data = await readFile(CARDS_PATH, 'utf-8');
     const json = JSON.parse(data);
-    return json.cards || [];
+    const cards = json.cards || [];
+    cache.set(CACHE_KEYS.CARDS, cards);
+    return cards;
   } catch {
     return [];
   }
 }
 
 async function loadStats() {
+  const cached = cache.get<any[]>(CACHE_KEYS.STATS);
+  if (cached) return cached;
+
   try {
     const data = await readFile(STATS_PATH, 'utf-8');
-    return JSON.parse(data);
+    const stats = JSON.parse(data);
+    cache.set(CACHE_KEYS.STATS, stats);
+    return stats;
   } catch {
     return [];
   }
@@ -63,16 +76,23 @@ export async function GET(request: NextRequest) {
     );
     const weeklyTotal = weeklyStats.reduce((sum: number, s: any) => sum + s.cardsStudied, 0);
 
-    return NextResponse.json({
-      totalCards,
-      newCards,
-      dueCards,
-      studiedToday,
-      streakDays,
-      weeklyTotal,
-      todayStats,
-      recentStats: sortedStats.slice(0, 7),
-    });
+    return NextResponse.json(
+      {
+        totalCards,
+        newCards,
+        dueCards,
+        studiedToday,
+        streakDays,
+        weeklyTotal,
+        todayStats,
+        recentStats: sortedStats.slice(0, 7),
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
+        },
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to load stats' },

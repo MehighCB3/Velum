@@ -3,15 +3,22 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Flashcard, ReviewLog } from '@/lib/flashcards/types';
 import { calculateNextReview, QualityRating } from '@/lib/flashcards/sm2';
+import { cache, CACHE_KEYS } from '@/lib/flashcards/cache';
 
 const DATA_PATH = join(process.cwd(), 'data', 'spanish', 'cards.json');
 const STATS_PATH = join(process.cwd(), 'data', 'spanish', 'stats-daily.json');
 
 async function loadCards(): Promise<Flashcard[]> {
+  // Check memory cache first
+  const cached = cache.get<Flashcard[]>(CACHE_KEYS.CARDS);
+  if (cached) return cached;
+
   try {
     const data = await readFile(DATA_PATH, 'utf-8');
     const json = JSON.parse(data);
-    return json.cards || [];
+    const cards = json.cards || [];
+    cache.set(CACHE_KEYS.CARDS, cards);
+    return cards;
   } catch {
     return [];
   }
@@ -22,12 +29,19 @@ async function saveCards(cards: Flashcard[]) {
   const json = JSON.parse(data);
   json.cards = cards;
   await writeFile(DATA_PATH, JSON.stringify(json, null, 2));
+  // Update cache immediately so next read is instant
+  cache.set(CACHE_KEYS.CARDS, cards);
 }
 
 async function loadStats(): Promise<Array<{ date: string; cardsStudied: number; correctAnswers: number }>> {
+  const cached = cache.get<Array<{ date: string; cardsStudied: number; correctAnswers: number }>>(CACHE_KEYS.STATS);
+  if (cached) return cached;
+
   try {
     const data = await readFile(STATS_PATH, 'utf-8');
-    return JSON.parse(data);
+    const stats = JSON.parse(data);
+    cache.set(CACHE_KEYS.STATS, stats);
+    return stats;
   } catch {
     return [];
   }
@@ -35,6 +49,7 @@ async function loadStats(): Promise<Array<{ date: string; cardsStudied: number; 
 
 async function saveStats(stats: Array<{ date: string; cardsStudied: number; correctAnswers: number }>) {
   await writeFile(STATS_PATH, JSON.stringify(stats, null, 2));
+  cache.set(CACHE_KEYS.STATS, stats);
 }
 
 // GET /api/flashcards - Get cards due for review
@@ -66,12 +81,19 @@ export async function GET(request: NextRequest) {
       return a.dueDate.localeCompare(b.dueDate);
     });
 
-    return NextResponse.json({
-      cards: filteredCards.slice(0, limit),
-      total: cards.length,
-      dueCount: cards.filter(c => !c.dueDate || c.dueDate <= today).length,
-      newCount: cards.filter(c => c.repetitions === 0).length,
-    });
+    return NextResponse.json(
+      {
+        cards: filteredCards.slice(0, limit),
+        total: cards.length,
+        dueCount: cards.filter(c => !c.dueDate || c.dueDate <= today).length,
+        newCount: cards.filter(c => c.repetitions === 0).length,
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
+        },
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to load cards' },
@@ -128,7 +150,7 @@ export async function POST(request: NextRequest) {
     };
     card.reviewHistory = [...(card.reviewHistory || []), reviewLog];
 
-    // Save updated cards
+    // Save updated cards (also updates cache)
     cards[cardIndex] = card;
     await saveCards(cards);
 
