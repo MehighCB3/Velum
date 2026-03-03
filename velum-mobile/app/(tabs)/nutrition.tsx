@@ -248,7 +248,7 @@ const detailStyles = StyleSheet.create({
 
 // ==================== 30-DAY CALENDAR VIEW ====================
 
-function ThirtyDayView() {
+function ThirtyDayView({ onSelectDate }: { onSelectDate?: (date: string) => void }) {
   const [days, setDays] = useState<NutritionDay[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -337,7 +337,11 @@ function ThirtyDayView() {
             const dateObj = new Date(day.date + 'T12:00:00');
 
             return (
-              <View key={day.date} style={[calStyles.circleWrapper, { width: circleSize }]}>
+              <Pressable
+                key={day.date}
+                style={[calStyles.circleWrapper, { width: circleSize }]}
+                onPress={() => onSelectDate?.(day.date)}
+              >
                 <View style={[calStyles.circle, {
                   width: circleSize - 8, height: circleSize - 8,
                   borderRadius: (circleSize - 8) / 2,
@@ -358,7 +362,7 @@ function ThirtyDayView() {
                     }]} />
                   </View>
                 )}
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -739,8 +743,9 @@ const scanStyles = StyleSheet.create({
 // ==================== MAIN SCREEN ====================
 
 export default function NutritionScreen() {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const { data, loading, refresh, addEntry, deleteEntry } = useNutrition(today);
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const { data, loading, refresh, addEntry, deleteEntry } = useNutrition(selectedDate);
   const { insights: nutritionAgentInsights } = useInsights('nutrition');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('today');
@@ -749,6 +754,11 @@ export default function NutritionScreen() {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanPhotoUri, setScanPhotoUri] = useState<string | null>(null);
+
+  const handleSelectDate = useCallback((date: string) => {
+    setSelectedDate(date);
+    setActiveTab('today');
+  }, []);
 
   const handleScanFood = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -864,12 +874,58 @@ export default function NutritionScreen() {
       <View style={styles.headerRow}>
         <ScreenTitle title="Nutrition" marginBottom={0} />
         <SegmentedControl
-          tabs={[{ key: 'today', label: 'Today' }, { key: 'week', label: 'Week' }]}
+          tabs={[{ key: 'today', label: 'Day' }, { key: 'week', label: '30 Days' }]}
           activeTab={activeTab}
           onTabChange={(key) => setActiveTab(key as Tab)}
           style={{ alignSelf: 'flex-end', marginTop: 12, marginBottom: 4 }}
         />
       </View>
+
+      {/* Date navigator for day view */}
+      {activeTab === 'today' && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Pressable
+            onPress={() => {
+              const d = new Date(selectedDate + 'T12:00:00');
+              d.setDate(d.getDate() - 1);
+              setSelectedDate(format(d, 'yyyy-MM-dd'));
+            }}
+            style={{ width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.textLight} />
+          </Pressable>
+          <Pressable
+            onPress={() => setSelectedDate(todayStr)}
+            style={{
+              paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8,
+              backgroundColor: selectedDate === todayStr ? colors.dark : 'transparent',
+              borderWidth: 1, borderColor: selectedDate === todayStr ? colors.dark : colors.border,
+            }}
+          >
+            <Text style={{
+              fontSize: 13, fontWeight: '600',
+              color: selectedDate === todayStr ? colors.darkText : colors.textLight,
+            }}>
+              {selectedDate === todayStr ? 'Today' : format(new Date(selectedDate + 'T12:00:00'), 'EEE, MMM d')}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (selectedDate >= todayStr) return;
+              const d = new Date(selectedDate + 'T12:00:00');
+              d.setDate(d.getDate() + 1);
+              setSelectedDate(format(d, 'yyyy-MM-dd'));
+            }}
+            style={{
+              width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: colors.border,
+              alignItems: 'center', justifyContent: 'center',
+              opacity: selectedDate >= todayStr ? 0.3 : 1,
+            }}
+          >
+            <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
+          </Pressable>
+        </View>
+      )}
 
       <ScrollView
         style={styles.scroll}
@@ -981,7 +1037,7 @@ export default function NutritionScreen() {
             </Pressable>
           </>
         ) : (
-          <ThirtyDayView />
+          <ThirtyDayView onSelectDate={handleSelectDate} />
         )}
 
         <View style={{ height: 100 }} />

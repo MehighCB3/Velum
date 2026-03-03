@@ -309,9 +309,57 @@ function generateLocalResponse(message: string, context?: string, logResult?: Lo
 
 // ── POST handler ──
 
+// ── Streaming helper ──
+// Sends a full response word-by-word as SSE for perceived instant feedback
+
+function createStreamResponse(
+  fullText: string,
+  source: string,
+  logResult: LogResult | null,
+  memoriesSaved?: number,
+): Response {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Immediately send typing status
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'typing' })}\n\n`))
+
+      // Split into words and stream in small chunks
+      const words = fullText.split(/(\s+)/)
+      let sent = ''
+      const CHUNK_SIZE = 3
+      for (let i = 0; i < words.length; i += CHUNK_SIZE) {
+        const chunk = words.slice(i, i + CHUNK_SIZE).join('')
+        sent += chunk
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', text: chunk, fullText: sent })}\n\n`))
+        await new Promise(r => setTimeout(r, 20))
+      }
+
+      // Send done event with metadata
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+        type: 'done',
+        content: fullText,
+        source,
+        ...(logResult && { logged: logResult }),
+        ...(memoriesSaved && { memoriesSaved }),
+      })}\n\n`))
+      controller.close()
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { message, context, agent: requestedAgent } = await request.json()
+    const body = await request.json()
+    const { message, context, agent: requestedAgent, stream: useStream } = body
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
@@ -351,6 +399,10 @@ export async function POST(request: NextRequest) {
 
       // Relay to Telegram even for local responses
       relayToTelegram(message, localContent).catch(() => {})
+
+      if (useStream) {
+        return createStreamResponse(localContent, 'local', logResult)
+      }
 
       return NextResponse.json({
         content: localContent,
@@ -406,6 +458,11 @@ export async function POST(request: NextRequest) {
         })
 
         relayToTelegram(message, fallback).catch(() => {})
+
+        if (useStream) {
+          return createStreamResponse(fallback, 'local_fallback', logResult)
+        }
+
         return NextResponse.json({
           content: fallback,
           source: 'local_fallback',
@@ -464,6 +521,10 @@ export async function POST(request: NextRequest) {
 
       console.log(`[coach/chat] Gateway responded in ${responseTimeMs}ms`)
 
+      if (useStream) {
+        return createStreamResponse(cleaned, 'gateway', logResult, memories.length > 0 ? memories.length : undefined)
+      }
+
       return NextResponse.json({
         content: cleaned,
         source: 'gateway',
@@ -484,6 +545,11 @@ export async function POST(request: NextRequest) {
       })
 
       relayToTelegram(message, fallback).catch(() => {})
+
+      if (useStream) {
+        return createStreamResponse(fallback, 'local_fallback', logResult)
+      }
+
       return NextResponse.json({
         content: fallback,
         source: 'local_fallback',

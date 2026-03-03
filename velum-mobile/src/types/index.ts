@@ -311,3 +311,20 @@ export interface PendingChange {
   params?: Record<string, string>;
   createdAt: string;
 }
+
+// ==================== CHAT / COACH ====================
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  id?: string;
+  timestamp?: string;
+  source?: string;
+}
+
+export interface ChatResponse {
+  content: string;
+  source: string;
+  memoriesSaved?: number;
+  logged?: { type: 'fitness' | 'budget'; summary: string };
+}

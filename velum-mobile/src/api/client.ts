@@ -377,6 +377,65 @@ export const coachApi = {
       body: JSON.stringify({ message, ...opts }),
     });
   },
+
+  /** Send a message with streaming callbacks for real-time response display. */
+  async sendMessageStreaming(
+    message: string,
+    callbacks: {
+      onTyping?: () => void;
+      onChunk?: (chunk: string, fullText: string) => void;
+      onDone?: (response: ChatResponse) => void;
+      onError?: (error: Error) => void;
+    },
+    opts?: { context?: string; agent?: string },
+  ): Promise<void> {
+    const url = `${API_BASE}/api/coach/chat`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, stream: true, ...opts }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API ${res.status}: ${await res.text()}`);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('text/event-stream') || !res.body) {
+        // Fallback to non-streaming
+        const data: ChatResponse = await res.json();
+        callbacks.onDone?.(data);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === 'typing') callbacks.onTyping?.();
+            else if (event.type === 'chunk') callbacks.onChunk?.(event.text, event.fullText);
+            else if (event.type === 'done') callbacks.onDone?.(event as ChatResponse);
+          } catch {
+            // Skip malformed SSE events
+          }
+        }
+      }
+    } catch (err) {
+      callbacks.onError?.(err instanceof Error ? err : new Error(String(err)));
+    }
+  },
 };
 
 // ==================== AVATAR ====================
